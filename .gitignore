@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.wrangler/
+*.tsbuildinfo
+.DS_Store
+.dev.vars
+.env
+.env.*
+
+# Local handoff notes (not tracked)
+HANDOFF.md

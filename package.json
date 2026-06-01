@@ -1,0 +1,19 @@
+{
+  "name": "tablo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "prepare": "effect-language-service patch"
+  },
+  "dependencies": {
+    "effect": "^4.0.0-beta.74"
+  },
+  "devDependencies": {
+    "@effect/language-service": "^0.86.2",
+    "typescript": "^6.0.3"
+  }
+}

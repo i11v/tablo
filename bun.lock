@@ -5,6 +5,7 @@
     "": {
       "name": "tablo",
       "dependencies": {
+        "@app/contract": "workspace:*",
         "@effect/platform-node": "4.0.0-beta.78",
         "alchemy": "2.0.0-beta.52",
         "effect": "4.0.0-beta.78",

@@ -15,6 +15,19 @@ export { ClientSession, GolemioGateway }
 
 const VERSION = "0.1.0"
 
+// Local dev server port. Defaults to Alchemy's 1337 so `bun alchemy dev` keeps
+// its usual behaviour. The integration suite sets TABLO_DEV_PORT to a dedicated
+// port (with strictPort) so it can run an isolated stack without ever colliding
+// with a developer's own `bun alchemy dev` on 1337.
+const DEV_PORT_OVERRIDE =
+  typeof process !== "undefined" && process.env?.TABLO_DEV_PORT
+    ? Number(process.env.TABLO_DEV_PORT)
+    : undefined
+const devOptions =
+  DEV_PORT_OVERRIDE === undefined
+    ? undefined
+    : { port: DEV_PORT_OVERRIDE, strictPort: true }
+
 const systemHandlers = HttpApiBuilder.group(Api, "system", (handlers) =>
   handlers.handle("health", () => Effect.succeed({ ok: true, version: VERSION })),
 )
@@ -37,6 +50,7 @@ export default class Server extends Cloudflare.Worker<Server>()(
       runWorkerFirst: ["/api/*"],
     },
     url: true,
+    ...(devOptions ? { dev: devOptions } : {}),
   },
   Effect.gen(function* () {
     const sessions = yield* ClientSession

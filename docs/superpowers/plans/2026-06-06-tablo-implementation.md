@@ -1,7 +1,5 @@
 # tablo — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Build and deploy `tablo` — a personal Prague departures SPA: live ticking countdowns for user-selected PID stops, served by a single Cloudflare Worker (SPA assets + `/api/*` + WebSocket) with two Durable Objects, all backend logic in Effect v4.
 
 **Architecture:** Browser ⇄ WS ⇄ `ClientSession` DO (per browser session, alarm-polls every 15 s) → typed RPC → singleton `GolemioGateway` DO (owns the API token, Effect RateLimiter 20 req/8 s, 5 s coalescing cache, stale fallback) → Golemio `GET /v2/pid/departureboards` with `aswIds[]`. Stop search is fully client-side over a GTFS-derived index grouped by (ASW node, name). Infra + worker authoring via Alchemy 2.0 ("Infrastructure-as-Effects").

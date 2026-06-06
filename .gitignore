@@ -9,3 +9,7 @@ dist/
 
 # Local handoff notes (not tracked)
 HANDOFF.md
+
+.alchemy/
+packages/web/dist/
+packages/web/public/data/

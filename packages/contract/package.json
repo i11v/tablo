@@ -1,0 +1,7 @@
+{
+  "name": "@app/contract",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "effect": "4.0.0-beta.78" }
+}

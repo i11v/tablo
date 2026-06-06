@@ -1,0 +1,17 @@
+{
+  "name": "@app/web",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "vite build", "dev": "vite dev" },
+  "dependencies": {
+    "@app/contract": "workspace:*",
+    "effect": "4.0.0-beta.78",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.0.2"
+  }
+}

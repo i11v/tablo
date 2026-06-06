@@ -40,9 +40,17 @@ export class ClientSession extends Cloudflare.DurableObjectNamespace<ClientSessi
           yield* state.storage.deleteAlarm()
           return
         }
-        const result = yield* gateway.getByName("singleton").getBoards(selectors)
-        yield* broadcast({ _tag: "DeparturesUpdate", ...result })
+        // Arm first: guarantee the next tick before the (RPC-stub-)fallible
+        // work, so a failed RPC/broadcast can't freeze this session's updates.
         yield* state.storage.setAlarm(Date.now() + POLL_MS)
+        yield* Effect.gen(function* () {
+          const result = yield* gateway.getByName("singleton").getBoards(selectors)
+          yield* broadcast({ _tag: "DeparturesUpdate", ...result })
+        }).pipe(
+          // Broad catch (typed failures AND defects, e.g. RpcCallError): a
+          // failed tick must not bubble — the alarm is already armed to retry.
+          Effect.catchCause(() => Effect.void),
+        )
       })
 
       return {

@@ -39,6 +39,34 @@ describe("toBoards", () => {
     expect(boards[1].departures.map((d) => d.route)).toEqual(["9", "B"])
   })
 
+  it("drops departures with an unparseable effective timestamp", () => {
+    // A garbage timestamp would yield NaN from the sort comparator and
+    // scramble board ordering; toDeparture must drop it like a null one.
+    const garbage = Schema.decodeUnknownSync(PidBoardResponse)({
+      stops: [
+        { stop_id: "U1040Z1P", stop_name: "Anděl", asw_id: { node: 1040, stop: 1 } },
+      ],
+      departures: [
+        {
+          departure_timestamp: { predicted: null, scheduled: "2026-06-06T12:04:00.000Z" },
+          delay: { is_available: false, minutes: null, seconds: null },
+          route: { short_name: "OK", type: 0, is_night: false },
+          trip: { headsign: "Good", id: "g1", is_canceled: false, is_at_stop: false },
+          stop: { id: "U1040Z1P", platform_code: null },
+        },
+        {
+          departure_timestamp: { predicted: "not-a-date", scheduled: "also-garbage" },
+          delay: { is_available: false, minutes: null, seconds: null },
+          route: { short_name: "G", type: 0, is_night: false },
+          trip: { headsign: "Garbage", id: "g2", is_canceled: false, is_at_stop: false },
+          stop: { id: "U1040Z1P", platform_code: null },
+        },
+      ],
+    })
+    const [board] = toBoards([{ node: 1040, stops: null }], garbage)
+    expect(board.departures.map((d) => d.route)).toEqual(["OK"])
+  })
+
   it("respects platform scoping", () => {
     const boards = toBoards([{ node: 81, stops: [99] }], data)
     expect(boards[0].departures).toHaveLength(0)

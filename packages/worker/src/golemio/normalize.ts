@@ -16,6 +16,10 @@ export const routeTypeToKind = (type: number | null): VehicleKind => {
 const toDeparture = (d: PidDeparture): Departure | null => {
   const scheduled = d.departure_timestamp.scheduled ?? d.departure_timestamp.predicted
   if (scheduled === null) return null
+  // Drop unparseable timestamps: a NaN from the sort comparator
+  // (predicted ?? scheduled) would otherwise scramble board ordering.
+  const effective = d.departure_timestamp.predicted ?? scheduled
+  if (!Number.isFinite(Date.parse(effective))) return null
   const delaySeconds = d.delay.is_available
     ? d.delay.seconds ?? (d.delay.minutes === null ? null : d.delay.minutes * 60)
     : null

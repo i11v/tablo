@@ -35,11 +35,12 @@ export const pushRecent = (node: number): void => {
   localStorage.setItem(RECENTS_KEY, JSON.stringify(next))
 }
 
+/** Per-tab so each tab gets its own ClientSession DO; sessionStorage survives reloads but not new tabs. */
 export const sessionId = (): string => {
-  let id = localStorage.getItem(SESSION_KEY)
+  let id = sessionStorage.getItem(SESSION_KEY)
   if (id === null) {
     id = crypto.randomUUID()
-    localStorage.setItem(SESSION_KEY, id)
+    sessionStorage.setItem(SESSION_KEY, id)
   }
   return id
 }

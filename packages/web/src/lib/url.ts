@@ -21,8 +21,10 @@ export const decodeSelection = (raw: string): Array<Selection> => {
   if (raw === "") return []
   const out: Array<Selection> = []
   for (const part of raw.split(";")) {
-    const [head, encName] = part.split("~")
-    if (head === undefined || encName === undefined) continue
+    const tilde = part.indexOf("~")
+    if (tilde === -1) continue
+    const head = part.slice(0, tilde)
+    const encName = part.slice(tilde + 1)
     const nums = head.split("_")
     if (nums.some((n) => !/^\d+$/.test(n))) continue
     let name: string

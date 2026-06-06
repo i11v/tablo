@@ -11,6 +11,12 @@ describe("selection URL codec", () => {
     expect(s).toBe("1040~And%C4%9Bl;81_1_2~D%C4%9Blnick%C3%A1")
     expect(decodeSelection(s)).toEqual(sel)
   })
+  it("round-trips names containing '~'", () => {
+    const sel = [{ selector: { node: 7, stops: null }, name: "Foo~Bar" }]
+    const s = encodeSelection(sel)
+    expect(s).toBe("7~Foo~Bar")
+    expect(decodeSelection(s)).toEqual(sel)
+  })
   it("tolerates junk", () => {
     expect(decodeSelection("")).toEqual([])
     expect(decodeSelection("garbage;;%%%")).toEqual([])

@@ -1,0 +1,31 @@
+:root { color-scheme: dark; font-family: system-ui, sans-serif; }
+body { margin: 0; background: #101418; color: #e6edf3; }
+main { max-width: 720px; margin: 0 auto; padding: 1rem; }
+header { display: flex; align-items: center; gap: .6rem; }
+h1 { font-size: 1.3rem; margin: .2rem 0; }
+.status { width: .7rem; height: .7rem; border-radius: 50%; display: inline-block; }
+.status-live { background: #3fb950; }
+.status-degraded { background: #d29922; }
+.status-connecting, .status-reconnecting { background: #f85149; animation: pulse 1s infinite alternate; }
+@keyframes pulse { to { opacity: .4; } }
+.search { position: relative; margin: .8rem 0; }
+.search input { width: 100%; box-sizing: border-box; padding: .6rem .8rem; font-size: 1rem;
+  background: #161b22; color: inherit; border: 1px solid #30363d; border-radius: 8px; }
+.results { position: absolute; z-index: 2; left: 0; right: 0; margin: .2rem 0 0; padding: 0;
+  list-style: none; background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
+.results button { width: 100%; text-align: left; padding: .55rem .8rem; background: none;
+  border: 0; color: inherit; font-size: 1rem; cursor: pointer; }
+.results button:hover { background: #1f2630; }
+.results small { color: #8b949e; margin-left: .4rem; }
+.boards { display: grid; gap: 1rem; }
+.board { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: .8rem 1rem; }
+.board h2 { display: flex; justify-content: space-between; font-size: 1.05rem; margin: 0 0 .5rem; }
+.board ul { list-style: none; margin: 0; padding: 0; }
+.board li { display: grid; grid-template-columns: 5rem 1fr auto; gap: .6rem;
+  padding: .3rem 0; border-top: 1px solid #21262d; font-variant-numeric: tabular-nums; }
+.board li.imminent .eta { color: #3fb950; font-weight: 700; }
+.route { font-weight: 700; }
+.headsign { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c9d1d9; }
+.remove { background: none; border: 0; color: #8b949e; font-size: 1.1rem; cursor: pointer; }
+.muted { color: #8b949e; }
+.error { color: #f85149; }

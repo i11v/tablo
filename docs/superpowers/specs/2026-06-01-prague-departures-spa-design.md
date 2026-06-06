@@ -314,3 +314,49 @@ the `GOLEMIO_API_TOKEN` secret. One deploy artifact, one command.
 - Cross-client upstream dedup: swap the `RateLimiter` store from memory to a
   distributed store, and/or evolve `GolemioGateway` into a per-stop poller.
 - Per-direction / per-mode filtering on a stop's board (pure client-side).
+
+---
+
+## Addendum — planning-phase findings (2026-06-06)
+
+Facts verified while writing the implementation plan. **These supersede the
+matching statements above** (the plan in `docs/superpowers/plans/` follows the
+addendum, not the superseded lines).
+
+1. **Schema module location (§7):** in `effect@4.0.0-beta.74…78` the core
+   `Schema` module is **top-level** (`import { Schema } from "effect"`);
+   `effect/unstable/schema` holds only `Model`/`VariantSchema`. The §7 line
+   "Schema → `effect/unstable/schema`" is wrong.
+2. **Effect pinned to `4.0.0-beta.78`** — the floor of Alchemy 2.0's peer range.
+3. **Alchemy (§11, §4.2):** user selected **`alchemy@2.0.0-beta.52`**
+   ("Infrastructure-as-Effects", docs at v2.alchemy.run) on 2026-06-06. The
+   Worker and both DOs are authored *through* Alchemy's Effect framework
+   (`Cloudflare.Worker()()`, `Cloudflare.DurableObjectNamespace()()` with
+   two-phase `.make()` implementations). This supersedes the
+   `toWebHandler`/`ManagedRuntime` wiring in §4.2/§7: REST mounts via
+   `HttpApiBuilder.layer(api)` + `HttpRouter.toHttpEffect` directly into the
+   Worker's `fetch` Effect; Alchemy's bridge owns the runtime. Note: only
+   `getByName` DO stubs are wired in this beta (we use named stubs everywhere:
+   session id / `"singleton"`).
+4. **Departures endpoint (§2, §4.4–4.5):** `/v2/public/departureboards` has a
+   different contract with **no ASW selectors** (JSON-group `stopIds` of GTFS
+   ids, ≤50 stops, `minutesAfter` ≤360, per-group limit ≤30) — incompatible
+   with the ASW-node index design. v1 uses **`GET /v2/pid/departureboards`
+   with `aswIds[]`** (node `85` or node_stop `85_1`; ≤100 stops; `limit`
+   ≤1000). The gateway's ~5s coalescing cache replaces the public variant's
+   caching advantage.
+5. **GTFS (§5.1–5.2):** `stops.txt` has `asw_node_id`/`asw_stop_id` columns
+   (verified: 18,979 rows; 7,927 distinct nodes; 1,070 ASW-less rows are
+   rail/technical waypoints — excluded). **463 nodes carry >1 distinct stop
+   name** (e.g. node 81 = Dělnická + Tusarova), so index entries are per
+   **(node, name)** pair with an optional explicit platform list; the stop
+   selector is `{ node, stops: number[] | null }` (`null` = whole node).
+6. **WS protocol (§4.1):** `Degraded` folded into
+   `DeparturesUpdate { degraded, reason }`; `ServerError` kept for
+   protocol-level errors.
+7. **Testing (§9):** `@cloudflare/vitest-pool-workers` is incompatible with
+   Alchemy-authored workers; replaced by Alchemy's integration harness
+   (`alchemy/Test/Vitest`, local workerd via `dev: true`) plus
+   `@effect/vitest@4.0.0-beta.78` for unit tests.
+8. **HttpClient (§4.5):** the decode helper in beta.78 is
+   `HttpClientResponse.schemaJson` (v3's `schemaBodyJson` no longer exists).

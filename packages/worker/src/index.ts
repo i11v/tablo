@@ -1,41 +1,28 @@
 /// <reference types="node" />
 import * as Cloudflare from "alchemy/Cloudflare"
-import { Config, Effect, Redacted } from "effect"
+import { Effect, Layer } from "effect"
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest"
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse"
+import * as HttpRouter from "effect/unstable/http/HttpRouter"
+import * as HttpPlatform from "effect/unstable/http/HttpPlatform"
+import * as Etag from "effect/unstable/http/Etag"
+import { HttpApiBuilder } from "effect/unstable/httpapi"
+import { Api } from "@app/contract"
+import { ClientSession } from "./do/session.ts"
+import { GolemioGateway } from "./do/gateway.ts"
 
-export class ClientSession extends Cloudflare.DurableObjectNamespace<ClientSession>()(
-  "ClientSession",
-  Effect.gen(function* () {
-    // outer init — nothing shared yet
-    return Effect.gen(function* () {
-      const state = yield* Cloudflare.DurableObjectState
-      return {
-        ping: () =>
-          Effect.gen(function* () {
-            const n = ((yield* state.storage.get<number>("n")) ?? 0) + 1
-            yield* state.storage.put("n", n)
-            return `pong ${n}`
-          }),
-      }
-    })
-  }),
-) {}
+export { ClientSession, GolemioGateway }
 
-export class GolemioGateway extends Cloudflare.DurableObjectNamespace<GolemioGateway>()(
-  "GolemioGateway",
-  Effect.gen(function* () {
-    // `Config.redacted` registers the secret binding at deploy and resolves it
-    // at cold start; `orDie` discharges the `ConfigError` the DO init phase
-    // forbids (the namespace `make` requires a `never` error channel).
-    const token = yield* Config.redacted("GOLEMIO_API_TOKEN").pipe(Effect.orDie)
-    return Effect.gen(function* () {
-      return {
-        tokenPresent: () => Effect.succeed(Redacted.value(token).length > 0),
-      }
-    })
-  }),
-) {}
+const VERSION = "0.1.0"
+
+const systemHandlers = HttpApiBuilder.group(Api, "system", (handlers) =>
+  handlers.handle("health", () => Effect.succeed({ ok: true, version: VERSION })),
+)
+
+const apiLayer = HttpApiBuilder.layer(Api).pipe(
+  Layer.provide(systemHandlers),
+  Layer.provide([HttpPlatform.layer, Etag.layer]),
+)
 
 export default class Server extends Cloudflare.Worker<Server>()(
   "Server",
@@ -53,21 +40,22 @@ export default class Server extends Cloudflare.Worker<Server>()(
   },
   Effect.gen(function* () {
     const sessions = yield* ClientSession
-    const gateway = yield* GolemioGateway
+    yield* GolemioGateway // bind the namespace even though only ClientSession calls it
+    const apiHandler = yield* HttpRouter.toHttpEffect(apiLayer)
+
     return {
       fetch: Effect.gen(function* () {
         const req = yield* HttpServerRequest.HttpServerRequest
         const url = new URL(req.url, "http://local")
-        if (url.pathname === "/api/health") {
-          return HttpServerResponse.jsonUnsafe({ ok: true })
+        if (url.pathname === "/api/ws") {
+          const session = url.searchParams.get("session")
+          if (session === null || session.length === 0 || session.length > 100) {
+            return HttpServerResponse.text("missing session id", { status: 400 })
+          }
+          return yield* sessions.getByName(session).fetch(req)
         }
-        if (url.pathname === "/api/do-ping") {
-          const msg = yield* sessions.getByName("skeleton").ping()
-          return HttpServerResponse.text(msg)
-        }
-        if (url.pathname === "/api/token-check") {
-          const present = yield* gateway.getByName("singleton").tokenPresent()
-          return HttpServerResponse.jsonUnsafe({ present })
+        if (url.pathname.startsWith("/api/")) {
+          return yield* apiHandler
         }
         // Non-/api routes: delegate to the ASSETS binding. In production the
         // assets router serves these before they ever reach the worker; this

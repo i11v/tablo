@@ -5,7 +5,7 @@ import { rank } from "../src/lib/ranker.ts"
 
 const entry = (name: string, node: number): StopIndexEntry => ({
   name, norm: name.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase(),
-  node, stops: null, lat: 50, lon: 14, zone: "P", modes: [], disambig: null,
+  node, stops: null, lat: 50, lon: 14, zone: "P", modes: [], disambig: null, platforms: [],
 })
 
 const index = [

@@ -23,6 +23,7 @@ export const buildIndex = (rows: string[][], generatedAt: string): StopIndexV1 =
   const iLoc = need("location_type")
   const iNode = need("asw_node_id")
   const iStop = need("asw_stop_id")
+  const iPlat = need("platform_code")
 
   interface Group {
     name: string
@@ -31,6 +32,7 @@ export const buildIndex = (rows: string[][], generatedAt: string): StopIndexV1 =
     lats: number[]
     lons: number[]
     zones: string[]
+    plats: Map<number, string> // asw_stop_id -> trimmed platform_code
   }
   const groups = new Map<string, Group>()
   const namesPerNode = new Map<number, Set<string>>()
@@ -43,10 +45,14 @@ export const buildIndex = (rows: string[][], generatedAt: string): StopIndexV1 =
     const key = node + "|" + name
     let g = groups.get(key)
     if (g === undefined) {
-      g = { name, node, stops: new Set(), lats: [], lons: [], zones: [] }
+      g = { name, node, stops: new Set(), lats: [], lons: [], zones: [], plats: new Map() }
       groups.set(key, g)
     }
-    if (r[iStop] !== "") g.stops.add(Number(r[iStop]))
+    if (r[iStop] !== "") {
+      const stop = Number(r[iStop])
+      g.stops.add(stop)
+      g.plats.set(stop, r[iPlat].trim())
+    }
     g.lats.push(Number(r[iLat]))
     g.lons.push(Number(r[iLon]))
     if (r[iZone] !== "") g.zones.push(r[iZone])
@@ -78,6 +84,7 @@ export const buildIndex = (rows: string[][], generatedAt: string): StopIndexV1 =
     zone: string | null
     modes: VehicleKind[]
     disambig: string | null
+    platforms: { code: string; stop: number }[]
   }
 
   const entries: MutableEntry[] = [...groups.values()].map((g) => ({
@@ -90,6 +97,10 @@ export const buildIndex = (rows: string[][], generatedAt: string): StopIndexV1 =
     zone: mode(g.zones),
     modes: [],
     disambig: null,
+    platforms: [...g.plats.entries()]
+      .filter(([, code]) => code !== "")
+      .map(([stop, code]) => ({ code, stop }))
+      .sort((a, b) => a.code.localeCompare(b.code)),
   }))
 
   // disambiguate identical folded names across different nodes (zone is enough for v1)

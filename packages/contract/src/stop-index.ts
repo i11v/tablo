@@ -1,6 +1,12 @@
 import { Schema } from "effect"
 import { VehicleKind } from "./domain.ts"
 
+export const StopPlatform = Schema.Struct({
+  code: Schema.String,            // platform_code: "A".."H", "1", "2"
+  stop: Schema.Number,            // asw_stop_id — selector scope when picked alone
+})
+export type StopPlatform = typeof StopPlatform.Type
+
 export const StopIndexEntry = Schema.Struct({
   name: Schema.String,            // display: "Anděl"
   norm: Schema.String,            // fold(name), search field
@@ -11,6 +17,7 @@ export const StopIndexEntry = Schema.Struct({
   zone: Schema.NullOr(Schema.String),
   modes: Schema.Array(VehicleKind), // empty in v1, slot reserved
   disambig: Schema.NullOr(Schema.String),
+  platforms: Schema.Array(StopPlatform), // non-blank-code platforms of this stop
 })
 export type StopIndexEntry = typeof StopIndexEntry.Type
 

@@ -10,11 +10,11 @@ const row = (over: Record<string, string>): string[] =>
 
 const rows = [
   HEADER,
-  row({ stop_id: "U1040Z1P", stop_name: "Anděl", stop_lat: "50.0710", stop_lon: "14.4030", zone_id: "P", asw_node_id: "1040", asw_stop_id: "1" }),
-  row({ stop_id: "U1040Z2P", stop_name: "Anděl", stop_lat: "50.0712", stop_lon: "14.4032", zone_id: "P", asw_node_id: "1040", asw_stop_id: "2" }),
+  row({ stop_id: "U1040Z1P", stop_name: "Anděl", stop_lat: "50.0710", stop_lon: "14.4030", zone_id: "P", asw_node_id: "1040", asw_stop_id: "1", platform_code: "A" }),
+  row({ stop_id: "U1040Z2P", stop_name: "Anděl", stop_lat: "50.0712", stop_lon: "14.4032", zone_id: "P", asw_node_id: "1040", asw_stop_id: "2", platform_code: "B" }),
   // node 81 carries two distinct names -> platform-scoped entries
-  row({ stop_id: "U81Z1P", stop_name: "Dělnická", stop_lat: "50.10", stop_lon: "14.45", zone_id: "P", asw_node_id: "81", asw_stop_id: "1" }),
-  row({ stop_id: "U81Z2P", stop_name: "Tusarova", stop_lat: "50.11", stop_lon: "14.46", zone_id: "P", asw_node_id: "81", asw_stop_id: "2" }),
+  row({ stop_id: "U81Z1P", stop_name: "Dělnická", stop_lat: "50.10", stop_lon: "14.45", zone_id: "P", asw_node_id: "81", asw_stop_id: "1", platform_code: "A" }),
+  row({ stop_id: "U81Z2P", stop_name: "Tusarova", stop_lat: "50.11", stop_lon: "14.46", zone_id: "P", asw_node_id: "81", asw_stop_id: "2", platform_code: "B" }),
   // no ASW node -> excluded (rail/technical waypoint)
   row({ stop_id: "T53041", stop_name: "hr.VUSC 0200/0520 04" }),
   // non-platform location_type -> excluded
@@ -36,6 +36,7 @@ describe("buildIndex", () => {
     expect(andel!.lat).toBeCloseTo(50.0711, 4)
     expect(andel!.zone).toBe("P")
     expect(andel!.norm).toBe("andel")
+    expect(andel!.platforms).toEqual([{ code: "A", stop: 1 }, { code: "B", stop: 2 }])
   })
 
   it("splits multi-name nodes into platform-scoped entries", () => {
@@ -44,6 +45,7 @@ describe("buildIndex", () => {
     expect(delnicka!.stops).toEqual([1])
     expect(tusarova!.stops).toEqual([2])
     expect(delnicka!.node).toBe(81)
+    expect(delnicka!.platforms).toEqual([{ code: "A", stop: 1 }])
   })
 
   it("excludes ASW-less and non-platform rows", () => {
@@ -59,5 +61,19 @@ describe("buildIndex", () => {
     const both = withDupe.stops.filter((s) => s.norm === "andel")
     expect(both).toHaveLength(2)
     expect(both.every((s) => s.disambig !== null)).toBe(true)
+  })
+
+  it("excludes blank platform_code from platforms but keeps the stop in node scope", () => {
+    const idx = buildIndex(
+      [
+        HEADER,
+        row({ stop_id: "U70Z1", stop_name: "Xstop", asw_node_id: "70", asw_stop_id: "1", platform_code: "A" }),
+        row({ stop_id: "U70Z2", stop_name: "Xstop", asw_node_id: "70", asw_stop_id: "2", platform_code: " " }),
+      ],
+      "2026-06-06T00:00:00.000Z",
+    )
+    const x = idx.stops.find((s) => s.name === "Xstop")!
+    expect(x.platforms).toEqual([{ code: "A", stop: 1 }])
+    expect(x.stops).toBeNull() // single-name node: whole-node selector still covers stop 2
   })
 })

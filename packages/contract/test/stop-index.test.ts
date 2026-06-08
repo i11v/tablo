@@ -17,10 +17,14 @@ describe("StopIndex", () => {
       stops: [{
         name: "Anděl", norm: "andel", node: 1040, stops: null,
         lat: 50.07, lon: 14.4, zone: "P", modes: [], disambig: null,
+        platforms: [{ code: "A", stop: 1 }],
       }],
     }
     const dec = Schema.decodeUnknownSync(StopIndex)
     expect(dec(v1).version).toBe(1)
+    expect(dec(v1).stops[0].platforms).toEqual([{ code: "A", stop: 1 }])
     expect(() => dec({ ...v1, version: 2 })).toThrow()
+    const noPlatforms = { ...v1, stops: [{ ...v1.stops[0], platforms: undefined }] }
+    expect(() => dec(noPlatforms)).toThrow()
   })
 })

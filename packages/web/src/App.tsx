@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
-import { selectorKey, type StopIndexEntry } from "@app/contract"
+import { selectorKey } from "@app/contract"
 import { countdown } from "./lib/countdown.ts"
-import { searchStops } from "./lib/matcher.ts"
+import { searchStops, type Candidate } from "./lib/matcher.ts"
 import { rank } from "./lib/ranker.ts"
 import { loadRecents, loadSelection, pushRecent, saveSelection } from "./lib/storage.ts"
 import type { Selection } from "./lib/url.ts"
@@ -25,14 +25,14 @@ export const App = () => {
     if (index._tag !== "ready") return []
     const recents = loadRecents()
     const chosen = new Set(selection.map((s) => selectorKey(s.selector)))
-    const candidates =
+    const candidates: Array<Candidate> =
       query.trim() === ""
         ? index.stops // empty box surfaces recents (spec 5.3)
             .filter((e) => recents.includes(String(e.node)))
-            .map((entry) => ({ entry, score: 0 }))
+            .map((entry) => ({ entry, platform: null, stops: entry.stops, score: 0 }))
         : searchStops(index.stops, query)
     return rank(candidates, recents).filter(
-      (c) => !chosen.has(selectorKey({ node: c.entry.node, stops: c.entry.stops })),
+      (c) => !chosen.has(selectorKey({ node: c.entry.node, stops: c.stops })),
     )
   }, [index, query, selection])
 
@@ -41,9 +41,10 @@ export const App = () => {
     saveSelection(next)
   }
 
-  const add = (entry: StopIndexEntry): void => {
-    update([...selection, { selector: { node: entry.node, stops: entry.stops }, name: entry.name }])
-    pushRecent(entry.node)
+  const add = (c: Candidate): void => {
+    const name = c.platform === null ? c.entry.name : `${c.entry.name} ${c.platform}`
+    update([...selection, { selector: { node: c.entry.node, stops: c.stops }, name }])
+    pushRecent(c.entry.node)
     setQuery("")
   }
 
@@ -68,9 +69,18 @@ export const App = () => {
         {results.length > 0 && (
           <ul className="results">
             {results.map((c) => (
-              <li key={c.entry.node + ":" + c.entry.name}>
-                <button onClick={() => add(c.entry)}>
+              <li key={selectorKey({ node: c.entry.node, stops: c.stops })}>
+                <button onClick={() => add(c)}>
                   {c.entry.name}
+                  {c.platform !== null && <small className="platform"> · {c.platform}</small>}
+                  {c.platform === null && c.entry.platforms.length > 1 && (
+                    <small className="platforms">
+                      {" ("}
+                      {c.entry.platforms.slice(0, 4).map((p) => p.code).join(", ")}
+                      {c.entry.platforms.length > 4 ? "…" : ""}
+                      {")"}
+                    </small>
+                  )}
                   {c.entry.disambig !== null && <small> {c.entry.disambig}</small>}
                 </button>
               </li>

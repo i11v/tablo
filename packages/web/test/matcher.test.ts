@@ -17,6 +17,11 @@ const index = [
 ]
 
 describe("searchStops", () => {
+  const andelP: StopIndexEntry = {
+    ...entry("Anděl", 1040),
+    platforms: [{ code: "A", stop: 1 }, { code: "B", stop: 2 }],
+  }
+
   it("matches diacritics-insensitively", () => {
     const r = searchStops(index, "andel")
     expect(r[0].entry.name).toBe("Anděl")
@@ -29,6 +34,42 @@ describe("searchStops", () => {
   it("returns nothing for no match and empty query", () => {
     expect(searchStops(index, "xyzxyz")).toEqual([])
     expect(searchStops(index, "  ")).toEqual([])
+  })
+
+  it("expands a multi-platform stop into grouped + per-platform candidates", () => {
+    const r = searchStops([andelP], "andel")
+    expect(r[0].platform).toBeNull()              // grouped row first
+    expect(r[0].stops).toBeNull()
+    expect(r.slice(1).map((c) => c.platform)).toEqual(["A", "B"])
+    expect(r[1].stops).toEqual([1])
+    expect(r[2].stops).toEqual([2])
+  })
+
+  it("matches a single platform when its code is typed", () => {
+    const r = searchStops([andelP], "andel a")
+    expect(r).toHaveLength(1)
+    expect(r[0].platform).toBe("A")
+    expect(r[0].stops).toEqual([1])
+  })
+
+  it("does not expand a single-platform stop", () => {
+    const haje: StopIndexEntry = { ...entry("Háje", 100), platforms: [{ code: "A", stop: 1 }] }
+    const r = searchStops([haje], "haje")
+    expect(r).toHaveLength(1)
+    expect(r[0].platform).toBeNull()
+  })
+
+  it("grouped row forwards a multi-name node's stop scope (not null)", () => {
+    const multi: StopIndexEntry = {
+      ...entry("Dělnická", 81),
+      stops: [5, 6],
+      platforms: [{ code: "A", stop: 5 }, { code: "B", stop: 6 }],
+    }
+    const r = searchStops([multi], "delnicka")
+    expect(r[0].platform).toBeNull()
+    expect(r[0].stops).toEqual([5, 6]) // grouped scope = the name's platforms, NOT null
+    expect(r[1].stops).toEqual([5])    // per-platform rows still scope to one id
+    expect(r[2].stops).toEqual([6])
   })
 })
 

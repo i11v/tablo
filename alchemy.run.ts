@@ -5,7 +5,7 @@ import Server from "./packages/worker/src/index.ts"
 
 export default Alchemy.Stack(
   "tablo",
-  { providers: Cloudflare.providers(), state: Alchemy.localState() },
+  { providers: Cloudflare.providers(), state: Cloudflare.state() },
   Effect.gen(function* () {
     const server = yield* Server
     return { url: server.url }

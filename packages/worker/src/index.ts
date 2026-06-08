@@ -1,4 +1,5 @@
 /// <reference types="node" />
+import * as Alchemy from "alchemy"
 import * as Cloudflare from "alchemy/Cloudflare"
 import { Effect, Layer } from "effect"
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest"
@@ -10,6 +11,7 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Api } from "@app/contract"
 import { ClientSession } from "./do/session.ts"
 import { GolemioGateway } from "./do/gateway.ts"
+import { workerName } from "./workerName.ts"
 
 export { ClientSession, GolemioGateway }
 
@@ -39,19 +41,25 @@ const apiLayer = HttpApiBuilder.layer(Api).pipe(
 
 export default class Server extends Cloudflare.Worker<Server>()(
   "Server",
-  {
-    main: import.meta.filename,
-    compatibility: { date: "2026-06-01", flags: ["nodejs_compat"] },
-    assets: {
-      directory: "./packages/web/dist",
-      notFoundHandling: "single-page-application",
-      // Production-correct: /api/* hits the worker first, everything else is
-      // served by the Cloudflare assets router (with the SPA fallback).
-      runWorkerFirst: ["/api/*"],
-    },
-    url: true,
-    ...(devOptions ? { dev: devOptions } : {}),
-  },
+  Effect.gen(function* () {
+    // Stage-aware name: production keeps the bare `tablo` (stable workers.dev
+    // URL); every other stage is suffixed so a preview can never overwrite it.
+    const stage = yield* Alchemy.Stage
+    return {
+      name: workerName(stage),
+      main: import.meta.filename,
+      compatibility: { date: "2026-06-01", flags: ["nodejs_compat"] },
+      assets: {
+        directory: "./packages/web/dist",
+        notFoundHandling: "single-page-application",
+        // Production-correct: /api/* hits the worker first, everything else is
+        // served by the Cloudflare assets router (with the SPA fallback).
+        runWorkerFirst: ["/api/*"],
+      },
+      url: true,
+      ...(devOptions ? { dev: devOptions } : {}),
+    }
+  }),
   Effect.gen(function* () {
     const sessions = yield* ClientSession
     yield* GolemioGateway // bind the namespace even though only ClientSession calls it

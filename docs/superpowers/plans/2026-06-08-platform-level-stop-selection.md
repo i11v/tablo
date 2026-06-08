@@ -271,12 +271,14 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ---
 
-## Task 2: Regenerate the production index artifact
+## Task 2: Regenerate the local index artifact
 
-`useStopIndex` decodes the bundled index with `Schema.decodeUnknownSync(StopIndex)` (strict). With `platforms` now required, the committed artifact must be regenerated or the SPA fails to load. This downloads `PID_GTFS.zip` (~48 MB) from `data.pid.cz` and rewrites the content-hashed JSON + manifest.
+`useStopIndex` decodes the bundled index with `Schema.decodeUnknownSync(StopIndex)` (strict). With `platforms` now required, the local artifact must be regenerated or the SPA fails to load in dev/build. This downloads `PID_GTFS.zip` (~48 MB) from `data.pid.cz` and rewrites the content-hashed JSON + manifest.
+
+**Note:** `packages/web/public/data/` is **gitignored** (`.gitignore:15`) — the index is a build artifact generated at build/deploy time, not committed. So this task regenerates locally and does **not** commit anything. CI/deploy runs `bun run build:index` before `build:web`, so the schema change is picked up there automatically.
 
 **Files:**
-- Regenerate: `packages/web/public/data/stop-index-*.json`, `packages/web/public/data/stops-manifest.json`
+- Regenerate (untracked): `packages/web/public/data/stop-index-*.json`, `packages/web/public/data/stops-manifest.json`
 
 - [ ] **Step 1: Regenerate the index**
 
@@ -287,20 +289,17 @@ Expected: prints `stop index: <N> entries -> packages/web/public/data/stop-index
 
 - [ ] **Step 2: Verify the new artifact carries platforms**
 
-Run: `bunx vitest run packages/contract/test/stop-index.test.ts`
-Then sanity-check the file decodes by confirming the manifest points at the new hash:
-
-Run: `git status --short packages/web/public/data`
-Expected: the old `stop-index-35e3ad3e.json` is deleted, a new `stop-index-<hash>.json` is added, and `stops-manifest.json` is modified.
-
-- [ ] **Step 3: Commit**
+Run a spot-check that the manifest's file decodes and entries carry `platforms`:
 
 ```bash
-git add packages/web/public/data
-git commit -m "chore(stops): regenerate index artifact with platform codes
-
-Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
+bun -e '
+const m = await Bun.file("packages/web/public/data/stops-manifest.json").json();
+const idx = await Bun.file("packages/web/public"+m.path).json();
+const andel = idx.stops.find(s => s.name === "Anděl" && s.node === 1040);
+console.log("count:", m.count, "Anděl platforms:", JSON.stringify(andel?.platforms));
+'
 ```
+Expected: `Anděl` shows its full platform list (`A,B,C,D,F,G,H` plus metro `1,2`). No commit — the data dir is gitignored, so `git status` stays clean.
 
 ---
 

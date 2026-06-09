@@ -65,7 +65,10 @@ export default class Server extends Cloudflare.Worker<Server>()(
       notFoundHandling: "single-page-application",
       // Production-correct: /api/* hits the worker first, everything else is
       // served by the Cloudflare assets router (with the SPA fallback).
-      runWorkerFirst: ["/api/*"],
+      // /data/* also goes worker-first so a missing hashed stop-index file
+      // can be answered with a real 404 instead of the SPA fallback HTML —
+      // see the /data/ branch in fetch below.
+      runWorkerFirst: ["/api/*", "/data/*"],
     },
     url: true,
     ...(devOptions ? { dev: devOptions } : {}),
@@ -88,6 +91,23 @@ export default class Server extends Cloudflare.Worker<Server>()(
         }
         if (url.pathname.startsWith("/api/")) {
           return yield* apiHandler
+        }
+        if (url.pathname.startsWith("/data/")) {
+          // Old hashed stop-index files disappear from assets on every deploy,
+          // and SPA notFoundHandling turns that miss into index.html + 200.
+          // The web app's service worker caches /data responses CacheFirst for
+          // 60 days, so letting the fallback through would poison that cache
+          // with HTML where JSON is expected. Surface misses as real 404s.
+          const env = yield* Cloudflare.WorkerEnvironment
+          const assets = (env as Record<string, AssetsFetcher>).ASSETS
+          const res = yield* Effect.tryPromise(() =>
+            assets.fetch(req.source as Request),
+          ).pipe(Effect.orDie)
+          const contentType = res.headers.get("content-type") ?? ""
+          if (res.status === 200 && contentType.includes("text/html")) {
+            return HttpServerResponse.text("not found", { status: 404 })
+          }
+          return HttpServerResponse.fromWeb(res)
         }
         // Non-/api routes: delegate to the ASSETS binding. In production the
         // assets router serves these before they ever reach the worker; this

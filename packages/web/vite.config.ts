@@ -40,7 +40,10 @@ export default defineConfig({
             options: {
               cacheName: "stop-index",
               expiration: { maxEntries: 3, maxAgeSeconds: 60 * 24 * 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
+              // Same-origin fetches are never opaque (status 0) — only cache
+              // real 200s. The worker answers missing hashed files with 404
+              // (never the SPA fallback HTML), so a miss can't poison this cache.
+              cacheableResponse: { statuses: [200] },
             },
           },
           {
@@ -49,7 +52,7 @@ export default defineConfig({
             handler: "StaleWhileRevalidate",
             options: {
               cacheName: "stops-manifest",
-              cacheableResponse: { statuses: [0, 200] },
+              cacheableResponse: { statuses: [200] },
             },
           },
         ],

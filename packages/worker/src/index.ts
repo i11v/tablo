@@ -1,5 +1,4 @@
 /// <reference types="node" />
-import * as Alchemy from "alchemy"
 import * as Cloudflare from "alchemy/Cloudflare"
 import { Effect, Layer } from "effect"
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest"
@@ -30,6 +29,20 @@ const devOptions =
     ? undefined
     : { port: DEV_PORT_OVERRIDE, strictPort: true }
 
+// Deploy-time stage, read at module load. CI sets `TABLO_STAGE` to match the
+// `alchemy deploy --stage <…>` value. We deliberately do NOT read the
+// `Alchemy.Stage` Context service here: it only exists at deploy/plan time,
+// and reading it inside the Worker definition leaks a `Stage` requirement
+// into the worker's runtime context, crashing every request with
+// "Service not found: Stage". Locally we fall back to alchemy's own default
+// (`dev_<user>`) so a stray local deploy can never grab the bare `tablo`
+// (production) name.
+const WORKER_STAGE =
+  (typeof process !== "undefined" && process.env?.TABLO_STAGE) ||
+  (typeof process !== "undefined" && process.env?.USER
+    ? `dev_${process.env.USER}`
+    : "local")
+
 const systemHandlers = HttpApiBuilder.group(Api, "system", (handlers) =>
   handlers.handle("health", () => Effect.succeed({ ok: true, version: VERSION })),
 )
@@ -41,25 +54,24 @@ const apiLayer = HttpApiBuilder.layer(Api).pipe(
 
 export default class Server extends Cloudflare.Worker<Server>()(
   "Server",
-  Effect.gen(function* () {
+  {
     // Stage-aware name: production keeps the bare `tablo` (stable workers.dev
     // URL); every other stage is suffixed so a preview can never overwrite it.
-    const stage = yield* Alchemy.Stage
-    return {
-      name: workerName(stage),
-      main: import.meta.filename,
-      compatibility: { date: "2026-06-01", flags: ["nodejs_compat"] },
-      assets: {
-        directory: "./packages/web/dist",
-        notFoundHandling: "single-page-application",
-        // Production-correct: /api/* hits the worker first, everything else is
-        // served by the Cloudflare assets router (with the SPA fallback).
-        runWorkerFirst: ["/api/*"],
-      },
-      url: true,
-      ...(devOptions ? { dev: devOptions } : {}),
-    }
-  }),
+    // `name` is computed from WORKER_STAGE (process.env, read at module load) —
+    // see the note there for why this must not use the `Alchemy.Stage` service.
+    name: workerName(WORKER_STAGE),
+    main: import.meta.filename,
+    compatibility: { date: "2026-06-01", flags: ["nodejs_compat"] },
+    assets: {
+      directory: "./packages/web/dist",
+      notFoundHandling: "single-page-application",
+      // Production-correct: /api/* hits the worker first, everything else is
+      // served by the Cloudflare assets router (with the SPA fallback).
+      runWorkerFirst: ["/api/*"],
+    },
+    url: true,
+    ...(devOptions ? { dev: devOptions } : {}),
+  },
   Effect.gen(function* () {
     const sessions = yield* ClientSession
     yield* GolemioGateway // bind the namespace even though only ClientSession calls it

@@ -1,8 +1,10 @@
 // Post-build assertion of the PWA artifacts in packages/web/dist.
 // Run AFTER `bun run build:web` (or full `bun run build`).
 import { existsSync, readFileSync } from "node:fs"
+import { resolve } from "node:path"
 
-const DIST = "packages/web/dist"
+// Resolve relative to this script, so `bun scripts/verify-pwa.ts` works from any cwd.
+const DIST = resolve(import.meta.dir, "../packages/web/dist")
 const fail = (msg: string): never => {
   console.error("verify-pwa FAIL: " + msg)
   process.exit(1)

@@ -5,6 +5,6 @@ import "./styles.css"
 
 // autoUpdate: the new worker takes control silently and applies on the next
 // navigation. No prompt UI to build (single-user app).
-registerSW({ immediate: true })
+void registerSW({ immediate: true })
 
 createRoot(document.getElementById("root")!).render(<App />)

@@ -27,6 +27,9 @@ export default defineConfig({
         // App shell only — NO data/**. (.json is not in this list, so the
         // hashed stop index is never precached.)
         globPatterns: ["**/*.{js,css,html,woff2,svg,png,ico}"],
+        // icon.svg is the generator *source*, not a runtime asset (browsers use the
+        // generated PNGs) — keep it out of the app-shell precache.
+        globIgnores: ["icon.svg"],
         // Real-time API is never cached and never navigation-fallback'd.
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [

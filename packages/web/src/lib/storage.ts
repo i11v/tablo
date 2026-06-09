@@ -3,7 +3,6 @@ import { decodeSelection, encodeSelection } from "./url.ts"
 
 const SELECTION_KEY = "tablo.selection"
 const RECENTS_KEY = "tablo.recents"
-const SESSION_KEY = "tablo.session"
 
 /**
  * Storage access can throw (Safari "Block all cookies", embedded webviews,
@@ -57,20 +56,14 @@ export const pushRecent = (node: number): void => {
   writeLocal(RECENTS_KEY, JSON.stringify(next))
 }
 
-/** Per-tab so each tab gets its own ClientSession DO; sessionStorage survives reloads but not new tabs. */
-export const sessionId = (): string => {
-  try {
-    let id = sessionStorage.getItem(SESSION_KEY)
-    if (id === null) {
-      id = crypto.randomUUID()
-      sessionStorage.setItem(SESSION_KEY, id)
-    }
-    return id
-  } catch {
-    // sessionStorage blocked: fall back to an in-memory id so the WebSocket
-    // can still connect (a reload just becomes a fresh session).
-    fallbackSessionId ??= crypto.randomUUID()
-    return fallbackSessionId
-  }
-}
-let fallbackSessionId: string | undefined
+/**
+ * Per-tab session id, deliberately NOT persisted. sessionStorage is copied
+ * into duplicated tabs (Chrome/Firefox "Duplicate Tab", some Safari
+ * restores), which made two tabs share one ClientSession DO and clobber
+ * each other's subscriptions — the losing tab's board went blank while
+ * still showing "live". A module-level id gives every tab and every reload
+ * its own session; that's free because the client re-subscribes on every
+ * connect and the worker drops session storage when the last socket closes.
+ */
+let tabSessionId: string | undefined
+export const sessionId = (): string => (tabSessionId ??= crypto.randomUUID())

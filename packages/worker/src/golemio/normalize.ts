@@ -16,10 +16,16 @@ export const routeTypeToKind = (type: number | null): VehicleKind => {
 const toDeparture = (d: PidDeparture): Departure | null => {
   const scheduled = d.departure_timestamp.scheduled ?? d.departure_timestamp.predicted
   if (scheduled === null) return null
-  // Drop unparseable timestamps: a NaN from the sort comparator
-  // (predicted ?? scheduled) would otherwise scramble board ordering.
-  const effective = d.departure_timestamp.predicted ?? scheduled
-  if (!Number.isFinite(Date.parse(effective))) return null
+  // Validate every timestamp we ship, not just the effective one — an
+  // unparseable string NaNs the sort comparator (here and in the web client)
+  // and scrambles board ordering. A garbage scheduled drops the row; a
+  // garbage predicted degrades to schedule-only.
+  if (!Number.isFinite(Date.parse(scheduled))) return null
+  const predicted =
+    d.departure_timestamp.predicted !== null &&
+    Number.isFinite(Date.parse(d.departure_timestamp.predicted))
+      ? d.departure_timestamp.predicted
+      : null
   const delaySeconds = d.delay.is_available
     ? d.delay.seconds ?? (d.delay.minutes === null ? null : d.delay.minutes * 60)
     : null
@@ -28,7 +34,7 @@ const toDeparture = (d: PidDeparture): Departure | null => {
     kind: routeTypeToKind(d.route.type),
     headsign: d.trip.headsign,
     scheduled,
-    predicted: d.departure_timestamp.predicted,
+    predicted,
     delaySeconds,
     isCanceled: d.trip.is_canceled,
     isAtStop: d.trip.is_at_stop,

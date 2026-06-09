@@ -37,8 +37,11 @@ export const Departure = Schema.Struct({
   route: Schema.String,                    // "9", "B", "S7"
   kind: VehicleKind,
   headsign: Schema.String,
-  scheduled: Schema.String,                // ISO UTC
-  predicted: Schema.NullOr(Schema.String), // ISO UTC, carries realtime delay
+  // ISO 8601 WITH OFFSET, passed through from Golemio — production data is
+  // Prague-local (+01:00 CET / +02:00 CEST), not Z-suffixed UTC. Consume via
+  // Date.parse only; never compare or slice the strings.
+  scheduled: Schema.String,
+  predicted: Schema.NullOr(Schema.String), // carries realtime delay when present
   delaySeconds: Schema.NullOr(Schema.Number),
   isCanceled: Schema.Boolean,
   isAtStop: Schema.Boolean,

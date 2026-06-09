@@ -101,10 +101,18 @@ export const useDepartures = (selectors: ReadonlyArray<StopSelector>): Departure
         stableTimer = setTimeout(() => {
           attempt = 0
         }, STABLE_AFTER_MS)
+        // Always make the server-side subscription explicit. The session DO
+        // outlives individual sockets within a tab, so reconnecting after
+        // the user cleared their stops must send Unsubscribe — staying
+        // silent would leave the old subscription polling server-side.
         const current = selectorsRef.current
-        if (current.length > 0) {
-          ws.send(encodeClient({ _tag: "Subscribe", selectors: current }))
-        }
+        ws.send(
+          encodeClient(
+            current.length > 0
+              ? { _tag: "Subscribe", selectors: current }
+              : { _tag: "Unsubscribe" },
+          ),
+        )
         setState((s) => ({ ...s, status: "live" }))
       }
       ws.onmessage = (event) => {

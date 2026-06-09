@@ -95,7 +95,8 @@ export const App = () => {
     return { key, vm }
   })
 
-  const searchHooks = { index: stops, chosen, onAdd: add, onRemove: remove }
+  const origin = geo.tag === "active" ? { lat: geo.lat, lon: geo.lon } : null
+  const searchHooks = { index: stops, chosen, origin, onAdd: add, onRemove: remove }
   const clock = formatClock(now)
 
   return (

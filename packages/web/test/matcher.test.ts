@@ -79,4 +79,21 @@ describe("rank", () => {
     const boosted = rank(candidates, ["2000"]) // Andělka recently used
     expect(boosted[0].entry.node).toBe(2000)
   })
+
+  it("orders same-tier matches closest-first when a location is known", () => {
+    // Both "Anděl" and "Andělka" are exact-prefix matches for "and"; proximity
+    // breaks the tie. Place the user right next to the far-away one.
+    const far = { ...entry("Anděl", 1040), lat: 50.1, lon: 14.5 }
+    const near = { ...entry("Andělka", 2000), lat: 50.0, lon: 14.0 }
+    const candidates = searchStops([far, near], "and")
+    const ranked = rank(candidates, [], { lat: 50.0, lon: 14.0 })
+    expect(ranked[0].entry.node).toBe(2000) // the nearby stop wins
+  })
+
+  it("leaves order unchanged without a location", () => {
+    const candidates = searchStops(index, "and")
+    const byScore = rank(candidates, [])
+    const byScoreNull = rank(candidates, [], null)
+    expect(byScoreNull.map((c) => c.entry.node)).toEqual(byScore.map((c) => c.entry.node))
+  })
 })

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { selectorKey, type StopIndexEntry, type StopSelector } from "@app/contract"
 import { searchStops } from "../lib/matcher.ts"
-import { rank } from "../lib/ranker.ts"
+import { rank, type Origin } from "../lib/ranker.ts"
 import { loadRecents } from "../lib/storage.ts"
 import { SearchIcon, StopGlyph } from "./icons.tsx"
 
@@ -29,18 +29,23 @@ export const AddBtn = ({
 interface SearchHooks {
   index: ReadonlyArray<StopIndexEntry>
   chosen: ReadonlySet<string>
+  origin: Origin | null
   onAdd: (selector: StopSelector, name: string) => void
   onRemove: (key: string) => void
 }
 
-/** Distinct matching stops; empty query surfaces recents. */
-const useEntries = (index: ReadonlyArray<StopIndexEntry>, query: string): Array<StopIndexEntry> =>
+/** Distinct matching stops, closest-first when a location is known; empty query surfaces recents. */
+const useEntries = (
+  index: ReadonlyArray<StopIndexEntry>,
+  query: string,
+  origin: Origin | null,
+): Array<StopIndexEntry> =>
   useMemo(() => {
     if (query.trim() === "") {
       const recents = loadRecents()
       return index.filter((e) => recents.includes(String(e.node)))
     }
-    const ranked = rank(searchStops(index, query), loadRecents())
+    const ranked = rank(searchStops(index, query), loadRecents(), origin)
     const seen = new Set<number>()
     const out: Array<StopIndexEntry> = []
     for (const c of ranked) {
@@ -50,7 +55,7 @@ const useEntries = (index: ReadonlyArray<StopIndexEntry>, query: string): Array<
       }
     }
     return out
-  }, [index, query])
+  }, [index, query, origin])
 
 function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry } & SearchHooks) {
   const wholeSel: StopSelector = { node: entry.node, stops: entry.stops }
@@ -97,7 +102,7 @@ function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry 
 }
 
 function Results({ query, hooks }: { query: string; hooks: SearchHooks }) {
-  const entries = useEntries(hooks.index, query)
+  const entries = useEntries(hooks.index, query, hooks.origin)
   return (
     <>
       <div className="px-[2px] pt-[14px] pb-[6px] font-ui text-[11px] font-bold tracking-[0.08em] text-[#5e5e66]">

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import { selectorKey, type StopIndexEntry, type StopSelector } from "@app/contract"
+import type { IndexState } from "../hooks/useStopIndex.ts"
 import { haversineMetres } from "../lib/geo.ts"
 import { searchStops } from "../lib/matcher.ts"
 import { rank, type Origin } from "../lib/ranker.ts"
@@ -28,7 +29,7 @@ export const AddBtn = ({
 )
 
 interface SearchHooks {
-  index: ReadonlyArray<StopIndexEntry>
+  indexState: IndexState
   chosen: ReadonlySet<string>
   origin: Origin | null
   onAdd: (selector: StopSelector, name: string) => void
@@ -121,7 +122,25 @@ function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry 
 }
 
 function Results({ query, hooks }: { query: string; hooks: SearchHooks }) {
-  const entries = useEntries(hooks.index, query, hooks.origin)
+  const { indexState } = hooks
+  const stops = indexState._tag === "ready" ? indexState.stops : []
+  const entries = useEntries(stops, query, hooks.origin)
+  // The panel opens before the stop index has necessarily arrived — say so
+  // instead of silently showing "no stops match".
+  if (indexState._tag === "loading") {
+    return (
+      <div className="py-[20px] text-center font-ui text-[13.5px] text-[#5e5e66]">
+        Loading the stop list…
+      </div>
+    )
+  }
+  if (indexState._tag === "failed") {
+    return (
+      <div className="py-[20px] text-center font-ui text-[13.5px] text-miss">
+        Couldn’t load the stop list — reload to retry.
+      </div>
+    )
+  }
   return (
     <>
       <div className="px-[2px] pt-[14px] pb-[6px] font-ui text-[11px] font-bold tracking-[0.08em] text-[#5e5e66]">

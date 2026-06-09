@@ -104,7 +104,7 @@ export const App = () => {
     () => (geo.tag === "active" ? { lat: geo.lat, lon: geo.lon } : null),
     [geo],
   )
-  const searchHooks = { index: stops, chosen, origin, onAdd: add, onRemove: remove }
+  const searchHooks = { indexState: index, chosen, origin, onAdd: add, onRemove: remove }
   const clock = formatClock(now)
 
   return (
@@ -116,9 +116,7 @@ export const App = () => {
         locationLabel={locationLabel}
         searchOpen={searching}
         onOpenSearch={() => setSearching(true)}
-        searchPanel={
-          index._tag === "ready" ? <SearchPanel onClose={() => setSearching(false)} {...searchHooks} /> : null
-        }
+        searchPanel={<SearchPanel onClose={() => setSearching(false)} {...searchHooks} />}
       />
       <SubBar status={status} count={selection.length} />
 

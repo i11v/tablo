@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import * as Cloudflare from "alchemy/Cloudflare"
-import { Effect, Layer } from "effect"
+import { Config, Effect, Layer } from "effect"
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest"
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse"
 import * as HttpRouter from "effect/unstable/http/HttpRouter"
@@ -14,6 +14,10 @@ import { resolveWorkerStage, workerName } from "./workerName.ts"
 
 export { ClientSession, GolemioGateway }
 
+// Fallback build identity for local dev. CI binds TABLO_COMMIT to the commit
+// SHA at deploy time and the smoke test asserts /api/health reports it — a
+// health check that can't tell which build is live passes even when the
+// deploy didn't actually take.
 const VERSION = "0.1.0"
 
 // Local dev server port. Defaults to Alchemy's 1337 so `bun alchemy dev` keeps
@@ -41,14 +45,15 @@ const WORKER_STAGE = resolveWorkerStage(
   typeof process !== "undefined" ? (process.env ?? {}) : {},
 )
 
-const systemHandlers = HttpApiBuilder.group(Api, "system", (handlers) =>
-  handlers.handle("health", () => Effect.succeed({ ok: true, version: VERSION })),
-)
-
-const apiLayer = HttpApiBuilder.layer(Api).pipe(
-  Layer.provide(systemHandlers),
-  Layer.provide([HttpPlatform.layer, Etag.layer]),
-)
+const apiLayer = (version: string) =>
+  HttpApiBuilder.layer(Api).pipe(
+    Layer.provide(
+      HttpApiBuilder.group(Api, "system", (handlers) =>
+        handlers.handle("health", () => Effect.succeed({ ok: true, version })),
+      ),
+    ),
+    Layer.provide([HttpPlatform.layer, Etag.layer]),
+  )
 
 export default class Server extends Cloudflare.Worker<Server>()(
   "Server",
@@ -76,7 +81,11 @@ export default class Server extends Cloudflare.Worker<Server>()(
   Effect.gen(function* () {
     const sessions = yield* ClientSession
     yield* GolemioGateway // bind the namespace even though only ClientSession calls it
-    const apiHandler = yield* HttpRouter.toHttpEffect(apiLayer)
+    const version = yield* Config.string("TABLO_COMMIT").pipe(
+      Config.withDefault(VERSION),
+      Effect.orDie,
+    )
+    const apiHandler = yield* HttpRouter.toHttpEffect(apiLayer(version))
 
     return {
       fetch: Effect.gen(function* () {

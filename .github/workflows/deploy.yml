@@ -29,18 +29,22 @@ jobs:
         run: bunx alchemy deploy --stage production --yes
         env:
           TABLO_STAGE: production   # consumed by the worker to name itself `tablo`
+          TABLO_COMMIT: ${{ github.sha }}   # served by /api/health; asserted below
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GOLEMIO_API_TOKEN: ${{ secrets.GOLEMIO_API_TOKEN }}
-      - name: Smoke test (/api/health)
+      - name: Smoke test (/api/health serves this commit)
         env:
           URL: https://tablo.${{ vars.CF_WORKERS_SUBDOMAIN }}.workers.dev
+          EXPECTED: ${{ github.sha }}
         run: |
+          # Assert the deployed build, not just a 200 — a previous build's
+          # health endpoint also answers 200.
           for i in $(seq 1 12); do
-            code=$(curl -sS -o /dev/null -w "%{http_code}" "$URL/api/health" || echo 000)
-            echo "attempt $i: $URL/api/health -> $code"
-            if [ "$code" = "200" ]; then exit 0; fi
+            body=$(curl -sS "$URL/api/health" || echo "")
+            echo "attempt $i: $URL/api/health -> $body"
+            if echo "$body" | grep -q "\"version\":\"$EXPECTED\""; then exit 0; fi
             sleep 6
           done
-          echo "::error::production health check failed for $URL/api/health"
+          echo "::error::production health check failed: $URL/api/health never served version $EXPECTED"
           exit 1

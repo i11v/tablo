@@ -92,6 +92,14 @@ export default class Server extends Cloudflare.Worker<Server>()(
         const req = yield* HttpServerRequest.HttpServerRequest
         const url = new URL(req.url, "http://local")
         if (url.pathname === "/api/ws") {
+          // Plain GETs (crawlers, preloaders, curl) would otherwise reach the
+          // DO, where upgrade() dies — a 500 plus log noise for what is just
+          // a non-WebSocket request. Answer 426 here instead.
+          if (req.headers["upgrade"]?.toLowerCase() !== "websocket") {
+            return HttpServerResponse.text("expected websocket upgrade", {
+              status: 426,
+            })
+          }
           const session = url.searchParams.get("session")
           if (session === null || session.length === 0 || session.length > 100) {
             return HttpServerResponse.text("missing session id", { status: 400 })

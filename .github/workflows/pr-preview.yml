@@ -25,6 +25,7 @@ jobs:
       - run: bun run test
       - run: bun run build:index
       - run: bun run build:web
+      - run: bun run verify:pwa
       - name: Require CF_WORKERS_SUBDOMAIN
         env: { CF_WORKERS_SUBDOMAIN: "${{ vars.CF_WORKERS_SUBDOMAIN }}" }
         run: |

@@ -24,6 +24,7 @@ jobs:
       - run: bun run test
       - run: bun run build:index   # public GTFS download, no token needed
       - run: bun run build:web
+      - run: bun run verify:pwa
       - name: Deploy to production
         run: bunx alchemy deploy --stage production --yes
         env:

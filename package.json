@@ -9,6 +9,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "build:index": "bun scripts/build-stop-index.ts",
     "build:web": "vite build packages/web",
+    "verify:pwa": "bun scripts/verify-pwa.ts",
     "build": "bun run build:index && bun run build:web",
     "dev": "alchemy dev",
     "deploy": "alchemy deploy",

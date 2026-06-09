@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 import type { ServerMessage } from "@app/contract"
-import { applyServerMessage, type DeparturesState } from "../src/hooks/useDepartures.ts"
+import {
+  applyServerMessage,
+  reconnectDelay,
+  type DeparturesState,
+} from "../src/hooks/useDepartures.ts"
 
 const live: DeparturesState = {
   status: "live",
@@ -42,5 +46,20 @@ describe("applyServerMessage", () => {
     expect(next.reason).toBe("bad subscribe")
     // boards are kept — an error about one message doesn't blank the screen
     expect([...next.boards.keys()]).toEqual(["1040"])
+  })
+})
+
+describe("reconnectDelay", () => {
+  it("backs off exponentially with 50-100% jitter", () => {
+    expect(reconnectDelay(0, () => 0)).toBe(500)
+    expect(reconnectDelay(0, () => 1)).toBe(1000)
+    expect(reconnectDelay(2, () => 0)).toBe(2000)
+    expect(reconnectDelay(2, () => 1)).toBe(4000)
+  })
+
+  it("caps at 30s regardless of attempt count", () => {
+    expect(reconnectDelay(10, () => 1)).toBe(30_000)
+    expect(reconnectDelay(1000, () => 1)).toBe(30_000)
+    expect(reconnectDelay(1000, () => 0)).toBe(15_000)
   })
 })

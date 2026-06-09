@@ -20,6 +20,22 @@ export interface DeparturesState {
 const encodeClient = Schema.encodeUnknownSync(ClientMessageJson)
 const decodeServer = Schema.decodeUnknownSync(ServerMessageJson)
 
+/** How long a connection must stay open before the backoff counter resets. */
+const STABLE_AFTER_MS = 10_000
+
+/**
+ * Exponential backoff with jitter: 50–100% of the 1s·2^attempt step, capped
+ * at 30s. Jitter keeps many clients from reconnecting in lockstep after a
+ * server-side blip.
+ */
+export const reconnectDelay = (
+  attempt: number,
+  random: () => number = Math.random,
+): number => {
+  const base = Math.min(30_000, 1000 * 2 ** attempt)
+  return base / 2 + random() * (base / 2)
+}
+
 /**
  * Pure state transition for an incoming server frame. ServerError marks the
  * feed degraded and carries the message into `reason` — swallowing it would
@@ -70,6 +86,7 @@ export const useDepartures = (selectors: ReadonlyArray<StopSelector>): Departure
     let attempt = 0
     let closed = false
     let timer: ReturnType<typeof setTimeout> | undefined
+    let stableTimer: ReturnType<typeof setTimeout> | undefined
 
     const connect = (): void => {
       const proto = location.protocol === "https:" ? "wss" : "ws"
@@ -78,7 +95,12 @@ export const useDepartures = (selectors: ReadonlyArray<StopSelector>): Departure
       )
       wsRef.current = ws
       ws.onopen = () => {
-        attempt = 0
+        // Reset the backoff only once the link has proven stable. Resetting
+        // here unconditionally turns an accept-then-drop loop (worker
+        // redeploy/crash right after upgrade) into a fixed ~1s storm.
+        stableTimer = setTimeout(() => {
+          attempt = 0
+        }, STABLE_AFTER_MS)
         const current = selectorsRef.current
         if (current.length > 0) {
           ws.send(encodeClient({ _tag: "Subscribe", selectors: current }))
@@ -94,10 +116,13 @@ export const useDepartures = (selectors: ReadonlyArray<StopSelector>): Departure
         }
       }
       ws.onclose = () => {
+        if (stableTimer !== undefined) {
+          clearTimeout(stableTimer)
+          stableTimer = undefined
+        }
         if (closed) return
         setState((s) => ({ ...s, status: "reconnecting" }))
-        const delay = Math.min(30_000, 1000 * 2 ** attempt++)
-        timer = setTimeout(connect, delay)
+        timer = setTimeout(connect, reconnectDelay(attempt++))
       }
     }
 
@@ -105,6 +130,7 @@ export const useDepartures = (selectors: ReadonlyArray<StopSelector>): Departure
     return () => {
       closed = true
       if (timer !== undefined) clearTimeout(timer)
+      if (stableTimer !== undefined) clearTimeout(stableTimer)
       wsRef.current?.close()
     }
   }, [])

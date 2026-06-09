@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { existsSync } from "node:fs"
 import { mkdir, rm } from "node:fs/promises"
 import { $ } from "bun"
 import { Schema } from "effect"
@@ -9,13 +10,32 @@ import { buildIndex } from "./lib/build.ts"
 const GTFS_URL = "https://data.pid.cz/PID_GTFS.zip"
 const TMP = ".alchemy/tmp-gtfs"
 const OUT_DIR = "packages/web/public/data"
+// Last good copy of the feed. CI restores/saves this via actions/cache so a
+// data.pid.cz outage can't block a deploy (stops change rarely; a slightly
+// stale index is strictly better than no hotfix).
+const CACHE_DIR = ".cache"
+const CACHE_ZIP = CACHE_DIR + "/PID_GTFS.zip"
 
-const res = await fetch(GTFS_URL)
-if (!res.ok) throw new Error("GTFS download failed: " + res.status)
+const res = await fetch(GTFS_URL).catch(() => null)
+if (res !== null && res.ok) {
+  await mkdir(CACHE_DIR, { recursive: true })
+  await Bun.write(CACHE_ZIP, res)
+} else if (existsSync(CACHE_ZIP)) {
+  console.warn(
+    "GTFS download failed (" +
+      (res === null ? "network error" : "HTTP " + res.status) +
+      ") — falling back to cached " + CACHE_ZIP,
+  )
+} else {
+  throw new Error(
+    "GTFS download failed (" +
+      (res === null ? "network error" : "HTTP " + res.status) +
+      ") and no cached copy exists",
+  )
+}
 await rm(TMP, { recursive: true, force: true })
 await mkdir(TMP, { recursive: true })
-await Bun.write(TMP + "/PID_GTFS.zip", res)
-await $`unzip -o ${TMP}/PID_GTFS.zip stops.txt -d ${TMP}`.quiet()
+await $`unzip -o ${CACHE_ZIP} stops.txt -d ${TMP}`.quiet()
 
 const rows = parseCsv(await Bun.file(TMP + "/stops.txt").text())
 const index = buildIndex(rows, new Date().toISOString())

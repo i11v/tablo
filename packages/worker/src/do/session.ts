@@ -93,11 +93,25 @@ export class ClientSession extends Cloudflare.DurableObjectNamespace<ClientSessi
             ),
           ),
 
-        webSocketClose: (_socket: Cloudflare.DurableWebSocket) =>
+        webSocketClose: (socket: Cloudflare.DurableWebSocket) =>
           Effect.gen(function* () {
-            const remaining = yield* state.getWebSockets()
-            if (remaining.length <= 1) {
+            // Filter the closing socket out explicitly (by raw socket — the
+            // DurableWebSocket wrappers are re-created per getWebSockets()
+            // call): whether the runtime still lists the closing socket
+            // during this handler is unspecified timing, and guessing wrong
+            // either leaks the session or freezes a still-open tab.
+            const others = (yield* state.getWebSockets()).filter(
+              (s) => s.ws !== socket.ws,
+            )
+            if (others.length === 0) {
+              // Last socket gone: release everything. A DO with any stored
+              // data is retained (and billed) indefinitely, and every tab
+              // visit names a fresh session DO — persisting selectors here
+              // would leak one orphan DO per visit, forever. Clients re-send
+              // Subscribe on every connect, so nothing relies on this state.
+              // deleteAll() does not clear the alarm; delete it explicitly.
               yield* state.storage.deleteAlarm()
+              yield* state.storage.deleteAll()
             }
           }).pipe(Effect.ignore),
 

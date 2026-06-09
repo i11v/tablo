@@ -108,4 +108,28 @@ describe("DepartureGateway", () => {
       }).pipe(Effect.provide(gatewayLayer(fake.layer)))
     }),
   )
+
+  it.effect("evicts the oldest stale fallback beyond capacity (64)", () =>
+    Effect.gen(function* () {
+      const fake = yield* makeFake
+      yield* Effect.gen(function* () {
+        const gw = yield* DepartureGateway
+        // Insert 65 distinct keys, pacing past the 20/8s rate-limit window.
+        for (let i = 0; i < 65; i++) {
+          if (i > 0 && i % 16 === 0) yield* TestClock.adjust("8 seconds")
+          yield* gw.getBoards([{ node: i + 1, stops: null }])
+        }
+        yield* Ref.set(fake.failing, true)
+        yield* TestClock.adjust("8 seconds") // expire cache TTL + refill limiter
+        // Oldest key (node 1) was evicted from lastGood: empty-boards fallback.
+        const evicted = yield* gw.getBoards([{ node: 1, stops: null }])
+        expect(evicted.degraded).toBe(true)
+        expect(evicted.boards).toEqual([])
+        // Newest key still has its stale board.
+        const retained = yield* gw.getBoards([{ node: 65, stops: null }])
+        expect(retained.degraded).toBe(true)
+        expect(retained.boards.length).toBe(1)
+      }).pipe(Effect.provide(gatewayLayer(fake.layer)))
+    }),
+  )
 })

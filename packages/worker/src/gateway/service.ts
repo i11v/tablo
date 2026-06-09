@@ -19,6 +19,10 @@ export class GatewayShedError extends Schema.TaggedErrorClass<GatewayShedError>(
 
 const CACHE_TTL = "5 seconds"
 const SHED_TIMEOUT = "5 seconds"
+// lastGood lives for the life of the singleton DO isolate and its keys are
+// derived from client input — unbounded it is an OOM vector. Same capacity
+// as the Cache; evicted keys just lose their stale fallback.
+const LAST_GOOD_CAPACITY = 64
 const LIMIT = { key: "golemio", limit: 20, window: "8 seconds", algorithm: "fixed-window", onExceeded: "delay" } as const
 
 /** Canonical, order-independent cache key carrying the selectors themselves. */
@@ -59,7 +63,15 @@ export class DepartureGateway extends Context.Service<
             degraded: false,
             reason: null,
           }
-          yield* Ref.update(lastGood, (m) => new Map(m).set(key, result))
+          yield* Ref.update(lastGood, (m) => {
+            const next = new Map(m)
+            next.delete(key) // re-insert so iteration order tracks recency
+            next.set(key, result)
+            while (next.size > LAST_GOOD_CAPACITY) {
+              next.delete(next.keys().next().value as string)
+            }
+            return next
+          })
           return result
         })
 

@@ -1,9 +1,0 @@
-<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" rx="96" fill="#08080a" />
-  <!-- split-flap "departures board" rows, all within the 80% safe zone -->
-  <g fill="#fafafa">
-    <rect x="120" y="150" width="272" height="44" rx="10" />
-    <rect x="120" y="234" width="200" height="44" rx="10" fill="#a3a3a3" />
-    <rect x="120" y="318" width="240" height="44" rx="10" fill="#a3a3a3" />
-  </g>
-</svg>

@@ -45,6 +45,13 @@ export class ClientSession extends Cloudflare.DurableObjectNamespace<ClientSessi
         yield* state.storage.setAlarm(Date.now() + POLL_MS)
         yield* Effect.gen(function* () {
           const result = yield* gateway.getByName("singleton").getBoards(selectors)
+          // Other events can interleave at the RPC await above. If the
+          // subscription changed mid-flight (Unsubscribe or a new Subscribe),
+          // drop this frame — broadcasting it could land *after* the fresh
+          // one and briefly show boards the client no longer wants.
+          const current =
+            (yield* state.storage.get<ReadonlyArray<StopSelector>>(STORAGE_KEY)) ?? []
+          if (JSON.stringify(current) !== JSON.stringify(selectors)) return
           yield* broadcast({ _tag: "DeparturesUpdate", ...result })
         }).pipe(
           // Broad catch (typed failures AND defects, e.g. RpcCallError): a

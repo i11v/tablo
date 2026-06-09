@@ -95,7 +95,13 @@ export const App = () => {
     return { key, vm }
   })
 
-  const searchHooks = { index: stops, chosen, onAdd: add, onRemove: remove }
+  // Stable reference between renders (geo only changes on a new fix), so the
+  // search panel's nearby sort doesn't rerun on every clock tick.
+  const origin = useMemo(
+    () => (geo.tag === "active" ? { lat: geo.lat, lon: geo.lon } : null),
+    [geo],
+  )
+  const searchHooks = { index: stops, chosen, origin, onAdd: add, onRemove: remove }
   const clock = formatClock(now)
 
   return (

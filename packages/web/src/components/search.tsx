@@ -143,13 +143,27 @@ const Field = ({
   </div>
 )
 
+/** Close the search once a stop is added — bulk-add is rare and lingering is annoying on mobile. */
+const useCloseOnAdd = (onClose: () => void, hooks: SearchHooks): SearchHooks =>
+  useMemo(
+    () => ({
+      ...hooks,
+      onAdd: (selector, name) => {
+        hooks.onAdd(selector, name)
+        onClose()
+      },
+    }),
+    [onClose, hooks],
+  )
+
 /** Mobile: full-screen search that replaces the board. */
 export function SearchView({ onClose, ...hooks }: { onClose: () => void } & SearchHooks) {
   const [query, setQuery] = useState("")
+  const closingHooks = useCloseOnAdd(onClose, hooks)
   return (
     <div className="flex flex-col">
       <Field query={query} setQuery={setQuery} onClose={onClose} closeLabel="Done" />
-      <Results query={query} hooks={hooks} />
+      <Results query={query} hooks={closingHooks} />
     </div>
   )
 }
@@ -157,12 +171,13 @@ export function SearchView({ onClose, ...hooks }: { onClose: () => void } & Sear
 /** Desktop: popover anchored under the app-bar search box. */
 export function SearchPanel({ onClose, ...hooks }: { onClose: () => void } & SearchHooks) {
   const [query, setQuery] = useState("")
+  const closingHooks = useCloseOnAdd(onClose, hooks)
   return (
     <>
       <div onClick={onClose} className="fixed inset-0 z-40" />
       <div className="absolute right-0 top-[calc(100%+8px)] z-50 max-h-[560px] w-[400px] overflow-y-auto rounded-[13px] border border-[#2e2e36] bg-[#0c0c0f] p-[13px] shadow-[0_28px_70px_rgba(0,0,0,0.6)]">
         <Field query={query} setQuery={setQuery} onClose={onClose} closeLabel="Esc" />
-        <Results query={query} hooks={hooks} />
+        <Results query={query} hooks={closingHooks} />
       </div>
     </>
   )

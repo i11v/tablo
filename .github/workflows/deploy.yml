@@ -1,0 +1,45 @@
+name: Deploy (production)
+
+on:
+  push:
+    branches: [main]
+
+# Serialize production deploys; never cancel mid-flight (Alchemy writes state).
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: "1.3.14" }
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test
+      - run: bun run build:index   # public GTFS download, no token needed
+      - run: bun run build:web
+      - name: Deploy to production
+        run: bunx alchemy deploy --stage production --yes
+        env:
+          TABLO_STAGE: production   # consumed by the worker to name itself `tablo`
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GOLEMIO_API_TOKEN: ${{ secrets.GOLEMIO_API_TOKEN }}
+      - name: Smoke test (/api/health)
+        env:
+          URL: https://tablo.${{ vars.CF_WORKERS_SUBDOMAIN }}.workers.dev
+        run: |
+          for i in $(seq 1 12); do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" "$URL/api/health" || echo 000)
+            echo "attempt $i: $URL/api/health -> $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 6
+          done
+          echo "::error::production health check failed for $URL/api/health"
+          exit 1

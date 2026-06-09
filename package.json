@@ -9,6 +9,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "build:index": "bun scripts/build-stop-index.ts",
     "build:web": "vite build packages/web",
+    "build": "bun run build:index && bun run build:web",
     "dev": "alchemy dev",
     "deploy": "alchemy deploy",
     "destroy": "alchemy destroy",
@@ -22,9 +23,10 @@
     "ws": "^8.20.0"
   },
   "devDependencies": {
-    "@effect/language-service": "^0.86.2",
-    "@effect/vitest": "4.0.0-beta.78",
     "@cloudflare/workers-types": "^4.0.0",
+    "@effect/language-service": "^0.86.2",
+    "@effect/platform-bun": "4.0.0-beta.78",
+    "@effect/vitest": "4.0.0-beta.78",
     "@types/bun": "^1.3.14",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.5.0",

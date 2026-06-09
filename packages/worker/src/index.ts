@@ -10,7 +10,7 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Api } from "@app/contract"
 import { ClientSession } from "./do/session.ts"
 import { GolemioGateway } from "./do/gateway.ts"
-import { workerName } from "./workerName.ts"
+import { resolveWorkerStage, workerName } from "./workerName.ts"
 
 export { ClientSession, GolemioGateway }
 
@@ -37,11 +37,9 @@ const devOptions =
 // "Service not found: Stage". Locally we fall back to alchemy's own default
 // (`dev_<user>`) so a stray local deploy can never grab the bare `tablo`
 // (production) name.
-const WORKER_STAGE =
-  (typeof process !== "undefined" && process.env?.TABLO_STAGE) ||
-  (typeof process !== "undefined" && process.env?.USER
-    ? `dev_${process.env.USER}`
-    : "local")
+const WORKER_STAGE = resolveWorkerStage(
+  typeof process !== "undefined" ? (process.env ?? {}) : {},
+)
 
 const systemHandlers = HttpApiBuilder.group(Api, "system", (handlers) =>
   handlers.handle("health", () => Effect.succeed({ ok: true, version: VERSION })),

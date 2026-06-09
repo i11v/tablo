@@ -49,7 +49,7 @@ if (!/rel="?manifest"?/.test(html)) fail("index.html missing manifest link")
 // *flavour* (CacheFirst vs SWR) isn't observable in minified output anyway — it's
 // verified manually via DevTools Cache Storage in Task 9, Step 3.
 const sw = readFileSync(DIST + "/sw.js", "utf8")
-for (const needle of ["stop-index", "stops-manifest"]) {
+for (const needle of ["stop-index", "stops-manifest", "google-fonts-css", "google-fonts-files"]) {
   if (!sw.includes(needle)) fail('sw.js missing runtime cache "' + needle + '"')
 }
 // A precache entry is a quoted literal like "data/stop-index-7b30c225.json".

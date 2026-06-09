@@ -15,6 +15,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30   # don't hold the deploy-production concurrency slot for the 360-min default
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -25,6 +26,16 @@ jobs:
       - run: bun run build:index   # public GTFS download, no token needed
       - run: bun run build:web
       - run: bun run verify:pwa
+      - name: Require CF_WORKERS_SUBDOMAIN
+        env: { CF_WORKERS_SUBDOMAIN: "${{ vars.CF_WORKERS_SUBDOMAIN }}" }
+        run: |
+          # Fail before deploying: with the variable unset the deploy would
+          # succeed and the smoke test would then curl "tablo..workers.dev"
+          # for 72s and report a config error as an outage.
+          if [ -z "$CF_WORKERS_SUBDOMAIN" ]; then
+            echo "::error::CF_WORKERS_SUBDOMAIN repo variable is not set."
+            exit 1
+          fi
       - name: Deploy to production
         run: bunx alchemy deploy --stage production --yes
         env:

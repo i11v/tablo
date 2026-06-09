@@ -138,9 +138,16 @@ if (!/rel="?apple-touch-icon"?/.test(html)) fail("index.html missing apple-touch
 if (!/rel="?manifest"?/.test(html)) fail("index.html missing manifest link")
 
 // 5. Service worker wires up the runtime caches but does NOT precache the index.
+// Assert on the cacheName string LITERALS only. Workbox preserves these verbatim,
+// and they appear solely because of our runtimeCaching config (the hashed index is
+// excluded from precache). Do NOT assert on the strategy class names CacheFirst /
+// StaleWhileRevalidate: those are imported bindings the production minifier renames
+// or inlines, so the literal text need not survive a correct build. Strategy
+// *flavour* (CacheFirst vs SWR) isn't observable in minified output anyway — it's
+// verified manually via DevTools Cache Storage in Task 9, Step 3.
 const sw = readFileSync(DIST + "/sw.js", "utf8")
-for (const needle of ["CacheFirst", "StaleWhileRevalidate", "stop-index", "stops-manifest"]) {
-  if (!sw.includes(needle)) fail('sw.js missing runtime-cache marker "' + needle + '"')
+for (const needle of ["stop-index", "stops-manifest"]) {
+  if (!sw.includes(needle)) fail('sw.js missing runtime cache "' + needle + '"')
 }
 // A precache entry is a quoted literal like "data/stop-index-7b30c225.json".
 // (The runtime route's regex appears as \/data\/stop-index- and will NOT match this.)

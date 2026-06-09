@@ -22,4 +22,13 @@ describe("selection URL codec", () => {
     expect(decodeSelection("garbage;;%%%")).toEqual([])
     expect(decodeSelection("12x~Bad")).toEqual([])
   })
+  it("dedupes repeated selectors (first name wins)", () => {
+    expect(decodeSelection("1040~A;1040~B")).toEqual([
+      { selector: { node: 1040, stops: null }, name: "A" },
+    ])
+    // same platforms in a different order are the same selector
+    expect(decodeSelection("81_2_1~A;81_1_2~B").length).toBe(1)
+    // but a different platform subset is a distinct board
+    expect(decodeSelection("81_1~A;81_2~B").length).toBe(2)
+  })
 })

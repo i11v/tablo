@@ -67,8 +67,10 @@ const useEntries = (
   useMemo(() => {
     if (query.trim() === "") {
       if (origin !== null) return nearestStops(index, origin)
+      // Most-recent-first, mirroring the order pushRecent maintains (a node
+      // can have several platform-scoped entries — keep them all, grouped).
       const recents = loadRecents()
-      return index.filter((e) => recents.includes(String(e.node)))
+      return recents.flatMap((n) => index.filter((e) => String(e.node) === n))
     }
     const ranked = rank(searchStops(index, query), loadRecents(), origin)
     const seen = new Set<number>()
@@ -154,7 +156,7 @@ function Results({ query, hooks }: { query: string; hooks: SearchHooks }) {
   return (
     <>
       <div className="px-[2px] pt-[14px] pb-[6px] font-ui text-[11px] font-bold tracking-[0.08em] text-[#5e5e66]">
-        {query ? "RESULTS" : "NEARBY STOPS"}
+        {query ? "RESULTS" : hooks.origin !== null ? "NEARBY STOPS" : "RECENT"}
       </div>
       {entries.length === 0 && (
         <div className="py-[20px] text-center font-ui text-[13.5px] text-[#5e5e66]">

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import { selectorKey, type StopIndexEntry, type StopSelector } from "@app/contract"
+import { haversineMetres } from "../lib/geo.ts"
 import { searchStops } from "../lib/matcher.ts"
 import { rank, type Origin } from "../lib/ranker.ts"
 import { loadRecents } from "../lib/storage.ts"
@@ -34,7 +35,24 @@ interface SearchHooks {
   onRemove: (key: string) => void
 }
 
-/** Distinct matching stops, closest-first when a location is known; empty query surfaces recents. */
+/** Up to this many stops surface in the empty-query nearby/recents list. */
+const NEARBY_LIMIT = 10
+
+/** The closest stops to the user, nearest-first. */
+const nearestStops = (
+  index: ReadonlyArray<StopIndexEntry>,
+  origin: Origin,
+): Array<StopIndexEntry> =>
+  [...index]
+    .map((e) => ({ e, d: haversineMetres(origin.lat, origin.lon, e.lat, e.lon) }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, NEARBY_LIMIT)
+    .map(({ e }) => e)
+
+/**
+ * Distinct matching stops, closest-first when a location is known. An empty
+ * query surfaces the nearest stops (or recents when no location is available).
+ */
 const useEntries = (
   index: ReadonlyArray<StopIndexEntry>,
   query: string,
@@ -42,6 +60,7 @@ const useEntries = (
 ): Array<StopIndexEntry> =>
   useMemo(() => {
     if (query.trim() === "") {
+      if (origin !== null) return nearestStops(index, origin)
       const recents = loadRecents()
       return index.filter((e) => recents.includes(String(e.node)))
     }

@@ -22,7 +22,14 @@ const index = buildIndex(rows, new Date().toISOString())
 Schema.decodeUnknownSync(StopIndexV1)(index) // fail loudly on schema drift
 
 const json = JSON.stringify(index)
-const hash = createHash("sha256").update(json).digest("hex").slice(0, 8)
+// Hash only the data payload. generatedAt changes on every build, and
+// including it would give identical stops data a different filename each
+// deploy — defeating the hash-immutable design (clients' 60-day CacheFirst
+// entries and cross-deploy reuse only work when same data => same URL).
+const hash = createHash("sha256")
+  .update(JSON.stringify({ version: index.version, stops: index.stops }))
+  .digest("hex")
+  .slice(0, 8)
 const file = "stop-index-" + hash + ".json"
 await rm(OUT_DIR, { recursive: true, force: true })
 await mkdir(OUT_DIR, { recursive: true })

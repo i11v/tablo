@@ -3,6 +3,7 @@ import { Schema } from "effect"
 import {
   ClientMessageJson,
   ServerMessageJson,
+  type ServerMessage,
   type StopBoard,
   type StopSelector,
 } from "@app/contract"
@@ -18,6 +19,27 @@ export interface DeparturesState {
 
 const encodeClient = Schema.encodeUnknownSync(ClientMessageJson)
 const decodeServer = Schema.decodeUnknownSync(ServerMessageJson)
+
+/**
+ * Pure state transition for an incoming server frame. ServerError marks the
+ * feed degraded and carries the message into `reason` — swallowing it would
+ * leave the UI on "live" with boards stuck on "waiting for live data".
+ */
+export const applyServerMessage = (
+  state: DeparturesState,
+  msg: ServerMessage,
+): DeparturesState => {
+  switch (msg._tag) {
+    case "DeparturesUpdate":
+      return {
+        status: msg.degraded ? "degraded" : "live",
+        boards: new Map(msg.boards.map((b) => [b.key, b])),
+        reason: msg.reason,
+      }
+    case "ServerError":
+      return { ...state, status: "degraded", reason: msg.message }
+  }
+}
 
 /** Owns the WS lifecycle: connect, subscribe, reconnect with backoff, re-subscribe. */
 export const useDepartures = (selectors: ReadonlyArray<StopSelector>): DeparturesState => {
@@ -66,13 +88,7 @@ export const useDepartures = (selectors: ReadonlyArray<StopSelector>): Departure
       ws.onmessage = (event) => {
         try {
           const msg = decodeServer(String(event.data))
-          if (msg._tag === "DeparturesUpdate") {
-            setState({
-              status: msg.degraded ? "degraded" : "live",
-              boards: new Map(msg.boards.map((b) => [b.key, b])),
-              reason: msg.reason,
-            })
-          }
+          setState((s) => applyServerMessage(s, msg))
         } catch {
           // ignore undecodable frames
         }

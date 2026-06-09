@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { selectorKey, type StopIndexEntry, type StopSelector } from "@app/contract"
+import { MAX_SELECTORS, selectorKey, type StopIndexEntry, type StopSelector } from "@app/contract"
 import { AddTile, AppBar, EmptyState, MobileSearchTrigger, SubBar } from "./components/chrome.tsx"
 import { SearchPanel, SearchView } from "./components/search.tsx"
 import { StopCard } from "./components/StopCard.tsx"
@@ -44,6 +44,9 @@ export const App = () => {
     saveSelection(next)
   }
   const add = (selector: StopSelector, name: string): void => {
+    // The wire protocol caps Subscribe at MAX_SELECTORS; never build a
+    // selection the encoder would reject.
+    if (selection.length >= MAX_SELECTORS) return
     update([...selection, { selector, name }])
     pushRecent(selector.node)
   }

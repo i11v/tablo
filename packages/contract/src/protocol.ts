@@ -1,8 +1,12 @@
 import { Schema } from "effect"
-import { StopBoard, StopSelector } from "./domain.ts"
+import { MAX_SELECTORS, StopBoard, StopSelector } from "./domain.ts"
 
 export const ClientMessage = Schema.TaggedUnion({
-  Subscribe: { selectors: Schema.Array(StopSelector) },
+  Subscribe: {
+    // Bounded: see MAX_SELECTORS in domain.ts. The worker replies with a
+    // ServerError frame when the cap is exceeded (decode failure path).
+    selectors: Schema.Array(StopSelector).check(Schema.isMaxLength(MAX_SELECTORS)),
+  },
   Unsubscribe: {},
 })
 export type ClientMessage = typeof ClientMessage.Type

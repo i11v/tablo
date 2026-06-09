@@ -3,10 +3,29 @@ import { Schema } from "effect"
 export const VehicleKind = Schema.Literals(["tram", "metro", "train", "bus", "other"])
 export type VehicleKind = typeof VehicleKind.Type
 
+/**
+ * Caps on client-supplied selections. The Subscribe payload drives upstream
+ * Golemio URLs, gateway cache keys and DO storage, all keyed by anonymous
+ * client input — without bounds a single client could fabricate unlimited
+ * cache entries and burn the shared upstream rate budget. Prague ASW node
+ * ids are ≤6 digits and a node has a handful of platforms; these limits are
+ * far above any legitimate use.
+ */
+export const MAX_SELECTORS = 20
+export const MAX_PLATFORMS_PER_SELECTOR = 16
+
+/** Positive integer id as found in PID's ASW registry (node or platform id). */
+const AswId = Schema.Number.check(
+  Schema.isInt(),
+  Schema.isBetween({ minimum: 1, maximum: 999_999 }),
+)
+
 /** A user-facing stop selection: a whole ASW node, or specific platforms within it. */
 export const StopSelector = Schema.Struct({
-  node: Schema.Number,
-  stops: Schema.NullOr(Schema.Array(Schema.Number)),
+  node: AswId,
+  stops: Schema.NullOr(
+    Schema.Array(AswId).check(Schema.isMaxLength(MAX_PLATFORMS_PER_SELECTOR)),
+  ),
 })
 export type StopSelector = typeof StopSelector.Type
 

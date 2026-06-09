@@ -160,9 +160,14 @@ export function StopCard({
             </span>
           )}
           {onClose && (
-            <span onClick={onClose} className="cursor-pointer text-[15px] text-[#54545c]">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={`Remove ${s.name}`}
+              className="cursor-pointer border-none bg-transparent p-0 text-[15px] text-[#54545c]"
+            >
               ✕
-            </span>
+            </button>
           )}
         </span>
       </div>

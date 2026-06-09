@@ -11,13 +11,18 @@ export const AddBtn = ({
   on,
   onClick,
   small,
+  name,
 }: {
   on: boolean
   onClick: () => void
   small?: boolean
+  name: string
 }) => (
-  <span
+  <button
+    type="button"
     onClick={onClick}
+    aria-pressed={on}
+    aria-label={(on ? "Remove " : "Add ") + name}
     className={[
       "inline-flex shrink-0 cursor-pointer items-center justify-center rounded-[8px] border font-ui font-bold transition-all duration-100",
       small ? "h-[26px] w-[26px] text-[15px]" : "h-[30px] w-[30px] text-[18px]",
@@ -25,7 +30,7 @@ export const AddBtn = ({
     ].join(" ")}
   >
     {on ? "✓" : "+"}
-  </span>
+  </button>
 )
 
 interface SearchHooks {
@@ -99,7 +104,7 @@ function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry 
             {entry.platforms.length > 1 ? `Whole stop · ${entry.platforms.length} platforms` : "Whole stop"}
           </div>
         </div>
-        <AddBtn on={chosen.has(wholeKey)} onClick={() => toggle(wholeSel, entry.name)} />
+        <AddBtn on={chosen.has(wholeKey)} onClick={() => toggle(wholeSel, entry.name)} name={entry.name} />
       </div>
       {platforms.length > 0 && (
         <div className="ml-[4px] mt-[9px] border-t border-l-2 border-white/[0.06] border-l-white/[0.07] pl-[12px]">
@@ -111,7 +116,12 @@ function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry 
                   nást. {p.code}
                 </span>
                 <span className="min-w-0 flex-1" />
-                <AddBtn small on={chosen.has(selectorKey(sel))} onClick={() => toggle(sel, `${entry.name} ${p.code}`)} />
+                <AddBtn
+                  small
+                  on={chosen.has(selectorKey(sel))}
+                  onClick={() => toggle(sel, `${entry.name} ${p.code}`)}
+                  name={`${entry.name} nást. ${p.code}`}
+                />
               </div>
             )
           })}
@@ -178,11 +188,16 @@ const Field = ({
       value={query}
       onChange={(e) => setQuery(e.target.value)}
       placeholder="Search stops…"
+      aria-label="Search stops"
       className="min-w-0 flex-1 border-none bg-transparent font-ui text-[15px] font-medium text-ink outline-none"
     />
-    <span onClick={onClose} className="cursor-pointer whitespace-nowrap font-ui text-[13px] font-semibold text-[#8a8a92]">
+    <button
+      type="button"
+      onClick={onClose}
+      className="cursor-pointer whitespace-nowrap border-none bg-transparent p-0 font-ui text-[13px] font-semibold text-[#8a8a92]"
+    >
       {closeLabel}
-    </span>
+    </button>
   </div>
 )
 
@@ -217,8 +232,12 @@ export function SearchPanel({ onClose, ...hooks }: { onClose: () => void } & Sea
   const closingHooks = useCloseOnAdd(onClose, hooks)
   return (
     <>
-      <div onClick={onClose} className="fixed inset-0 z-40" />
-      <div className="absolute right-0 top-[calc(100%+8px)] z-50 max-h-[560px] w-[400px] overflow-y-auto rounded-[13px] border border-[#2e2e36] bg-[#0c0c0f] p-[13px] shadow-[0_28px_70px_rgba(0,0,0,0.6)]">
+      <div onClick={onClose} aria-hidden="true" className="fixed inset-0 z-40" />
+      <div
+        role="dialog"
+        aria-label="Add a stop"
+        className="absolute right-0 top-[calc(100%+8px)] z-50 max-h-[560px] w-[400px] overflow-y-auto rounded-[13px] border border-[#2e2e36] bg-[#0c0c0f] p-[13px] shadow-[0_28px_70px_rgba(0,0,0,0.6)]"
+      >
         <Field query={query} setQuery={setQuery} onClose={onClose} closeLabel="Esc" />
         <Results query={query} hooks={closingHooks} />
       </div>

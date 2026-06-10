@@ -1,30 +1,116 @@
 @import "tailwindcss";
 
-/* The final design encoded as theme tokens → utilities (bg-bg, text-ink,
-   font-accent, text-make, rounded-card, …). See spec 2026-06-08-tablo-ui-redesign. */
+/* tablo design system — Tailwind v4 theme. Every token is both a CSS variable
+   (var(--color-make)) and a generated utility (bg-make / text-make / …). This
+   is the canonical token set, mirrored from the design-system bundle
+   (tokens/theme.css + base.css). See spec 2026-06-08-tablo-ui-redesign. */
 @theme {
+  /* ── surfaces (warm near-black stack) → bg-*, text-*, border-* ─────── */
+  --color-bg: #08080a; /* page ground */
+  --color-card: #0f0f12; /* raised surface */
+  --color-chip: #1b1b20; /* route badge / inset */
+  --color-ctl: #191920; /* control fill */
+  --color-edge: #1f1f25; /* hairline border */
+
+  /* ── ink (warm bone, never blue-cold) ─────────────────────────────── */
+  --color-ink: #eceae3; /* primary text */
+  --color-ink-dim: #d8d6cf; /* secondary row text */
+  --color-meta: #76767e; /* meta / muted */
+  --color-chip-ink: #e7e5de; /* text on chip */
+  --color-paper: #e9e7e0; /* inverted surface (active pill / CTA) */
+  --color-paper-ink: #0a0a0a; /* text on paper */
+
+  /* ── reachability (semantic — meaning, never decoration) ──────────── */
+  --color-make: #22e06b; /* catch it */
+  --color-run: #ffb02e; /* run */
+  --color-miss: #ff3b4e; /* missed */
+  --color-neutral: #c9c7c0; /* unknown — no glow */
+  --color-on-make: #06210f; /* ink on filled make */
+  --color-on-run: #2b1c00;
+  --color-on-miss: #2b060a;
+
+  /* ── supporting (kept off the reserved tier hues) ─────────────────── */
+  --color-late: #e7a13a; /* "+3 min" delayed */
+  --color-early: #5fae7a; /* "−1 min" ahead */
+  --color-icon: #a09a8f; /* vehicle pictogram stroke */
+  --color-add-ok: #1f8a5b; /* added-confirm green (≠ make) */
+
+  /* ── app chrome neutrals (NOT in the canonical bundle) ──────────────
+     UI furniture the design bundle never specifies: placeholders, inactive
+     controls, sunken fields, hover edges, the clock, the empty/add affordance.
+     Warm-dark, extending the ink ramp below meta. A handful of near-identical
+     ad-hoc greys were snapped to these (≤~13/255) to kill the drift. */
+  --color-faint: #5e5e66; /* placeholder · eyebrow · empty hint · search glyph */
+  --color-ctl-ink: #9a9aa2; /* inactive control (+) · legend · location text */
+  --color-field-ink: #8a8a92; /* search-field glyph + cancel */
+  --color-chip-muted: #b7b5ad; /* inactive platform-chip text */
+  --color-clock: #b9b9c0; /* app-bar clock (desktop) */
+  --color-clock-dim: #85858d; /* app-bar clock (mobile) */
+  --color-ghost: #54545c; /* faint glyph — close ✕ · add-tile + · sublabel */
+  --color-ghost-label: #6b6b73; /* add-tile primary label */
+  --color-sunken: #0c0c0f; /* inset field / trigger surface */
+  --color-edge-2: #2e2e36; /* raised field / popover / scrollbar border */
+  --color-edge-hover: #3a3a44; /* hover / dashed add-tile border */
+
+  /* ── type families → font-ui, font-accent ─────────────────────────── */
   --font-ui: "Hanken Grotesk", system-ui, sans-serif;
   --font-accent: "Doto", monospace;
 
-  --color-bg: #08080a;
-  --color-card: #0f0f12;
-  --color-edge: #1f1f25;
-  --color-ink: #eceae3;
-  --color-meta: #76767e;
-  --color-chip: #1b1b20;
-  --color-chip-ink: #e7e5de;
-  --color-paper: #e9e7e0; /* light CTA / active platform chip / pin badge */
-  --color-make: #22e06b;
-  --color-run: #ffb02e;
-  --color-miss: #ff3b4e;
+  /* ── UI type scale (Hanken) → text-caption … text-display ─────────── */
+  --text-caption: 12px; /* meta text */
+  --text-row: 15px; /* secondary stop row */
+  --text-label: 16px; /* card title */
+  --text-headsign: 17px; /* lead row destination */
+  --text-input: 16px; /* text-entry floor (iOS auto-zoom guard) */
+  --text-display: 28px; /* stop hero */
 
-  --radius-card: 13px;
-  --radius-chip: 7px;
+  /* ── LED scale (Doto) → text-led-inline … text-led-wall ───────────── */
+  --text-led-inline: 21px; /* secondary countdown */
+  --text-led-lead: 38px; /* lead-row countdown */
+  --text-led-clock: 20px; /* app-bar clock */
+  --text-led-wall: 64px; /* wallboard countdown */
+
+  /* ── tracking → tracking-* ────────────────────────────────────────── */
+  --tracking-led: 0.04em; /* LED numerals + wordmark breathe */
+  --tracking-clock: 0.06em;
+  --tracking-eyebrow: 0.14em; /* uppercase section eyebrows */
+
+  /* ── radii → rounded-* ────────────────────────────────────────────── */
+  --radius-card: 13px; /* containers / stop cards */
+  --radius-chip: 7px; /* route badges, small pills */
+  --radius-pill: 9px; /* platform filter pills */
+  --radius-ctl: 8px; /* add buttons */
+
+  /* ── depth → shadow-overlay (overlays / devices only — cards are flat) */
+  --shadow-overlay: 0 24px 60px -22px rgba(0, 0, 0, 0.8);
+}
+
+/* Plain custom props that don't map to a Tailwind namespace — referenced via
+   var() and the @utility helpers below. */
+:root {
+  color-scheme: dark;
+
+  /* warm radial ground — the "screen is on" feeling */
+  --ground: radial-gradient(120% 80% at 50% 0%, #101014, #08080a 72%);
+
+  /* LED glow per hue (scales with the tier color) + status-dot halo */
+  --glow-make: 0 0 14px color-mix(in srgb, var(--color-make) 47%, transparent);
+  --glow-run: 0 0 14px color-mix(in srgb, var(--color-run) 47%, transparent);
+  --glow-miss: 0 0 14px color-mix(in srgb, var(--color-miss) 47%, transparent);
+  --dot-glow: 0 0 9px currentColor;
+
+  /* row grid templates (edge-bar · pictogram · route · body · countdown) */
+  --row-lead: 3px 22px 46px 1fr auto;
+  --row-secondary: 20px 38px 1fr auto;
+
+  /* dimmest chrome step — empty-state stop glyph. In :root (not @theme) because
+     it's referenced only via a `color` prop, so Tailwind can't see/keep it. */
+  --color-ghost-icon: #3f3f47;
 }
 
 @layer base {
-  :root {
-    color-scheme: dark;
+  * {
+    box-sizing: border-box;
   }
   html,
   body,
@@ -34,24 +120,50 @@
   body {
     margin: 0;
     background-color: var(--color-bg);
-    background-image: radial-gradient(110% 70% at 50% 0%, #101014, #08080a 70%);
+    background-image: var(--ground);
     background-attachment: fixed;
     color: var(--color-ink);
     font-family: var(--font-ui);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
+  /* Forms · iOS Safari auto-zoom guard — every text input floored at 16px.
+     Mobile Safari zooms toward any focused input below 16px and never zooms
+     back out on blur. A field that must *look* smaller is scaled with
+     transform; its font-size never drops below 16px. Hard rule. */
+  input,
+  textarea,
+  select {
+    font-size: var(--text-input);
+  }
   /* slim scrollbars to match the dark UI */
   * {
     scrollbar-width: thin;
-    scrollbar-color: #2a2a30 transparent;
+    scrollbar-color: var(--color-edge-2) transparent;
   }
   *::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
   *::-webkit-scrollbar-thumb {
-    background: #2a2a30;
+    background: var(--color-edge-2);
     border-radius: 8px;
   }
+}
+
+/* LED glow helpers — apply to Doto numerals at size. Glow scales with the hue;
+   small inline numbers and the neutral tier carry none. */
+@utility led-make {
+  text-shadow: var(--glow-make);
+}
+@utility led-run {
+  text-shadow: var(--glow-run);
+}
+@utility led-miss {
+  text-shadow: var(--glow-miss);
+}
+
+/* status-dot / live-pip halo */
+@utility dot-glow {
+  box-shadow: var(--dot-glow);
 }

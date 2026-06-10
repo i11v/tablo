@@ -85,7 +85,7 @@ const SEED = [andel, mustek, pavlova, namesti]
 function Scene({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="border-b border-white/[0.05]">
-      <div className="px-[16px] pt-[18px] font-ui text-[11px] font-bold uppercase tracking-[0.12em] text-[#5e5e66] sm:px-[28px]">
+      <div className="px-[16px] pt-[18px] font-ui text-[11px] font-bold uppercase tracking-[0.12em] text-faint sm:px-[28px]">
         {title}
       </div>
       {children}

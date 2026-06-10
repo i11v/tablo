@@ -19,7 +19,7 @@ export const AddBtn = ({
     className={[
       "inline-flex shrink-0 cursor-pointer items-center justify-center rounded-[8px] border font-ui font-bold transition-all duration-100",
       small ? "h-[26px] w-[26px] text-[15px]" : "h-[30px] w-[30px] text-[18px]",
-      on ? "border-[#1f8a5b] bg-[#1f8a5b] text-white" : "border-white/[0.12] bg-[#191920] text-[#9a9aa2]",
+      on ? "border-add-ok bg-add-ok text-white" : "border-white/[0.12] bg-ctl text-ctl-ink",
     ].join(" ")}
   >
     {on ? "✓" : "+"}
@@ -62,7 +62,7 @@ function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry 
   }
   const platforms = entry.platforms.length > 1 ? entry.platforms : []
   return (
-    <div className="rounded-[13px] border border-edge bg-card px-[14px] py-[11px]">
+    <div className="rounded-card border border-edge bg-card px-[14px] py-[11px]">
       <div className="flex items-center gap-[11px]">
         <StopGlyph />
         <div className="min-w-0 flex-1">
@@ -70,7 +70,7 @@ function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry 
             {entry.name}
             {entry.disambig && <span className="font-medium text-meta"> · {entry.disambig}</span>}
           </div>
-          <div className="font-ui text-[12px] font-medium text-[#76767e]">
+          <div className="font-ui text-[12px] font-medium text-meta">
             {entry.platforms.length > 1 ? `Whole stop · ${entry.platforms.length} platforms` : "Whole stop"}
           </div>
         </div>
@@ -82,7 +82,7 @@ function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry 
             const sel: StopSelector = { node: entry.node, stops: [p.stop] }
             return (
               <div key={p.stop} className="flex items-center gap-[10px] py-[8px]">
-                <span className="shrink-0 whitespace-nowrap rounded-[7px] border border-white/[0.08] bg-[#191920] px-[9px] py-[3px] font-ui text-[12px] font-bold text-[#cdcbc4]">
+                <span className="shrink-0 whitespace-nowrap rounded-chip border border-white/[0.08] bg-ctl px-[9px] py-[3px] font-ui text-[12px] font-bold text-ink-dim">
                   nást. {p.code}
                 </span>
                 <span className="min-w-0 flex-1" />
@@ -100,11 +100,11 @@ function Results({ query, hooks }: { query: string; hooks: SearchHooks }) {
   const entries = useEntries(hooks.index, query)
   return (
     <>
-      <div className="px-[2px] pt-[14px] pb-[6px] font-ui text-[11px] font-bold tracking-[0.08em] text-[#5e5e66]">
+      <div className="px-[2px] pt-[14px] pb-[6px] font-ui text-[11px] font-bold tracking-[0.08em] text-faint">
         {query ? "RESULTS" : "NEARBY STOPS"}
       </div>
       {entries.length === 0 && (
-        <div className="py-[20px] text-center font-ui text-[13.5px] text-[#5e5e66]">
+        <div className="py-[20px] text-center font-ui text-[13.5px] text-faint">
           {query ? `No stops match “${query}”.` : "Recent stops appear here."}
         </div>
       )}
@@ -128,8 +128,8 @@ const Field = ({
   onClose: () => void
   closeLabel: string
 }) => (
-  <div className="flex items-center gap-[9px] rounded-[11px] border border-[#2e2e36] bg-[#0c0c0f] px-[13px] py-[10px]">
-    <SearchIcon color="#8a8a92" />
+  <div className="flex items-center gap-[9px] rounded-[11px] border border-edge-2 bg-sunken px-[13px] py-[10px]">
+    <SearchIcon color="var(--color-field-ink)" />
     <input
       autoFocus
       value={query}
@@ -137,7 +137,7 @@ const Field = ({
       placeholder="Search stops…"
       className="min-w-0 flex-1 border-none bg-transparent font-ui text-[15px] font-medium text-ink outline-none"
     />
-    <span onClick={onClose} className="cursor-pointer whitespace-nowrap font-ui text-[13px] font-semibold text-[#8a8a92]">
+    <span onClick={onClose} className="cursor-pointer whitespace-nowrap font-ui text-[13px] font-semibold text-field-ink">
       {closeLabel}
     </span>
   </div>
@@ -160,7 +160,7 @@ export function SearchPanel({ onClose, ...hooks }: { onClose: () => void } & Sea
   return (
     <>
       <div onClick={onClose} className="fixed inset-0 z-40" />
-      <div className="absolute right-0 top-[calc(100%+8px)] z-50 max-h-[560px] w-[400px] overflow-y-auto rounded-[13px] border border-[#2e2e36] bg-[#0c0c0f] p-[13px] shadow-[0_28px_70px_rgba(0,0,0,0.6)]">
+      <div className="absolute right-0 top-[calc(100%+8px)] z-50 max-h-[560px] w-[400px] overflow-y-auto rounded-card border border-edge-2 bg-sunken p-[13px] shadow-overlay">
         <Field query={query} setQuery={setQuery} onClose={onClose} closeLabel="Esc" />
         <Results query={query} hooks={hooks} />
       </div>

@@ -2,17 +2,18 @@
 export type Tier = "make" | "run" | "miss" | "neutral"
 
 export interface TierInfo {
-  /** Hex color, fed to the `--tier` CSS variable on each row. */
+  /** Design-system token reference, fed to the `--tier` CSS variable on each
+   * row (always consumed in a CSS context — see styles.css `--color-*`). */
   readonly color: string
   /** Short label chip on the lead row; "" hides the chip (neutral). */
   readonly label: string
 }
 
 export const TIER: Record<Tier, TierInfo> = {
-  make: { color: "#22e06b", label: "CATCH" },
-  run: { color: "#ffb02e", label: "RUN" },
-  miss: { color: "#ff3b4e", label: "MISSED" },
-  neutral: { color: "#c9c7c0", label: "" }, // location unknown → no urgency coloring
+  make: { color: "var(--color-make)", label: "CATCH" },
+  run: { color: "var(--color-run)", label: "RUN" },
+  miss: { color: "var(--color-miss)", label: "MISSED" },
+  neutral: { color: "var(--color-neutral)", label: "" }, // location unknown → no urgency coloring
 }
 
 export const tierColor = (tier: Tier): string => TIER[tier].color

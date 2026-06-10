@@ -117,7 +117,10 @@ export function StopCard({
   })
   useEffect(() => {
     try {
-      localStorage.setItem(storeKey, filter)
+      // Only persist a real choice — writing the default would leave a
+      // tablo.pf.<node> key behind for every card ever rendered.
+      if (filter === "all") localStorage.removeItem(storeKey)
+      else localStorage.setItem(storeKey, filter)
     } catch {
       /* private mode — ignore */
     }
@@ -160,9 +163,14 @@ export function StopCard({
             </span>
           )}
           {onClose && (
-            <span onClick={onClose} className="cursor-pointer text-[15px] text-[#54545c]">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={`Remove ${s.name}`}
+              className="cursor-pointer border-none bg-transparent p-0 text-[15px] text-[#54545c]"
+            >
               ✕
-            </span>
+            </button>
           )}
         </span>
       </div>

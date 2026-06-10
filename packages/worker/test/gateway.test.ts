@@ -4,7 +4,7 @@ import { TestClock } from "effect/testing"
 import { RateLimiter } from "effect/unstable/persistence"
 import type { PidBoardResponse } from "../src/golemio/schema.ts"
 import { GolemioClient } from "../src/golemio/client.ts"
-import { GolemioUpstreamError } from "../src/golemio/errors.ts"
+import { GolemioRateLimitedError, GolemioUpstreamError } from "../src/golemio/errors.ts"
 import { DepartureGateway } from "../src/gateway/service.ts"
 
 const emptyResponse: PidBoardResponse = { stops: [], departures: [] }
@@ -105,6 +105,65 @@ describe("DepartureGateway", () => {
         const result = yield* Fiber.join(fiber) // getBoards never fails
         expect(result.degraded).toBe(true)
         expect(yield* Ref.get(fake.calls)).toBe(20)
+      }).pipe(Effect.provide(gatewayLayer(fake.layer)))
+    }),
+  )
+
+  it.effect("cools down for 30s after an upstream 429", () =>
+    Effect.gen(function* () {
+      const calls = yield* Ref.make(0)
+      const limited = yield* Ref.make(false)
+      const layer = Layer.succeed(GolemioClient, {
+        fetchBoards: () =>
+          Effect.gen(function* () {
+            yield* Ref.update(calls, (n) => n + 1)
+            if (yield* Ref.get(limited)) {
+              return yield* new GolemioRateLimitedError()
+            }
+            return emptyResponse
+          }),
+      })
+      yield* Effect.gen(function* () {
+        const gw = yield* DepartureGateway
+        const sel = [{ node: 1040, stops: null }]
+        yield* gw.getBoards(sel) // healthy: 1 upstream call
+        yield* Ref.set(limited, true)
+        yield* TestClock.adjust("6 seconds") // expire cache TTL
+        const hit = yield* gw.getBoards(sel) // 429: 2nd call, cooldown armed
+        expect(hit.degraded).toBe(true)
+        yield* TestClock.adjust("6 seconds") // TTL expired again, cooldown active
+        const during = yield* gw.getBoards(sel)
+        expect(during.degraded).toBe(true)
+        expect(yield* Ref.get(calls)).toBe(2) // no upstream call during cooldown
+        yield* Ref.set(limited, false)
+        yield* TestClock.adjust("30 seconds") // cooldown over
+        const after = yield* gw.getBoards(sel)
+        expect(after.degraded).toBe(false)
+        expect(yield* Ref.get(calls)).toBe(3)
+      }).pipe(Effect.provide(gatewayLayer(layer)))
+    }),
+  )
+
+  it.effect("evicts the oldest stale fallback beyond capacity (64)", () =>
+    Effect.gen(function* () {
+      const fake = yield* makeFake
+      yield* Effect.gen(function* () {
+        const gw = yield* DepartureGateway
+        // Insert 65 distinct keys, pacing past the 20/8s rate-limit window.
+        for (let i = 0; i < 65; i++) {
+          if (i > 0 && i % 16 === 0) yield* TestClock.adjust("8 seconds")
+          yield* gw.getBoards([{ node: i + 1, stops: null }])
+        }
+        yield* Ref.set(fake.failing, true)
+        yield* TestClock.adjust("8 seconds") // expire cache TTL + refill limiter
+        // Oldest key (node 1) was evicted from lastGood: empty-boards fallback.
+        const evicted = yield* gw.getBoards([{ node: 1, stops: null }])
+        expect(evicted.degraded).toBe(true)
+        expect(evicted.boards).toEqual([])
+        // Newest key still has its stale board.
+        const retained = yield* gw.getBoards([{ node: 65, stops: null }])
+        expect(retained.degraded).toBe(true)
+        expect(retained.boards.length).toBe(1)
       }).pipe(Effect.provide(gatewayLayer(fake.layer)))
     }),
   )

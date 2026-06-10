@@ -10,12 +10,15 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   preview:
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write   # only this job comments on the PR
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -23,6 +26,12 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run test
+      - name: Cache GTFS feed   # fallback so a data.pid.cz outage can't block a preview
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: gtfs-${{ github.run_id }}
+          restore-keys: gtfs-
       - run: bun run build:index
       - run: bun run build:web
       - run: bun run verify:pwa
@@ -37,20 +46,24 @@ jobs:
         run: bunx alchemy deploy --stage "pr-${{ github.event.pull_request.number }}" --yes
         env:
           TABLO_STAGE: pr-${{ github.event.pull_request.number }}   # worker names itself tablo-pr-<N>
+          TABLO_COMMIT: ${{ github.event.pull_request.head.sha }}   # served by /api/health; asserted below
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GOLEMIO_API_TOKEN: ${{ secrets.GOLEMIO_API_TOKEN }}
-      - name: Smoke test (/api/health)
+      - name: Smoke test (/api/health serves this commit)
         env:
           URL: https://tablo-pr-${{ github.event.pull_request.number }}.${{ vars.CF_WORKERS_SUBDOMAIN }}.workers.dev
+          EXPECTED: ${{ github.event.pull_request.head.sha }}
         run: |
+          # Assert the deployed build, not just a 200 — a previous build's
+          # health endpoint also answers 200.
           for i in $(seq 1 12); do
-            code=$(curl -sS -o /dev/null -w "%{http_code}" "$URL/api/health" || echo 000)
-            echo "attempt $i: $URL/api/health -> $code"
-            if [ "$code" = "200" ]; then exit 0; fi
+            body=$(curl -sS "$URL/api/health" || echo "")
+            echo "attempt $i: $URL/api/health -> $body"
+            if echo "$body" | grep -q "\"version\":\"$EXPECTED\""; then exit 0; fi
             sleep 6
           done
-          echo "::error::preview health check failed for $URL/api/health"
+          echo "::error::preview health check failed: $URL/api/health never served version $EXPECTED"
           exit 1
       - name: Comment preview URL
         uses: actions/github-script@v7
@@ -75,6 +88,7 @@ jobs:
   cleanup:
     if: github.event.action == 'closed'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

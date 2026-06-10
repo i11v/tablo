@@ -86,8 +86,10 @@ export const PlatChip = ({
   onClick?: () => void
   small?: boolean
 }) => (
-  <span
+  <button
+    type="button"
     onClick={onClick}
+    aria-pressed={active}
     className={[
       "shrink-0 select-none whitespace-nowrap border font-ui font-bold transition-all duration-100",
       small ? "rounded-[7px] px-[9px] py-[3px] text-[11.5px]" : "rounded-[9px] px-[12px] py-[6px] text-[12.5px]",
@@ -96,5 +98,5 @@ export const PlatChip = ({
     ].join(" ")}
   >
     {label}
-  </span>
+  </button>
 )

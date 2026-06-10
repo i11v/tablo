@@ -25,7 +25,10 @@ export const departureVM = (dep: Departure, nowMs: number): DepartureVM | null =
     kind: dep.kind,
     headsign: dep.headsign,
     platform: dep.platform,
-    inMinutes: Math.max(0, Math.round(diff / 60_000)),
+    // floor, not round: a departure 90s out must read "1 min", and the
+    // reachability margin built on this number must never claim half a
+    // minute the rider doesn't have. (Transit-board convention too.)
+    inMinutes: Math.max(0, Math.floor(diff / 60_000)),
     atStop: dep.isAtStop,
     delayMinutes: dep.delaySeconds === null ? 0 : Math.round(dep.delaySeconds / 60),
     sortKey: t,

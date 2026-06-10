@@ -71,7 +71,9 @@ export async function setup() {
     cwd: REPO_ROOT,
     stdio: ["ignore", "inherit", "inherit"],
     detached: true,
-    env: { ...process.env, TABLO_DEV_PORT: String(PORT) },
+    // TABLO_STAGE must agree with --stage: alchemy.run.ts fails fast on a
+    // mismatch (guard against renaming/replacing the deployed worker).
+    env: { ...process.env, TABLO_DEV_PORT: String(PORT), TABLO_STAGE: STAGE },
   })
 
   let exited: { code: number | null; signal: NodeJS.Signals | null } | undefined

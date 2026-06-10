@@ -40,7 +40,10 @@ export default defineConfig({
             options: {
               cacheName: "stop-index",
               expiration: { maxEntries: 3, maxAgeSeconds: 60 * 24 * 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
+              // Same-origin fetches are never opaque (status 0) — only cache
+              // real 200s. The worker answers missing hashed files with 404
+              // (never the SPA fallback HTML), so a miss can't poison this cache.
+              cacheableResponse: { statuses: [200] },
             },
           },
           {
@@ -49,6 +52,27 @@ export default defineConfig({
             handler: "StaleWhileRevalidate",
             options: {
               cacheName: "stops-manifest",
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          // The Doto/Hanken look IS the product; without these the installed
+          // app falls back to system fonts exactly when a transit board is
+          // most used (offline / flaky network underground).
+          {
+            // Stylesheet: tiny, rotates when Google re-shards font files.
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: "StaleWhileRevalidate",
+            options: { cacheName: "google-fonts-css" },
+          },
+          {
+            // Font binaries are immutable per URL -> cache for a year.
+            // Status 0 is required here: <link>-initiated no-cors fetches
+            // surface as opaque responses.
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "google-fonts-files",
+              expiration: { maxEntries: 12, maxAgeSeconds: 365 * 24 * 60 * 60 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

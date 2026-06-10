@@ -57,9 +57,7 @@ PUBLIC = os.path.normpath(os.path.join(HERE, "..", "public"))
 os.makedirs(PUBLIC, exist_ok=True)
 master = render(1024)
 master.save(os.path.join(HERE, "icon-1024.png"))  # full-bleed master (reference)
-# served sizes → public/ (Vite copies these to the site root)
-for px, name in [(512, "icon-512.png"), (192, "icon-192.png"),
-                 (180, "apple-touch-icon.png"), (32, "favicon-32.png"),
-                 (16, "favicon-16.png")]:
-    master.resize((px, px), Image.LANCZOS).save(os.path.join(PUBLIC, name))
-print("written master + 5 served sizes")
+# public/icon.png is the PWA generator source (pwa-assets.config.ts) — vite-plugin-pwa
+# derives the favicon / apple-touch / manifest icon set from it at build.
+master.save(os.path.join(PUBLIC, "icon.png"))
+print("written brand/icon-1024.png + public/icon.png (PWA source)")

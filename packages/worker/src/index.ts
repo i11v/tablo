@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import * as Cloudflare from "alchemy/Cloudflare"
-import { Effect, Layer } from "effect"
+import { Config, Effect, Layer } from "effect"
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest"
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse"
 import * as HttpRouter from "effect/unstable/http/HttpRouter"
@@ -10,9 +10,14 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Api } from "@app/contract"
 import { ClientSession } from "./do/session.ts"
 import { GolemioGateway } from "./do/gateway.ts"
+import { resolveWorkerStage, workerName } from "./workerName.ts"
 
 export { ClientSession, GolemioGateway }
 
+// Fallback build identity for local dev. CI binds TABLO_COMMIT to the commit
+// SHA at deploy time and the smoke test asserts /api/health reports it — a
+// health check that can't tell which build is live passes even when the
+// deploy didn't actually take.
 const VERSION = "0.1.0"
 
 // Local dev server port. Defaults to Alchemy's 1337 so `bun alchemy dev` keeps
@@ -28,18 +33,36 @@ const devOptions =
     ? undefined
     : { port: DEV_PORT_OVERRIDE, strictPort: true }
 
-const systemHandlers = HttpApiBuilder.group(Api, "system", (handlers) =>
-  handlers.handle("health", () => Effect.succeed({ ok: true, version: VERSION })),
+// Deploy-time stage, read at module load. CI sets `TABLO_STAGE` to match the
+// `alchemy deploy --stage <…>` value. We deliberately do NOT read the
+// `Alchemy.Stage` Context service here: it only exists at deploy/plan time,
+// and reading it inside the Worker definition leaks a `Stage` requirement
+// into the worker's runtime context, crashing every request with
+// "Service not found: Stage". Locally we fall back to alchemy's own default
+// (`dev_<user>`) so a stray local deploy can never grab the bare `tablo`
+// (production) name.
+const WORKER_STAGE = resolveWorkerStage(
+  typeof process !== "undefined" ? (process.env ?? {}) : {},
 )
 
-const apiLayer = HttpApiBuilder.layer(Api).pipe(
-  Layer.provide(systemHandlers),
-  Layer.provide([HttpPlatform.layer, Etag.layer]),
-)
+const apiLayer = (version: string) =>
+  HttpApiBuilder.layer(Api).pipe(
+    Layer.provide(
+      HttpApiBuilder.group(Api, "system", (handlers) =>
+        handlers.handle("health", () => Effect.succeed({ ok: true, version })),
+      ),
+    ),
+    Layer.provide([HttpPlatform.layer, Etag.layer]),
+  )
 
 export default class Server extends Cloudflare.Worker<Server>()(
   "Server",
   {
+    // Stage-aware name: production keeps the bare `tablo` (stable workers.dev
+    // URL); every other stage is suffixed so a preview can never overwrite it.
+    // `name` is computed from WORKER_STAGE (process.env, read at module load) —
+    // see the note there for why this must not use the `Alchemy.Stage` service.
+    name: workerName(WORKER_STAGE),
     main: import.meta.filename,
     compatibility: { date: "2026-06-01", flags: ["nodejs_compat"] },
     assets: {
@@ -47,7 +70,10 @@ export default class Server extends Cloudflare.Worker<Server>()(
       notFoundHandling: "single-page-application",
       // Production-correct: /api/* hits the worker first, everything else is
       // served by the Cloudflare assets router (with the SPA fallback).
-      runWorkerFirst: ["/api/*"],
+      // /data/* also goes worker-first so a missing hashed stop-index file
+      // can be answered with a real 404 instead of the SPA fallback HTML —
+      // see the /data/ branch in fetch below.
+      runWorkerFirst: ["/api/*", "/data/*"],
     },
     url: true,
     ...(devOptions ? { dev: devOptions } : {}),
@@ -55,13 +81,25 @@ export default class Server extends Cloudflare.Worker<Server>()(
   Effect.gen(function* () {
     const sessions = yield* ClientSession
     yield* GolemioGateway // bind the namespace even though only ClientSession calls it
-    const apiHandler = yield* HttpRouter.toHttpEffect(apiLayer)
+    const version = yield* Config.string("TABLO_COMMIT").pipe(
+      Config.withDefault(VERSION),
+      Effect.orDie,
+    )
+    const apiHandler = yield* HttpRouter.toHttpEffect(apiLayer(version))
 
     return {
       fetch: Effect.gen(function* () {
         const req = yield* HttpServerRequest.HttpServerRequest
         const url = new URL(req.url, "http://local")
         if (url.pathname === "/api/ws") {
+          // Plain GETs (crawlers, preloaders, curl) would otherwise reach the
+          // DO, where upgrade() dies — a 500 plus log noise for what is just
+          // a non-WebSocket request. Answer 426 here instead.
+          if (req.headers["upgrade"]?.toLowerCase() !== "websocket") {
+            return HttpServerResponse.text("expected websocket upgrade", {
+              status: 426,
+            })
+          }
           const session = url.searchParams.get("session")
           if (session === null || session.length === 0 || session.length > 100) {
             return HttpServerResponse.text("missing session id", { status: 400 })
@@ -70,6 +108,23 @@ export default class Server extends Cloudflare.Worker<Server>()(
         }
         if (url.pathname.startsWith("/api/")) {
           return yield* apiHandler
+        }
+        if (url.pathname.startsWith("/data/")) {
+          // Old hashed stop-index files disappear from assets on every deploy,
+          // and SPA notFoundHandling turns that miss into index.html + 200.
+          // The web app's service worker caches /data responses CacheFirst for
+          // 60 days, so letting the fallback through would poison that cache
+          // with HTML where JSON is expected. Surface misses as real 404s.
+          const env = yield* Cloudflare.WorkerEnvironment
+          const assets = (env as Record<string, AssetsFetcher>).ASSETS
+          const res = yield* Effect.tryPromise(() =>
+            assets.fetch(req.source as Request),
+          ).pipe(Effect.orDie)
+          const contentType = res.headers.get("content-type") ?? ""
+          if (res.status === 200 && contentType.includes("text/html")) {
+            return HttpServerResponse.text("not found", { status: 404 })
+          }
+          return HttpServerResponse.fromWeb(res)
         }
         // Non-/api routes: delegate to the ASSETS binding. In production the
         // assets router serves these before they ever reach the worker; this

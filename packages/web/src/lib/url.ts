@@ -1,4 +1,4 @@
-import type { StopSelector } from "@app/contract"
+import { selectorKey, type StopSelector } from "@app/contract"
 
 export interface Selection {
   readonly selector: StopSelector
@@ -20,6 +20,9 @@ export const encodeSelection = (sel: ReadonlyArray<Selection>): string =>
 export const decodeSelection = (raw: string): Array<Selection> => {
   if (raw === "") return []
   const out: Array<Selection> = []
+  // Dedupe by selector: a hand-edited or doubled-up shared URL would
+  // otherwise produce duplicate React keys and remove() would drop both.
+  const seen = new Set<string>()
   for (const part of raw.split(";")) {
     const tilde = part.indexOf("~")
     if (tilde === -1) continue
@@ -34,7 +37,11 @@ export const decodeSelection = (raw: string): Array<Selection> => {
       continue
     }
     const [node, ...stops] = nums.map(Number)
-    out.push({ selector: { node, stops: stops.length === 0 ? null : stops }, name })
+    const selector: StopSelector = { node, stops: stops.length === 0 ? null : stops }
+    const key = selectorKey(selector)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ selector, name })
   }
   return out
 }

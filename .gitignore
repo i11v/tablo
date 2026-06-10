@@ -11,5 +11,6 @@ dist/
 HANDOFF.md
 
 .alchemy/
+.cache/
 packages/web/dist/
 packages/web/public/data/

@@ -23,6 +23,8 @@ their own corner mask, so we never bake one in.
 uv run --with pillow --with numpy python brand/gen_icon.py
 ```
 
-Writes the master here and the served sizes to `../public/`:
-`apple-touch-icon.png` (180), `icon-512.png`, `icon-192.png`,
-`favicon-32.png`, `favicon-16.png`. They are wired into `index.html`.
+Writes the master here (`icon-1024.png`) and the **PWA generator source**
+`../public/icon.png`. The favicon / apple-touch / maskable / manifest icon set
+is produced from `public/icon.png` at build time by `vite-plugin-pwa` +
+`@vite-pwa/assets-generator` (see `pwa-assets.config.ts`), which also injects
+the `<link>` tags — so there are no hand-maintained favicon files or links.

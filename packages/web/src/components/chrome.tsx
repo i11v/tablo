@@ -16,13 +16,6 @@ const SIGNAL_HUE: Record<WsStatus, string> = {
   reconnecting: "var(--color-miss)",
 }
 
-const SIGNAL_LABEL: Record<WsStatus, string> = {
-  live: "Connected",
-  degraded: "Degraded",
-  connecting: "Connecting",
-  reconnecting: "Reconnecting",
-}
-
 export const Wordmark = ({ status }: { status: WsStatus }) => {
   const hue = SIGNAL_HUE[status]
   return (
@@ -30,7 +23,7 @@ export const Wordmark = ({ status }: { status: WsStatus }) => {
       tablo
       <span
         role="img"
-        aria-label={SIGNAL_LABEL[status]}
+        aria-label={`feed ${status}`}
         className="inline-block align-baseline"
         style={{
           width: "0.16em",
@@ -67,8 +60,11 @@ const LocationChip = ({ geo, label }: { geo: Geo; label: string | null }) => {
 
 const DesktopSearchTrigger = ({ open, onOpen, children }: { open: boolean; onOpen: () => void; children: ReactNode }) => (
   <span className="relative hidden sm:block">
-    <span
+    <button
+      type="button"
       onClick={onOpen}
+      aria-expanded={open}
+      aria-haspopup="dialog"
       className={[
         "flex w-[260px] cursor-pointer items-center gap-[9px] rounded-[10px] border bg-sunken px-[13px] py-[9px]",
         open ? "border-edge-hover" : "border-edge",
@@ -76,7 +72,7 @@ const DesktopSearchTrigger = ({ open, onOpen, children }: { open: boolean; onOpe
     >
       <SearchIcon />
       <span className="font-ui text-[13.5px] font-medium text-faint">Add a stop…</span>
-    </span>
+    </button>
     {children}
   </span>
 )
@@ -142,20 +138,22 @@ export function SubBar({ status, count }: { status: WsStatus; count: number }) {
 /** Mobile full-width search trigger, sits inline in the scroll area. */
 export function MobileSearchTrigger({ onClick }: { onClick: () => void }) {
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      className="flex cursor-pointer items-center gap-[9px] rounded-[11px] border border-edge bg-sunken px-[14px] py-[12px] sm:hidden"
+      className="flex w-full cursor-pointer items-center gap-[9px] rounded-[11px] border border-edge bg-sunken px-[14px] py-[12px] sm:hidden"
     >
       <SearchIcon />
       <span className="whitespace-nowrap font-ui text-[14.5px] font-medium text-faint">Add a stop…</span>
-    </div>
+    </button>
   )
 }
 
 /** Desktop dashed "next slot" tile in the board grid. */
 export function AddTile({ onClick }: { onClick: () => void }) {
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
       className="flex min-h-[300px] cursor-pointer flex-col items-center justify-center gap-[12px] rounded-[13px] border-[1.5px] border-dashed border-edge-2 bg-white/[0.012]"
     >
@@ -164,7 +162,7 @@ export function AddTile({ onClick }: { onClick: () => void }) {
       </span>
       <span className="font-ui text-[14px] font-semibold text-ghost-label">Add a stop</span>
       <span className="font-ui text-[12px] font-medium text-ghost">stop or single platform</span>
-    </div>
+    </button>
   )
 }
 
@@ -180,12 +178,13 @@ export function EmptyState({ onAdd }: { onAdd: () => void }) {
           Add a stop — or a single platform you use every day — and tablo shows live departures with how
           likely you are to catch each one.
         </div>
-        <span
+        <button
+          type="button"
           onClick={onAdd}
-          className="inline-flex cursor-pointer items-center gap-[8px] whitespace-nowrap rounded-[11px] bg-paper px-[20px] py-[11px] font-ui text-[14.5px] font-bold text-paper-ink"
+          className="inline-flex cursor-pointer items-center gap-[8px] whitespace-nowrap rounded-[11px] border-none bg-paper px-[20px] py-[11px] font-ui text-[14.5px] font-bold text-paper-ink"
         >
           <SearchIcon size={15} color="var(--color-paper-ink)" /> Add a stop
-        </span>
+        </button>
       </div>
     </div>
   )

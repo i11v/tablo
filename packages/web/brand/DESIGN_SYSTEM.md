@@ -62,7 +62,9 @@ only literal hexes left are the token *definitions* in `styles.css`.
 - **App icon `t.`** — the wordmark reduced to its initial, on the warm board
   ground. Rendered from the real Doto Black outlines by `brand/gen_icon.py`;
   master is **full-bleed** (no baked corners — the OS masks). See
-  [README.md](./README.md). Wired into `index.html` (favicon + apple-touch).
+  [README.md](./README.md). It is the **PWA icon source** (`public/icon.png`):
+  `vite-plugin-pwa` generates the favicon / apple-touch / maskable / manifest
+  set from it at build and injects the links — no hand-maintained favicons.
 - **Reachability hues are reserved** — `make`/`run`/`miss` mean *catch/run/miss*
   and nothing decorative may borrow them. `add-ok` is a deliberately *different*
   green so the add button never reads as a score.

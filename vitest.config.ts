@@ -4,6 +4,5 @@ export default defineConfig({
   test: {
     include: ["packages/*/test/**/*.test.ts", "scripts/test/**/*.test.ts"],
     environment: "node",
-    passWithNoTests: true,
   },
 })

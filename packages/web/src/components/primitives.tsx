@@ -64,7 +64,7 @@ export const Meta = ({
     <span className="font-ui text-[12px] font-medium text-meta">
       {plat}
       {(late || early) && (
-        <span style={{ color: late ? "#e7a13a" : "#5fae7a" }}>
+        <span className={late ? "text-late" : "text-early"}>
           {plat ? " · " : ""}
           {late ? "+" : ""}
           {delayMinutes} min
@@ -93,7 +93,7 @@ export const PlatChip = ({
     className={[
       "shrink-0 select-none whitespace-nowrap border font-ui font-bold transition-all duration-100",
       small ? "rounded-[7px] px-[9px] py-[3px] text-[11.5px]" : "rounded-[9px] px-[12px] py-[6px] text-[12.5px]",
-      active ? "border-paper bg-paper text-[#0a0a0a]" : "border-white/[0.08] bg-[#191920] text-[#b7b5ad]",
+      active ? "border-paper bg-paper text-paper-ink" : "border-white/[0.08] bg-ctl text-chip-muted",
       onClick ? "cursor-pointer" : "cursor-default",
     ].join(" ")}
   >

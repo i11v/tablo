@@ -148,8 +148,8 @@ export const App = () => {
           <>
             <MobileSearchTrigger onClick={() => setSearching(true)} />
             {selection.length === 0 ? (
-              <div className="px-[10px] py-[30px] text-center font-ui text-[13.5px] text-[#5e5e66]">
-                No stops yet — tap <b className="text-[#9a9aa2]">Add a stop</b> to search.
+              <div className="px-[10px] py-[30px] text-center font-ui text-[13.5px] text-faint">
+                No stops yet — tap <b className="text-ctl-ink">Add a stop</b> to search.
               </div>
             ) : (
               cards.map(({ key, vm }) => <StopCard key={key} s={vm} onClose={() => remove(key)} />)

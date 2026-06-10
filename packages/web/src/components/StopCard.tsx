@@ -9,6 +9,14 @@ import { Count, Meta, PlatChip, RouteChip } from "./primitives.tsx"
 const tierVars = (color: string): CSSProperties => ({ "--tier": color }) as CSSProperties
 const railGlow = "0 0 9px color-mix(in srgb, var(--tier) 67%, transparent)"
 
+// Verdict-pill ink per tier (the DS TierPill's on-make/run/miss contrast inks).
+// Kept as literal class strings so Tailwind emits the utilities + their tokens.
+const ON_INK: Record<string, string> = {
+  make: "text-on-make",
+  run: "text-on-run",
+  miss: "text-on-miss",
+}
+
 function LeadRow({
   d,
   walk,
@@ -38,7 +46,9 @@ function LeadRow({
         <div className="truncate font-ui text-[17px] font-bold leading-[1.15] text-ink">{d.headsign}</div>
         <div className="mt-[3px] flex items-center gap-[8px] overflow-hidden whitespace-nowrap">
           {info.label !== "" && (
-            <span className="shrink-0 rounded-[4px] bg-[var(--tier)] px-[6px] py-[2px] font-ui text-[11px] font-bold tracking-[0.06em] text-[#0b0b0b]">
+            <span
+              className={`shrink-0 rounded-[4px] bg-[var(--tier)] px-[6px] py-[2px] font-ui text-[11px] font-bold tracking-[0.06em] ${ON_INK[tier]}`}
+            >
               {info.label}
             </span>
           )}
@@ -82,7 +92,7 @@ function Row({
       <VehicleIcon kind={d.kind} size={20} />
       <RouteChip route={d.route} />
       <div className="min-w-0">
-        <div className="truncate font-ui text-[15px] font-semibold leading-[1.2] text-[#d8d6cf]">{d.headsign}</div>
+        <div className="truncate font-ui text-[15px] font-semibold leading-[1.2] text-ink-dim">{d.headsign}</div>
         <Meta delayMinutes={d.delayMinutes} platform={d.platform} showPlat={showPlatMeta} />
       </div>
       {trailing}
@@ -151,7 +161,7 @@ export function StopCard({
         <span className="flex min-w-0 items-baseline gap-[8px]">
           <span className="font-ui text-[16px] font-extrabold tracking-[0.01em] text-ink">{s.name}</span>
           {forced && (
-            <span className="whitespace-nowrap rounded-[6px] bg-paper px-[7px] py-[2px] font-ui text-[12px] font-bold text-[#0a0a0a]">
+            <span className="whitespace-nowrap rounded-[6px] bg-paper px-[7px] py-[2px] font-ui text-[12px] font-bold text-paper-ink">
               {plats.find((p) => p.key === s.pin)?.label ?? `nást. ${s.pin}`}
             </span>
           )}
@@ -167,7 +177,7 @@ export function StopCard({
               type="button"
               onClick={onClose}
               aria-label={`Remove ${s.name}`}
-              className="cursor-pointer border-none bg-transparent p-0 text-[15px] text-[#54545c]"
+              className="cursor-pointer border-none bg-transparent p-0 text-[15px] text-ghost"
             >
               ✕
             </button>
@@ -202,7 +212,7 @@ export function StopCard({
       ))}
 
       {hasFilter && !isAll && sel && (
-        <div className="py-[10px] text-center font-ui text-[11.5px] font-medium text-[#5e5e66]">
+        <div className="py-[10px] text-center font-ui text-[11.5px] font-medium text-faint">
           {sel.label} only · {sel.dir}
         </div>
       )}

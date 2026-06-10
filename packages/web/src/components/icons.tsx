@@ -1,6 +1,6 @@
 import type { VehicleKind } from "@app/contract"
 
-export const SearchIcon = ({ size = 15, color = "#5a5a62" }: { size?: number; color?: string }) => (
+export const SearchIcon = ({ size = 15, color = "var(--color-faint)" }: { size?: number; color?: string }) => (
   <svg
     width={size}
     height={size}
@@ -31,9 +31,9 @@ export const WalkIcon = () => (
   </svg>
 )
 
-export const StopGlyph = ({ size = 30, color = "#a09a8f" }: { size?: number; color?: string }) => (
+export const StopGlyph = ({ size = 30, color = "var(--color-icon)" }: { size?: number; color?: string }) => (
   <span
-    className="inline-flex shrink-0 items-center justify-center bg-[#191920] border border-white/[0.08]"
+    className="inline-flex shrink-0 items-center justify-center bg-ctl border border-white/[0.08]"
     style={{ width: size, height: size, borderRadius: size * 0.3 }}
   >
     <svg
@@ -54,7 +54,7 @@ export const StopGlyph = ({ size = 30, color = "#a09a8f" }: { size?: number; col
 // don't, metro is an M roundel). Monochrome so the reachability color stays
 // unambiguous.
 export const VehicleIcon = ({ kind, size = 22 }: { kind: VehicleKind; size?: number }) => {
-  const col = "#a09a8f"
+  const col = "var(--color-icon)"
   if (kind === "metro") {
     return (
       <span

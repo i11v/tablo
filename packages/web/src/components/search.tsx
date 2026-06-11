@@ -191,7 +191,7 @@ const Field = ({
       onChange={(e) => setQuery(e.target.value)}
       placeholder="Search stops…"
       aria-label="Search stops"
-      className="min-w-0 flex-1 border-none bg-transparent font-ui text-[15px] font-medium text-ink outline-none"
+      className="min-w-0 flex-1 border-none bg-transparent font-ui text-input font-medium text-ink outline-none"
     />
     <button
       type="button"

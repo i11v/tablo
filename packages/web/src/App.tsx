@@ -47,7 +47,9 @@ export const App = () => {
     // The wire protocol caps Subscribe at MAX_SELECTORS; never build a
     // selection the encoder would reject.
     if (selection.length >= MAX_SELECTORS) return
-    update([...selection, { selector, name }])
+    // Newest on top: the just-added stop/platform is what the user is looking
+    // for, so it leads the board rather than landing at the bottom.
+    update([{ selector, name }, ...selection])
     pushRecent(selector.node)
   }
   const remove = (key: string): void => {

@@ -76,6 +76,11 @@ export default class Server extends Cloudflare.Worker<Server>()(
       runWorkerFirst: ["/api/*", "/data/*"],
     },
     url: true,
+    // Production also answers on the custom hostname. Only attach it for the
+    // production stage — the zone is inferred from the hostname and a preview
+    // (tablo-pr-N) must never try to grab the shared `tablo.i11v.com` domain;
+    // previews keep their suffixed workers.dev URL via `url: true` above.
+    ...(WORKER_STAGE === "production" ? { domain: "tablo.i11v.com" } : {}),
     ...(devOptions ? { dev: devOptions } : {}),
   },
   Effect.gen(function* () {

@@ -7,8 +7,8 @@ dist/
 .env
 .env.*
 
-# Local handoff notes (not tracked)
-HANDOFF.md
+# Local-only files (handoff notes, scratch) — name them e.g. notes.local.md
+*.local.*
 
 .alchemy/
 .cache/

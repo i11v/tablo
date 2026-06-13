@@ -29,7 +29,7 @@ for (const f of [
 // 3. Manifest is a standalone, correctly-named app with >=1 icon.
 const manifest = JSON.parse(readFileSync(DIST + "/manifest.webmanifest", "utf8"))
 if (manifest.display !== "standalone") fail('manifest.display !== "standalone"')
-if (manifest.name !== "tablo") fail('manifest.name !== "tablo"')
+if (manifest.name !== "tablo.") fail('manifest.name !== "tablo."')
 if (manifest.theme_color !== "#08080a") fail("manifest.theme_color wrong")
 if (!Array.isArray(manifest.icons) || manifest.icons.length === 0) {
   fail("manifest has no icons[]")

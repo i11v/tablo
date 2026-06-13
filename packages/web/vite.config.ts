@@ -13,8 +13,8 @@ export default defineConfig({
       // apple-touch-icon / favicon / manifest-icon links (reads pwa-assets.config.ts).
       pwaAssets: { config: true },
       manifest: {
-        name: "tablo",
-        short_name: "tablo",
+        name: "tablo.",
+        short_name: "tablo.",
         description: "Prague public-transport departures",
         start_url: "/",
         scope: "/",

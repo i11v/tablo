@@ -1,13 +1,21 @@
 # tablo brand assets — the `t.` app icon
 
 The product icon is the wordmark reduced to its initial: a Doto **`t`** + the
-green **full-stop square** that doubles as the live-connection signal, on the
-warm board ground. Geometry ports `tablo-design-system/components/brand/AppIcon.jsx`:
-glyph `0.6×` the canvas, full stop `0.16×` the glyph, optical nudge `-0.035×`,
-radial board gradient `#17171d → #08080a`, a tight green box-shadow glow.
+green **make-square** full stop that doubles as the live-connection signal, on
+the warm board ground — the single-glyph echo of the **`tablo.`** wordmark.
+Geometry ports the default `t.` lockup of
+`tablo-design-system/components/brand/AppIcon.jsx`: the **`t` + full-stop square**
+(`0.16×` the glyph, resting on the baseline) are centred as **one unit**, with
+the glyph sized `0.70×` the canvas, on the radial board gradient
+`#17171d → #08080a` with a tight green box-shadow glow.
 
-The master is **full-bleed** (no rounded corners) — iOS / Android / PWA apply
-their own corner mask, so we never bake one in.
+`0.70×` is bigger than the design's nominal `0.6×` (which read as a tiny, padded
+mark on the Home Screen) but stops short of a true full bleed: blowing the lone
+`t` up to own the whole tile leaves the off-diagonal corners dead once iOS masks
+the rounded corners, so the centred lockup is what reads balanced on-device.
+
+The master is **full-bleed** in the no-corners sense — no rounded corners baked
+in (iOS / Android / PWA apply their own mask).
 
 ## Files
 

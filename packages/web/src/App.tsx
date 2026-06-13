@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { type ReactNode, useEffect, useMemo, useState } from "react"
 import { MAX_SELECTORS, selectorKey, type StopIndexEntry, type StopSelector } from "@app/contract"
 import { AddTile, AppBar, EmptyState, MobileSearchTrigger, SubBar } from "./components/chrome.tsx"
 import { SearchPanel, SearchView } from "./components/search.tsx"
@@ -55,6 +55,12 @@ export const App = () => {
   const remove = (key: string): void => {
     update(selection.filter((s) => selectorKey(s.selector) !== key))
   }
+  // Re-scope a card in place (preserve board order) when a platform is picked on
+  // its map, or it's reset to the whole stop.
+  const replaceAt = (index: number, selector: StopSelector, name: string): void => {
+    update(selection.map((sel, i) => (i === index ? { selector, name } : sel)))
+    pushRecent(selector.node)
+  }
 
   const walkOf = (node: number): number | null => {
     if (geo.tag !== "active") return null
@@ -109,6 +115,24 @@ export const App = () => {
   const searchHooks = { indexState: index, chosen, origin, onAdd: add, onRemove: remove }
   const clock = formatClock(now)
 
+  const renderCard = ({ key, vm }: { key: string; vm: StopVM }, i: number): ReactNode => {
+    const e = byNode.get(vm.node)
+    return (
+      <StopCard
+        key={key}
+        s={vm}
+        onClose={() => remove(key)}
+        platforms={e?.platforms}
+        origin={origin}
+        onPick={(stop) => {
+          const code = e?.platforms.find((p) => p.stop === stop)?.code
+          replaceAt(i, { node: vm.node, stops: [stop] }, code ? `${e!.name} ${code}` : vm.name)
+        }}
+        onWholeStop={() => replaceAt(i, { node: vm.node, stops: null }, e?.name ?? vm.name)}
+      />
+    )
+  }
+
   return (
     <div className="flex min-h-full flex-col">
       <AppBar
@@ -134,9 +158,7 @@ export const App = () => {
           <EmptyState onAdd={() => setSearching(true)} />
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] items-start gap-[16px] px-[28px] pb-[28px]">
-            {cards.map(({ key, vm }) => (
-              <StopCard key={key} s={vm} onClose={() => remove(key)} />
-            ))}
+            {cards.map(renderCard)}
             <AddTile onClick={() => setSearching(true)} />
           </div>
         )}
@@ -154,7 +176,7 @@ export const App = () => {
                 No stops yet — tap <b className="text-ctl-ink">Add a stop</b> to search.
               </div>
             ) : (
-              cards.map(({ key, vm }) => <StopCard key={key} s={vm} onClose={() => remove(key)} />)
+              cards.map(renderCard)
             )}
           </>
         )}

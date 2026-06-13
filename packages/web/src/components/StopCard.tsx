@@ -1,9 +1,13 @@
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react"
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react"
+import type { StopPlatform } from "@app/contract"
 import type { DepartureVM } from "../lib/departureVM.ts"
+import { buildPlatformPicks } from "../lib/platforms.ts"
+import type { Origin } from "../lib/ranker.ts"
 import { reachTier } from "../lib/reach.ts"
 import { platformKey, platformsOf, type StopVM } from "../lib/stop.ts"
 import { TIER } from "../lib/tier.ts"
-import { VehicleIcon, WalkIcon } from "./icons.tsx"
+import { MapIcon, VehicleIcon, WalkIcon } from "./icons.tsx"
+import { PlatformPicker } from "./PlatformPicker.tsx"
 import { Count, Meta, PlatChip, RouteChip } from "./primitives.tsx"
 
 const tierVars = (color: string): CSSProperties => ({ "--tier": color }) as CSSProperties
@@ -106,16 +110,26 @@ export function StopCard({
   max = 6,
   filterable = true,
   onClose,
+  platforms,
+  origin,
+  onPick,
+  onWholeStop,
 }: {
   s: StopVM
   max?: number
   filterable?: boolean
   onClose?: () => void
+  platforms?: ReadonlyArray<StopPlatform> | undefined
+  origin?: Origin | null | undefined
+  onPick?: ((stop: number) => void) | undefined
+  onWholeStop?: (() => void) | undefined
 }) {
   const plats = platformsOf(s.departures)
   const barPlats = plats.filter((p) => p.count >= 2)
   const forced = s.pin !== null && plats.some((p) => p.key === s.pin)
-  const hasFilter = filterable && !forced && plats.length > 1 && barPlats.length >= 1
+  // With a spatial picker available, the map button replaces the chip filter.
+  const hasPicker = onPick !== undefined && (platforms?.length ?? 0) > 1
+  const hasFilter = filterable && !forced && !hasPicker && plats.length > 1 && barPlats.length >= 1
   const storeKey = "tablo.pf." + s.node
 
   const [filter, setFilter] = useState<string>(() => {
@@ -136,6 +150,26 @@ export function StopCard({
     }
   }, [filter, storeKey])
 
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickSel, setPickSel] = useState<string | null>(s.pin)
+  const picks = useMemo(
+    () => (hasPicker ? buildPlatformPicks(platforms!, origin ?? null, s.departures) : []),
+    [hasPicker, platforms, origin, s.departures],
+  )
+  const openPicker = (): void => {
+    setPickSel(s.pin ?? picks[0]?.code ?? null)
+    setPickerOpen(true)
+  }
+  const confirmPick = (code: string): void => {
+    const stop = platforms?.find((p) => p.code === code)?.stop
+    if (stop !== undefined) onPick?.(stop)
+    setPickerOpen(false)
+  }
+  const confirmWhole = (): void => {
+    onWholeStop?.()
+    setPickerOpen(false)
+  }
+
   const valid = filter === "all" || plats.some((p) => p.key === filter)
   const active = forced ? s.pin! : hasFilter && valid ? filter : "all"
   const isAll = active === "all"
@@ -154,7 +188,7 @@ export function StopCard({
     ) : undefined
 
   return (
-    <div className="rounded-card border border-edge bg-card px-[15px] pt-[13px] pb-[7px]">
+    <div className="relative rounded-card border border-edge bg-card px-[15px] pt-[13px] pb-[7px]">
       <div
         className={["flex items-center justify-between", hasFilter ? "mb-[9px]" : "mb-[7px]"].join(" ")}
       >
@@ -164,6 +198,16 @@ export function StopCard({
             <span className="whitespace-nowrap rounded-[6px] bg-paper px-[7px] py-[2px] font-ui text-[12px] font-bold text-paper-ink">
               {plats.find((p) => p.key === s.pin)?.label ?? `nást. ${s.pin}`}
             </span>
+          )}
+          {hasPicker && (
+            <button
+              type="button"
+              onClick={openPicker}
+              aria-label={`Pick a platform of ${s.name} on a map`}
+              className="inline-flex shrink-0 cursor-pointer items-center justify-center self-center rounded-[7px] border border-white/[0.1] bg-ctl p-[5px]"
+            >
+              <MapIcon size={16} />
+            </button>
           )}
         </span>
         <span className="flex items-center gap-[12px] font-ui text-[12.5px] font-medium text-meta">
@@ -214,6 +258,42 @@ export function StopCard({
       {hasFilter && !isAll && sel && (
         <div className="py-[10px] text-center font-ui text-[11.5px] font-medium text-faint">
           {sel.label} only · {sel.dir}
+        </div>
+      )}
+
+      {pickerOpen && hasPicker && (
+        <div className="absolute inset-0 z-20 flex flex-col overflow-y-auto rounded-card border border-edge-2 bg-card px-[15px] pt-[13px] pb-[13px]">
+          <div className="mb-[10px] flex items-center justify-between">
+            <span className="font-ui text-[16px] font-extrabold tracking-[0.01em] text-ink">
+              {s.name}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(false)}
+              aria-label="Close platform picker"
+              className="cursor-pointer border-none bg-transparent p-0 text-[15px] text-ghost"
+            >
+              ✕
+            </button>
+          </div>
+          <PlatformPicker
+            picks={picks}
+            sel={pickSel}
+            onSelect={setPickSel}
+            variant="sheet"
+            origin={origin ?? null}
+            center={picks[0] ?? { lat: 0, lon: 0 }}
+            onConfirm={confirmPick}
+          />
+          {onWholeStop && (
+            <button
+              type="button"
+              onClick={confirmWhole}
+              className="mt-[8px] cursor-pointer rounded-[10px] border border-edge-2 bg-ctl py-[9px] font-ui text-[13px] font-semibold text-ctl-ink"
+            >
+              Show the whole stop
+            </button>
+          )}
         </div>
       )}
     </div>

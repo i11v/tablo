@@ -50,6 +50,23 @@ export const StopGlyph = ({ size = 30, color = "var(--color-icon)" }: { size?: n
   </span>
 )
 
+// Folded paper-map glyph — opens the spatial platform picker.
+export const MapIcon = ({ size = 18, color = "var(--color-icon)" }: { size?: number; color?: string }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="1.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M9 4 L3 6 V20 L9 18 L15 20 L21 18 V4 L15 6 L9 4 Z" />
+    <path d="M9 4 V18 M15 6 V20" />
+  </svg>
+)
+
 // Vehicle pictogram — mode by shape (tram has a pantograph pole, bus/train
 // don't, metro is an M roundel). Monochrome so the reachability color stays
 // unambiguous.

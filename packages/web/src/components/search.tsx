@@ -3,9 +3,11 @@ import { selectorKey, type StopIndexEntry, type StopSelector } from "@app/contra
 import type { IndexState } from "../hooks/useStopIndex.ts"
 import { haversineMetres } from "../lib/geo.ts"
 import { searchStops } from "../lib/matcher.ts"
+import { buildPlatformPicks } from "../lib/platforms.ts"
 import { rank, type Origin } from "../lib/ranker.ts"
 import { loadRecents } from "../lib/storage.ts"
-import { SearchIcon, StopGlyph } from "./icons.tsx"
+import { MapIcon, SearchIcon, StopGlyph } from "./icons.tsx"
+import { PlatformPicker } from "./PlatformPicker.tsx"
 
 export const AddBtn = ({
   on,
@@ -84,7 +86,7 @@ const useEntries = (
     return out
   }, [index, query, origin])
 
-function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry } & SearchHooks) {
+function ResultCard({ entry, chosen, onAdd, onRemove, origin }: { entry: StopIndexEntry } & SearchHooks) {
   const wholeSel: StopSelector = { node: entry.node, stops: entry.stops }
   const wholeKey = selectorKey(wholeSel)
   const toggle = (sel: StopSelector, name: string): void => {
@@ -92,7 +94,19 @@ function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry 
     if (chosen.has(key)) onRemove(key)
     else onAdd(sel, name)
   }
-  const platforms = entry.platforms.length > 1 ? entry.platforms : []
+  const multi = entry.platforms.length > 1
+  const [open, setOpen] = useState(false)
+  // No live board for an unsubscribed search result → picks carry geo + walk
+  // only (no countdowns).
+  const picks = useMemo(
+    () => (open ? buildPlatformPicks(entry.platforms, origin) : []),
+    [open, entry.platforms, origin],
+  )
+  const [sel, setSel] = useState<string | null>(null)
+  const addPlatform = (code: string): void => {
+    const stop = entry.platforms.find((p) => p.code === code)?.stop
+    if (stop !== undefined) onAdd({ node: entry.node, stops: [stop] }, `${entry.name} ${code}`)
+  }
   return (
     <div className="rounded-card border border-edge bg-card px-[14px] py-[11px]">
       <div className="flex items-center gap-[11px]">
@@ -103,30 +117,37 @@ function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry 
             {entry.disambig && <span className="font-medium text-meta"> · {entry.disambig}</span>}
           </div>
           <div className="font-ui text-[12px] font-medium text-meta">
-            {entry.platforms.length > 1 ? `Whole stop · ${entry.platforms.length} platforms` : "Whole stop"}
+            {multi ? `Whole stop · ${entry.platforms.length} platforms` : "Whole stop"}
           </div>
         </div>
+        {multi && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-label={`${open ? "Hide" : "Show"} ${entry.name} platforms on a map`}
+            className={[
+              "inline-flex shrink-0 cursor-pointer items-center justify-center rounded-[8px] border p-[6px] transition-colors",
+              open ? "border-paper bg-paper" : "border-white/[0.12] bg-ctl",
+            ].join(" ")}
+          >
+            <MapIcon size={17} color={open ? "var(--color-paper-ink)" : "var(--color-icon)"} />
+          </button>
+        )}
         <AddBtn on={chosen.has(wholeKey)} onClick={() => toggle(wholeSel, entry.name)} name={entry.name} />
       </div>
-      {platforms.length > 0 && (
-        <div className="ml-[4px] mt-[9px] border-t border-l-2 border-white/[0.06] border-l-white/[0.07] pl-[12px]">
-          {platforms.map((p) => {
-            const sel: StopSelector = { node: entry.node, stops: [p.stop] }
-            return (
-              <div key={p.stop} className="flex items-center gap-[10px] py-[8px]">
-                <span className="shrink-0 whitespace-nowrap rounded-chip border border-white/[0.08] bg-ctl px-[9px] py-[3px] font-ui text-[12px] font-bold text-ink-dim">
-                  nást. {p.code}
-                </span>
-                <span className="min-w-0 flex-1" />
-                <AddBtn
-                  small
-                  on={chosen.has(selectorKey(sel))}
-                  onClick={() => toggle(sel, `${entry.name} ${p.code}`)}
-                  name={`${entry.name} nást. ${p.code}`}
-                />
-              </div>
-            )
-          })}
+      {multi && open && (
+        <div className="mt-[10px] border-t border-white/[0.06] pt-[10px]">
+          <PlatformPicker
+            picks={picks}
+            sel={sel}
+            onSelect={setSel}
+            variant="inline"
+            origin={origin}
+            center={picks[0] ?? { lat: entry.lat, lon: entry.lon }}
+            onAddPlatform={addPlatform}
+            onAddWhole={() => onAdd(wholeSel, entry.name)}
+          />
         </div>
       )}
     </div>

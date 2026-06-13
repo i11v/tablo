@@ -1,9 +1,12 @@
 """Render the tablo 't.' AppIcon from the real Doto Black font.
-Ports the `bleed` branch of components/brand/AppIcon.jsx geometry: the "t" is
-blown up to own the whole tile (no breathing margin — the old 0.6x glyph read
-as a padded icon on the Home Screen) with the green make-square anchored
-low-right. Master is FULL-BLEED (no rounded corners) — iOS/Android/PWA apply
-their own mask."""
+Ports the default 't.' lockup of components/brand/AppIcon.jsx: a Doto "t" with
+the green make-square as its full stop (resting on the baseline, 0.16x the
+glyph), centred as one unit — the single-glyph echo of the 'tablo.' wordmark.
+Glyph is 0.70x the canvas: bigger than the original 0.6x (which read as a tiny
+padded mark on the Home Screen) but still balanced once iOS masks the corners
+— a true full-bleed "t" leaves the off-diagonal corners dead under the mask.
+Master is FULL-BLEED (no rounded corners) — iOS/Android/PWA apply their own
+mask."""
 import os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -30,20 +33,20 @@ def board(size):
 def render(size):
     img = board(size)
     draw = ImageDraw.Draw(img)
-    fs = round(size * 1.22)  # full-bleed glyph — the "t" owns the whole tile
+    fs = round(size * 0.70)  # the 't.' lockup, sized to fill the tile
     sq = round(fs * 0.16)
     font = ImageFont.truetype(FONT, fs)
-    # Mirror the bleed branch's CSS box model: the "t" span is centred in the
-    # tile by `flex items-center justify-center` (advance + line box, not ink),
-    # then shoved DOWN by translateY(0.05*size) so the space above/below the
-    # glyph balances. Monospace centring lands the heavy stem visually centred.
-    asc, desc = font.getmetrics()
-    pen = (size - font.getlength("t")) / 2.0                  # justify-center
-    baseline = size / 2.0 + (asc - desc) / 2.0 + round(size * 0.05)  # items-center + nudge
-    # green make-square — anchored low-right (the absolute right/bottom insets
-    # of the bleed branch), independent of the glyph.
-    sx = size - round(size * 0.16) - sq
-    sy = size - round(size * 0.18) - sq
+    # left-baseline INK box of the "t" (advance has wide trailing sidebearing
+    # in this monospace face — position off the ink so "t." reads tight)
+    x0, y0, x1, y1 = draw.textbbox((0, 0), "t", font=font, anchor="ls")
+    gap = round(sq * 0.6)  # ~1 letter-dot between the t's ink and the stop
+    block_w = (x1 - x0) + gap + sq
+    pen = (size - block_w) / 2.0 - x0
+    # vertically centre the "t." block ink, then nudge up 0.035*size (the JS translateY)
+    baseline = (size - (y0 + y1)) / 2.0 - round(size * 0.035)
+    # the green full-stop square, resting on the baseline just right of the "t"
+    sx = pen + x1 + gap
+    sy = baseline - sq
     # green full-stop glow — faithful CSS box-shadow: 0 0 (sq*1.1) make@70%
     # (shadow = the square's shape, gaussian sigma = blur_radius / 2)
     glow = Image.new("RGBA", (size, size), (0, 0, 0, 0))

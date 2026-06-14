@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { type ReactNode, useEffect, useMemo, useState } from "react"
 import { MAX_SELECTORS, selectorKey, type StopIndexEntry, type StopSelector } from "@app/contract"
 import { AddTile, AppBar, EmptyState, MobileSearchTrigger, SubBar } from "./components/chrome.tsx"
 import { SearchPanel, SearchView } from "./components/search.tsx"
@@ -22,10 +22,30 @@ export const App = () => {
   const geo = useGeo()
   const [selection, setSelection] = useState<Array<Selection>>(loadSelection)
   const [searching, setSearching] = useState(false)
+  // The search result whose platform picker is expanded — subscribed on demand
+  // so the inline picker shows the same live data the stop card does.
+  const [previewNode, setPreviewNode] = useState<number | null>(null)
 
   const selectors = useMemo(() => selection.map((s) => s.selector), [selection])
-  const { status, boards } = useDepartures(selectors)
   const chosen = useMemo(() => new Set(selection.map((s) => selectorKey(s.selector))), [selection])
+  // Whole-node selector for the expanded search result, unless it's already
+  // subscribed (reuse its board) or the subscription is at the wire cap.
+  const previewSel = useMemo<StopSelector | null>(() => {
+    if (previewNode === null || chosen.has(`${previewNode}`)) return null
+    return { node: previewNode, stops: null }
+  }, [previewNode, chosen])
+  const allSelectors = useMemo(
+    () => (previewSel !== null && selectors.length < MAX_SELECTORS ? [...selectors, previewSel] : selectors),
+    [selectors, previewSel],
+  )
+  const { status, boards } = useDepartures(allSelectors)
+  // Live departures for the expanded result's node (from its own subscription or
+  // an existing whole-node one); undefined until the first board arrives.
+  const previewDepartures = useMemo(() => {
+    if (previewNode === null) return undefined
+    const board = boards.get(`${previewNode}`)
+    return board === undefined ? undefined : boardToDepartures(board, now)
+  }, [previewNode, boards, now])
 
   const stops = index._tag === "ready" ? index.stops : []
   const byNode = useMemo(() => new Map<number, StopIndexEntry>(stops.map((e) => [e.node, e])), [stops])
@@ -38,6 +58,11 @@ export const App = () => {
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [])
+
+  // Drop the on-demand preview subscription whenever search closes.
+  useEffect(() => {
+    if (!searching) setPreviewNode(null)
+  }, [searching])
 
   const update = (next: Array<Selection>): void => {
     setSelection(next)
@@ -54,6 +79,12 @@ export const App = () => {
   }
   const remove = (key: string): void => {
     update(selection.filter((s) => selectorKey(s.selector) !== key))
+  }
+  // Re-scope a card in place (preserve board order) when a platform is picked on
+  // its map, or it's reset to the whole stop.
+  const replaceAt = (index: number, selector: StopSelector, name: string): void => {
+    update(selection.map((sel, i) => (i === index ? { selector, name } : sel)))
+    pushRecent(selector.node)
   }
 
   const walkOf = (node: number): number | null => {
@@ -106,8 +137,35 @@ export const App = () => {
     () => (geo.tag === "active" ? { lat: geo.lat, lon: geo.lon } : null),
     [geo],
   )
-  const searchHooks = { indexState: index, chosen, origin, onAdd: add, onRemove: remove }
+  const searchHooks = {
+    indexState: index,
+    chosen,
+    origin,
+    onAdd: add,
+    onRemove: remove,
+    expandedNode: previewNode,
+    onExpand: setPreviewNode,
+    previewDepartures,
+  }
   const clock = formatClock(now)
+
+  const renderCard = ({ key, vm }: { key: string; vm: StopVM }, i: number): ReactNode => {
+    const e = byNode.get(vm.node)
+    return (
+      <StopCard
+        key={key}
+        s={vm}
+        onClose={() => remove(key)}
+        platforms={e?.platforms}
+        origin={origin}
+        onPick={(stop) => {
+          const code = e?.platforms.find((p) => p.stop === stop)?.code
+          replaceAt(i, { node: vm.node, stops: [stop] }, code ? `${e!.name} ${code}` : vm.name)
+        }}
+        onWholeStop={() => replaceAt(i, { node: vm.node, stops: null }, e?.name ?? vm.name)}
+      />
+    )
+  }
 
   return (
     <div className="flex min-h-full flex-col">
@@ -134,9 +192,7 @@ export const App = () => {
           <EmptyState onAdd={() => setSearching(true)} />
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] items-start gap-[16px] px-[28px] pb-[28px]">
-            {cards.map(({ key, vm }) => (
-              <StopCard key={key} s={vm} onClose={() => remove(key)} />
-            ))}
+            {cards.map(renderCard)}
             <AddTile onClick={() => setSearching(true)} />
           </div>
         )}
@@ -154,7 +210,7 @@ export const App = () => {
                 No stops yet — tap <b className="text-ctl-ink">Add a stop</b> to search.
               </div>
             ) : (
-              cards.map(({ key, vm }) => <StopCard key={key} s={vm} onClose={() => remove(key)} />)
+              cards.map(renderCard)
             )}
           </>
         )}

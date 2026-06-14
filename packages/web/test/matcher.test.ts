@@ -19,7 +19,7 @@ const index = [
 describe("searchStops", () => {
   const andelP: StopIndexEntry = {
     ...entry("Anděl", 1040),
-    platforms: [{ code: "A", stop: 1 }, { code: "B", stop: 2 }],
+    platforms: [{ code: "A", stop: 1, lat: 50, lon: 14 }, { code: "B", stop: 2, lat: 50, lon: 14 }],
   }
 
   it("matches diacritics-insensitively", () => {
@@ -53,7 +53,7 @@ describe("searchStops", () => {
   })
 
   it("does not expand a single-platform stop", () => {
-    const haje: StopIndexEntry = { ...entry("Háje", 100), platforms: [{ code: "A", stop: 1 }] }
+    const haje: StopIndexEntry = { ...entry("Háje", 100), platforms: [{ code: "A", stop: 1, lat: 50, lon: 14 }] }
     const r = searchStops([haje], "haje")
     expect(r).toHaveLength(1)
     expect(r[0].platform).toBeNull()
@@ -63,7 +63,7 @@ describe("searchStops", () => {
     const multi: StopIndexEntry = {
       ...entry("Dělnická", 81),
       stops: [5, 6],
-      platforms: [{ code: "A", stop: 5 }, { code: "B", stop: 6 }],
+      platforms: [{ code: "A", stop: 5, lat: 50, lon: 14 }, { code: "B", stop: 6, lat: 50, lon: 14 }],
     }
     const r = searchStops([multi], "delnicka")
     expect(r[0].platform).toBeNull()

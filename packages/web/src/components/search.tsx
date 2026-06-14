@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import { selectorKey, type StopIndexEntry, type StopSelector } from "@app/contract"
+import type { DepartureVM } from "../lib/departureVM.ts"
 import type { IndexState } from "../hooks/useStopIndex.ts"
 import { haversineMetres } from "../lib/geo.ts"
 import { searchStops } from "../lib/matcher.ts"
@@ -41,6 +42,11 @@ interface SearchHooks {
   origin: Origin | null
   onAdd: (selector: StopSelector, name: string) => void
   onRemove: (key: string) => void
+  /** Node whose inline platform picker is open (subscribed for live data). */
+  expandedNode: number | null
+  onExpand: (node: number | null) => void
+  /** Live departures for the expanded node, when its board has arrived. */
+  previewDepartures?: ReadonlyArray<DepartureVM> | undefined
 }
 
 /** Up to this many stops surface in the empty-query nearby/recents list. */
@@ -86,7 +92,16 @@ const useEntries = (
     return out
   }, [index, query, origin])
 
-function ResultCard({ entry, chosen, onAdd, onRemove, origin }: { entry: StopIndexEntry } & SearchHooks) {
+function ResultCard({
+  entry,
+  chosen,
+  onAdd,
+  onRemove,
+  origin,
+  expandedNode,
+  onExpand,
+  previewDepartures,
+}: { entry: StopIndexEntry } & SearchHooks) {
   const wholeSel: StopSelector = { node: entry.node, stops: entry.stops }
   const wholeKey = selectorKey(wholeSel)
   const toggle = (sel: StopSelector, name: string): void => {
@@ -95,12 +110,14 @@ function ResultCard({ entry, chosen, onAdd, onRemove, origin }: { entry: StopInd
     else onAdd(sel, name)
   }
   const multi = entry.platforms.length > 1
-  const [open, setOpen] = useState(false)
-  // No live board for an unsubscribed search result → picks carry geo + walk
-  // only (no countdowns).
+  // Accordion: one result expanded at a time, so exactly one node is subscribed.
+  const open = expandedNode === entry.node
+  // Live departures arrive once the on-demand subscription's board lands; until
+  // then picks carry geo + walk only (no countdowns).
+  const live = open ? previewDepartures : undefined
   const picks = useMemo(
-    () => (open ? buildPlatformPicks(entry.platforms, origin) : []),
-    [open, entry.platforms, origin],
+    () => (open ? buildPlatformPicks(entry.platforms, origin, live) : []),
+    [open, entry.platforms, origin, live],
   )
   const [sel, setSel] = useState<string | null>(null)
   const addPlatform = (code: string): void => {
@@ -123,7 +140,7 @@ function ResultCard({ entry, chosen, onAdd, onRemove, origin }: { entry: StopInd
         {multi && (
           <button
             type="button"
-            onClick={() => setOpen((v) => !v)}
+            onClick={() => onExpand(open ? null : entry.node)}
             aria-expanded={open}
             aria-label={`${open ? "Hide" : "Show"} ${entry.name} platforms on a map`}
             className={[

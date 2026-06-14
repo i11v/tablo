@@ -22,10 +22,30 @@ export const App = () => {
   const geo = useGeo()
   const [selection, setSelection] = useState<Array<Selection>>(loadSelection)
   const [searching, setSearching] = useState(false)
+  // The search result whose platform picker is expanded — subscribed on demand
+  // so the inline picker shows the same live data the stop card does.
+  const [previewNode, setPreviewNode] = useState<number | null>(null)
 
   const selectors = useMemo(() => selection.map((s) => s.selector), [selection])
-  const { status, boards } = useDepartures(selectors)
   const chosen = useMemo(() => new Set(selection.map((s) => selectorKey(s.selector))), [selection])
+  // Whole-node selector for the expanded search result, unless it's already
+  // subscribed (reuse its board) or the subscription is at the wire cap.
+  const previewSel = useMemo<StopSelector | null>(() => {
+    if (previewNode === null || chosen.has(`${previewNode}`)) return null
+    return { node: previewNode, stops: null }
+  }, [previewNode, chosen])
+  const allSelectors = useMemo(
+    () => (previewSel !== null && selectors.length < MAX_SELECTORS ? [...selectors, previewSel] : selectors),
+    [selectors, previewSel],
+  )
+  const { status, boards } = useDepartures(allSelectors)
+  // Live departures for the expanded result's node (from its own subscription or
+  // an existing whole-node one); undefined until the first board arrives.
+  const previewDepartures = useMemo(() => {
+    if (previewNode === null) return undefined
+    const board = boards.get(`${previewNode}`)
+    return board === undefined ? undefined : boardToDepartures(board, now)
+  }, [previewNode, boards, now])
 
   const stops = index._tag === "ready" ? index.stops : []
   const byNode = useMemo(() => new Map<number, StopIndexEntry>(stops.map((e) => [e.node, e])), [stops])
@@ -38,6 +58,11 @@ export const App = () => {
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [])
+
+  // Drop the on-demand preview subscription whenever search closes.
+  useEffect(() => {
+    if (!searching) setPreviewNode(null)
+  }, [searching])
 
   const update = (next: Array<Selection>): void => {
     setSelection(next)
@@ -112,7 +137,16 @@ export const App = () => {
     () => (geo.tag === "active" ? { lat: geo.lat, lon: geo.lon } : null),
     [geo],
   )
-  const searchHooks = { indexState: index, chosen, origin, onAdd: add, onRemove: remove }
+  const searchHooks = {
+    indexState: index,
+    chosen,
+    origin,
+    onAdd: add,
+    onRemove: remove,
+    expandedNode: previewNode,
+    onExpand: setPreviewNode,
+    previewDepartures,
+  }
   const clock = formatClock(now)
 
   const renderCard = ({ key, vm }: { key: string; vm: StopVM }, i: number): ReactNode => {

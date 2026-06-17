@@ -135,6 +135,19 @@ of scope here to keep this PR a pure routing scaffold.
 - **CI / preview:** PR #17 `preview` job green end-to-end (typecheck, test,
   build, `verify:pwa`, Cloudflare deploy, `/api/health` smoke test).
 
+## Alternatives considered (and discarded)
+
+| Alternative | Why discarded |
+|---|---|
+| **No router** — keep one page, branch on local state | Doesn't meet the goal. Hand-rolled view switching has no URL per page (not deep-linkable, no back/forward), and re-grows into an ad-hoc router the moment a third view appears. The whole point is to put real routing in *before* adding pages. |
+| **React Router** | Capable and popular, but TanStack Router's type-safety (typed paths, params, and search) and first-class file-based routing fit "add pages cheaply, safely" better. React Router's file-based story is framework-shaped (Remix/React Router 7 framework mode pulls toward a server runtime); we want a pure static SPA. |
+| **TanStack Start / Next.js / Remix (framework mode)** | All pull in SSR / a server runtime. An explicit non-goal: the worker serves static assets only, and we don't want per-route server logic or a build that assumes a Node/edge render step. TanStack *Router* gives the routing without the framework. |
+| **Wouter / minimal hash-style routers** | Smaller, but no typed routes/search, weaker nested-layout and code-splitting story, and they'd be outgrown as soon as pages need params or shared layout. The bundle saving isn't worth the type-safety and scaling loss. |
+| **Code-based routing** (define routes in TS, no plugin) | No codegen and no generated file to commit — appealing. But file-based routing makes "a new page = a new file" literal, gives automatic code-splitting, and keeps the route table self-documenting. The one cost (a committed `routeTree.gen.ts`) is mitigated by committing it; worth it for how the app is expected to grow. |
+| **Hash routing** (`/#/path`) | Avoids any server fallback dependency, but yields ugly URLs, hurts shareability, and is simply unnecessary here — the SPA fallback already exists, so browser-history clean URLs are safe. |
+| **Gitignore `routeTree.gen.ts`, generate in CI** | Keeps generated code out of git, but `bun run typecheck` invokes `tsc` directly (no Vite), so the tree wouldn't exist and typecheck would fail. Adding a pre-typecheck generate step adds CI ceremony for no real benefit; committing the file is simpler and makes route changes visible in review. |
+| **Migrate `?s=` selection into `validateSearch` now** | The "proper" long-term shape, but it means refactoring `App`/`storage.ts` in the same PR that introduces routing — mixing a behaviour change into a scaffold. Deferred: TanStack Router preserves the unvalidated param, so the board is untouched, and the migration can land on its own with focused tests. |
+
 ## Backward compatibility
 
 Additive and frontend-only. The worker, assets binding, SPA fallback,

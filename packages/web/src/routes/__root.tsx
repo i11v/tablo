@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from "react"
 import { createRootRoute, Outlet } from "@tanstack/react-router"
+import { NuqsAdapter } from "nuqs/adapters/tanstack-router"
 import { startGeoWatch } from "../store.ts"
 
 // Lazy + PROD-stubbed so the devtools bundles are tree-shaken out of production.
@@ -38,13 +39,15 @@ function RootLayout() {
   useEffect(() => {
     startGeoWatch()
   }, [])
+  // NuqsAdapter wires nuqs' URL-state hooks to the router's history, so routes
+  // can manage validated search params (e.g. /search's ?q=) via useQueryState.
   return (
-    <>
+    <NuqsAdapter>
       <Outlet />
       <Suspense>
         <RouterDevtools />
         <QueryDevtools />
       </Suspense>
-    </>
+    </NuqsAdapter>
   )
 }

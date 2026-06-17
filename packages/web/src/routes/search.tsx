@@ -1,8 +1,9 @@
 import { useMemo } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { useSelector } from "@tanstack/react-store"
+import { createStandardSchemaV1 } from "nuqs"
 import { selectorKey } from "@app/contract"
-import { SearchView } from "../components/search.tsx"
+import { queryParser, SearchView } from "../components/search.tsx"
 import { useStopIndex } from "../hooks/useStopIndex.ts"
 import { shareSearch } from "../lib/url.ts"
 import { geoStore, selectionStore } from "../store.ts"
@@ -10,8 +11,13 @@ import { geoStore, selectionStore } from "../store.ts"
 // The stop search as a real page. Exercises the router foundation: it reads the
 // shared selection/index stores, and adding a stop (or closing) navigates back
 // to the board, which already reflects the new selection.
+//
+// `q` is the search text (managed via nuqs useQueryState in SearchView).
+// Declaring it here with the same parser makes the router validate/own it too —
+// without this, the root's validateSearch would strip `q` as an unknown param.
 export const Route = createFileRoute("/search")({
   component: SearchPage,
+  validateSearch: createStandardSchemaV1({ q: queryParser }, { partialOutput: true }),
 })
 
 function SearchPage() {

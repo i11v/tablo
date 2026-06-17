@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
+import { parseAsString, useQueryState } from "nuqs"
 import { selectorKey, type StopIndexEntry, type StopSelector } from "@app/contract"
 import type { IndexState } from "../hooks/useStopIndex.ts"
 import { haversineMetres } from "../lib/geo.ts"
@@ -6,6 +7,12 @@ import { searchStops } from "../lib/matcher.ts"
 import { rank, type Origin } from "../lib/ranker.ts"
 import { loadRecents } from "../lib/storage.ts"
 import { SearchIcon, StopGlyph } from "./icons.tsx"
+
+// The stop-search text, mirrored to the `?q=` search param and validated by
+// nuqs (always a string, defaulting to ""). Exported so the /search route can
+// feed the same parser to TanStack Router's validateSearch — one source of
+// truth for the param's name and shape.
+export const queryParser = parseAsString.withDefault("")
 
 export const AddBtn = ({
   on,
@@ -219,7 +226,9 @@ const useCloseOnAdd = (onClose: () => void, hooks: SearchHooks): SearchHooks =>
 /** The stop search body: a query field over a ranked result list. Rendered as a
  * full page on the `/search` route; `onClose` navigates back to the board. */
 export function SearchView({ onClose, ...hooks }: { onClose: () => void } & SearchHooks) {
-  const [query, setQuery] = useState("")
+  // ?q= as the source of truth: the query survives reloads and is shareable,
+  // and clears from the URL when emptied (nuqs clearOnDefault).
+  const [query, setQuery] = useQueryState("q", queryParser)
   const closingHooks = useCloseOnAdd(onClose, hooks)
   return (
     <div className="flex flex-col">

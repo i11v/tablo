@@ -1,5 +1,6 @@
 import { Store } from "@tanstack/store"
-import { MAX_SELECTORS, selectorKey, type StopSelector } from "@app/contract"
+import { type StopSelector } from "@app/contract"
+import { addSelection, removeSelection } from "./lib/selection.ts"
 import { loadSelection, pushRecent, saveSelection } from "./lib/storage.ts"
 import type { Selection } from "./lib/url.ts"
 
@@ -59,17 +60,14 @@ export const selectionStore = new Store<ReadonlyArray<Selection>, SelectionActio
   ({ setState, get }) => ({
     add: (selector: StopSelector, name: string): void => {
       const prev = get()
-      // The wire protocol caps Subscribe at MAX_SELECTORS; never build a
-      // selection the encoder would reject.
-      if (prev.length >= MAX_SELECTORS) return
-      // Newest on top: the just-added stop leads the board.
-      const next: ReadonlyArray<Selection> = [{ selector, name }, ...prev]
+      const next = addSelection(prev, selector, name)
+      if (next === prev) return // at the MAX_SELECTORS cap — nothing added
       setState(() => next)
       saveSelection(next)
       pushRecent(selector.node)
     },
     remove: (key: string): void => {
-      const next = get().filter((s) => selectorKey(s.selector) !== key)
+      const next = removeSelection(get(), key)
       setState(() => next)
       saveSelection(next)
     },

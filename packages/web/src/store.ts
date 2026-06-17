@@ -1,46 +1,15 @@
 import { Store } from "@tanstack/store"
-import { Schema } from "effect"
-import {
-  MAX_SELECTORS,
-  selectorKey,
-  StopIndex,
-  StopsManifest,
-  type StopIndexEntry,
-  type StopSelector,
-} from "@app/contract"
+import { MAX_SELECTORS, selectorKey, type StopSelector } from "@app/contract"
 import { loadSelection, pushRecent, saveSelection } from "./lib/storage.ts"
 import type { Selection } from "./lib/url.ts"
 
 /**
- * App state in TanStack Store: framework-agnostic, module-level singletons. No
- * provider/context — any component reads a store with `useSelector` and writes
- * via the colocated actions, and the data outlives route changes (the stop
- * index is fetched once and stays in memory as you move between pages).
+ * Subscription-shaped app state in TanStack Store: framework-agnostic,
+ * module-level singletons. No provider/context — any component reads a store
+ * with `useSelector` and writes via the colocated actions, and the data
+ * outlives route changes. (The stop index is request/response, so it lives in
+ * TanStack Query — see hooks/useStopIndex.ts — not here.)
  */
-
-// ---- Stop index (was useStopIndex) ----
-
-export type IndexState =
-  | { _tag: "loading" }
-  | { _tag: "ready"; stops: ReadonlyArray<StopIndexEntry> }
-  | { _tag: "failed"; message: string }
-
-export const indexStore = new Store<IndexState>({ _tag: "loading" })
-
-let indexStarted = false
-/** Fetch the stop index once (idempotent — safe under StrictMode double-invoke). */
-export const startStopIndex = (): void => {
-  if (indexStarted) return
-  indexStarted = true
-  const load = async (): Promise<void> => {
-    const manifest = Schema.decodeUnknownSync(StopsManifest)(
-      await (await fetch("/data/stops-manifest.json")).json(),
-    )
-    const index = Schema.decodeUnknownSync(StopIndex)(await (await fetch(manifest.path)).json())
-    indexStore.setState(() => ({ _tag: "ready", stops: index.stops }))
-  }
-  load().catch((e: unknown) => indexStore.setState(() => ({ _tag: "failed", message: String(e) })))
-}
 
 // ---- Geolocation (was useGeo) ----
 

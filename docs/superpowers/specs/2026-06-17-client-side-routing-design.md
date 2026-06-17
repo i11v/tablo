@@ -61,6 +61,7 @@ change — ideally "drop a file in `src/routes/`".
 | Devtools | Lazy + `import.meta.env.PROD`-stubbed | Tree-shaken out of the production bundle; available in dev only. |
 | Board selection (`?s=`) | **Left as an unvalidated search param** | TanStack Router preserves search params it doesn't validate, so the board's existing `history.replaceState`-based share links keep working untouched. Migration is a separate, optional follow-up. |
 | App state | **TanStack Store** singletons in `store.ts` (`useSelector` to read, colocated actions to write) | Framework-agnostic, no provider boundary, fine-grained subscriptions; pairs naturally with the TanStack Router foundation. Replaced an initial React-context `AppProvider` (see Alternatives). |
+| Async data | **TanStack Query** for the stop-index fetch; **WebSocket hook** for live departures | Query fits the index's request/response shape — caching, dedup across routes, retry, one fetch per session (`staleTime: Infinity`, hash-immutable). The departures feed is a *subscription*, not a fetch, so it stays on its socket hook (see Alternatives). |
 
 ## Architecture
 
@@ -71,16 +72,21 @@ vite build
   └─ react(), tailwindcss(), VitePWA()  (unchanged)
 
 src/main.tsx
-  createRouter({ routeTree })  ──> <RouterProvider />
+  <QueryClientProvider> <RouterProvider router={createRouter({ routeTree })} />
         │
         └─ routeTree (generated)
-             ├─ __root.tsx   <Outlet/> + dev-only devtools; starts the stores once
+             ├─ __root.tsx   <Outlet/> + dev-only devtools; starts geo watch once
              ├─ index.tsx    "/"        ──> <App/>        (departures board)
              └─ search.tsx   "/search"  ──> <SearchPage/> (stop search)
 
-  store.ts — TanStack Store module-level singletons (no provider/context):
-    selectionStore (+ add/remove actions), indexStore, geoStore.
-  Components read via useSelector(...); navigation keeps them in memory.
+  State by shape:
+    • selection + geo  → TanStack Store singletons in store.ts (no provider);
+                         read via useSelector(...), written via store actions.
+    • stop index       → TanStack Query (hooks/useStopIndex.ts); one shared
+                         QueryClient dedupes board + /search to a single fetch
+                         and keeps it cached across navigation.
+    • live departures  → WebSocket subscription (hooks/useDepartures.ts) —
+                         deliberately NOT Query (see Alternatives).
 
 browser GET /<any client route>
   └─ worker: not /api/* or /data/*  ──> assets binding SPA fallback ──> index.html
@@ -123,10 +129,15 @@ state.
 - `selectionStore` — `new Store(loadSelection(), …)` with colocated `add` /
   `remove` actions (the cap, `pushRecent`, and `saveSelection` persistence live
   in the actions). The genuinely shared, mutable state.
-- `indexStore` / `geoStore` — the async sources, fetched/watched once via
-  idempotent `startStopIndex()` / `startGeoWatch()` that `__root` fires in a
-  single `useEffect`. App-lifetime singletons (the root never unmounts), so the
-  index stays in memory across navigations and the geo watch isn't duplicated.
+- `geoStore` — the geolocation watch, started once via the idempotent
+  `startGeoWatch()` that `__root` fires in a `useEffect`. An app-lifetime
+  singleton (the root never unmounts), so the watch isn't duplicated.
+- The stop index used to be a third store (`indexStore` + `startStopIndex`),
+  but a content-hashed fetch is exactly TanStack Query's shape, so it moved to
+  `hooks/useStopIndex.ts`: `useQuery(stopIndexQueryOptions)` mapped back to the
+  `loading | ready | failed` shape the UI switches on. One shared `QueryClient`
+  (in `main.tsx`) dedupes the board and `/search` to a single request and keeps
+  it cached across navigation — no manual singleton needed.
 
 `App` and `SearchPage` read with `useSelector(store)` and mutate via
 `selectionStore.actions.*` — any component, no provider boundary, fine-grained
@@ -183,6 +194,8 @@ of scope here to keep this PR a pure routing scaffold.
 | **Gitignore `routeTree.gen.ts`, generate in CI** | Keeps generated code out of git, but `bun run typecheck` invokes `tsc` directly (no Vite), so the tree wouldn't exist and typecheck would fail. Adding a pre-typecheck generate step adds CI ceremony for no real benefit; committing the file is simpler and makes route changes visible in review. |
 | **Migrate `?s=` selection into `validateSearch` now** | The "proper" long-term shape, but it means refactoring `App`/`storage.ts` in the same PR that introduces routing — mixing a behaviour change into a scaffold. Deferred: TanStack Router preserves the unvalidated param, so the board is untouched, and the migration can land on its own with focused tests. |
 | **React Context for shared state** (the initial `AppProvider`) | Shipped first and worked, but needed a provider wrapper at the root and re-renders all consumers on any change. Replaced with **TanStack Store**: no provider, reads are fine-grained via `useSelector`, the store is usable outside React, and it composes with the rest of the TanStack stack. (Context remains the right call for genuinely tree-scoped values; this state is app-global.) |
+| **Live departures through TanStack Query** | Tempting for consistency once Query was in, but the departures feed is a long-lived **WebSocket subscription**, not a request/response — Query's caching/staleness/retry model doesn't apply, and shoehorning a socket into `queryFn` fights the tool. It stays on `useDepartures` (its own socket hook). Query is used only where the shape genuinely fits: the stop-index fetch. |
+| **Keep the stop index in TanStack Store** | The singleton store worked, but it was hand-rolled fetch + idempotency + loading/error state — precisely what Query gives for free, plus cross-route dedup and a cache. Moved to Query; geo/selection stay in Store because they're a subscription and mutable client state, not fetches. |
 
 ## Backward compatibility
 

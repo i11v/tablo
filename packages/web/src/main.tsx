@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createRouter, RouterProvider } from "@tanstack/react-router"
 import { createRoot } from "react-dom/client"
 import { registerSW } from "virtual:pwa-register"
@@ -8,6 +9,7 @@ import "./styles.css"
 // navigation. No prompt UI to build (single-user app).
 void registerSW({ immediate: true })
 
+const queryClient = new QueryClient()
 const router = createRouter({ routeTree })
 
 declare module "@tanstack/react-router" {
@@ -16,4 +18,8 @@ declare module "@tanstack/react-router" {
   }
 }
 
-createRoot(document.getElementById("root")!).render(<RouterProvider router={router} />)
+createRoot(document.getElementById("root")!).render(
+  <QueryClientProvider client={queryClient}>
+    <RouterProvider router={router} />
+  </QueryClientProvider>,
+)

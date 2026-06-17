@@ -6,16 +6,17 @@ import { AddTile, AppBar, EmptyState, MobileSearchTrigger, SubBar } from "./comp
 import { StopCard } from "./components/StopCard.tsx"
 import { useDepartures } from "./hooks/useDepartures.ts"
 import { useNow } from "./hooks/useNow.ts"
+import { useStopIndex } from "./hooks/useStopIndex.ts"
 import { boardToDepartures } from "./lib/departureVM.ts"
 import { haversineMetres, metresToWalkMinutes } from "./lib/geo.ts"
 import { platformKey, type StopVM } from "./lib/stop.ts"
-import { geoStore, indexStore, selectionStore } from "./store.ts"
+import { geoStore, selectionStore } from "./store.ts"
 
 const formatClock = (ms: number): string =>
   new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
 
 export const App = () => {
-  const index = useSelector(indexStore)
+  const index = useStopIndex()
   const geo = useSelector(geoStore)
   const selection = useSelector(selectionStore)
   const now = useNow()

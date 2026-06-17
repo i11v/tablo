@@ -3,7 +3,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { useSelector } from "@tanstack/react-store"
 import { selectorKey } from "@app/contract"
 import { SearchView } from "../components/search.tsx"
-import { geoStore, indexStore, selectionStore } from "../store.ts"
+import { useStopIndex } from "../hooks/useStopIndex.ts"
+import { geoStore, selectionStore } from "../store.ts"
 
 // The stop search as a real page. Exercises the router foundation: it reads the
 // shared selection/index stores, and adding a stop (or closing) navigates back
@@ -13,7 +14,7 @@ export const Route = createFileRoute("/search")({
 })
 
 function SearchPage() {
-  const index = useSelector(indexStore)
+  const index = useStopIndex()
   const geo = useSelector(geoStore)
   const selection = useSelector(selectionStore)
   const navigate = useNavigate()

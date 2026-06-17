@@ -60,6 +60,7 @@ change — ideally "drop a file in `src/routes/`".
 | Root layout | Thin `<Outlet />` shell (`__root.tsx`) | The board still owns its own chrome (AppBar/SubBar); the root stays minimal until shared cross-page layout is actually needed. |
 | Devtools | Lazy + `import.meta.env.PROD`-stubbed | Tree-shaken out of the production bundle; available in dev only. |
 | Board selection (`?s=`) | **Left as an unvalidated search param** | TanStack Router preserves search params it doesn't validate, so the board's existing `history.replaceState`-based share links keep working untouched. Migration is a separate, optional follow-up. |
+| App state | **TanStack Store** singletons in `store.ts` (`useSelector` to read, colocated actions to write) | Framework-agnostic, no provider boundary, fine-grained subscriptions; pairs naturally with the TanStack Router foundation. Replaced an initial React-context `AppProvider` (see Alternatives). |
 
 ## Architecture
 
@@ -73,12 +74,13 @@ src/main.tsx
   createRouter({ routeTree })  ──> <RouterProvider />
         │
         └─ routeTree (generated)
-             ├─ __root.tsx   <AppProvider> { <Outlet/> + dev-only devtools }
+             ├─ __root.tsx   <Outlet/> + dev-only devtools; starts the stores once
              ├─ index.tsx    "/"        ──> <App/>        (departures board)
              └─ search.tsx   "/search"  ──> <SearchPage/> (stop search)
 
-  AppProvider (store.tsx) holds selection + stop index + geo, shared by
-  both routes so navigation keeps state and the index in memory.
+  store.ts — TanStack Store module-level singletons (no provider/context):
+    selectionStore (+ add/remove actions), indexStore, geoStore.
+  Components read via useSelector(...); navigation keeps them in memory.
 
 browser GET /<any client route>
   └─ worker: not /api/* or /data/*  ──> assets binding SPA fallback ──> index.html
@@ -97,7 +99,9 @@ tree at `./src/routeTree.gen.ts`.
 
 `createRootRoute({ component: RootLayout })`. `RootLayout` renders `<Outlet />`
 plus the router devtools, which are `lazy()`-loaded and stubbed to `() => null`
-under `import.meta.env.PROD` so they never reach the production bundle.
+under `import.meta.env.PROD` so they never reach the production bundle. It also
+fires `startStopIndex()` / `startGeoWatch()` once in a `useEffect` to kick off
+the data stores for the session.
 
 ### 3. `packages/web/src/routes/index.tsx`
 
@@ -105,18 +109,32 @@ under `import.meta.env.PROD` so they never reach the production bundle.
 added as sibling files (e.g. `about.tsx` → `/about`, `stops.$id.tsx` →
 `/stops/:id`).
 
-### 3a. Shared state — `packages/web/src/store.tsx` and the `/search` route
+### 3a. Shared state — `packages/web/src/store.ts` (TanStack Store) and `/search`
 
 The first second page, added to prove the foundation, is the stop search
 (`routes/search.tsx` → `/search`). It surfaced the real cross-page concern:
 both the board and search need the same **selection**, and re-fetching /
 re-parsing the ~9k-entry stop index on every navigation would flash a loading
-state. So `store.tsx` provides an `AppProvider` (mounted in `__root`) holding
-**selection + stop index + geo**; `App` and `SearchPage` both read it via
-`useAppStore()`. The board's "Add a stop" affordances `navigate({ to: "/search" })`;
+state.
+
+`store.ts` holds the app state in **TanStack Store** module-level singletons —
+**no provider/context**:
+
+- `selectionStore` — `new Store(loadSelection(), …)` with colocated `add` /
+  `remove` actions (the cap, `pushRecent`, and `saveSelection` persistence live
+  in the actions). The genuinely shared, mutable state.
+- `indexStore` / `geoStore` — the async sources, fetched/watched once via
+  idempotent `startStopIndex()` / `startGeoWatch()` that `__root` fires in a
+  single `useEffect`. App-lifetime singletons (the root never unmounts), so the
+  index stays in memory across navigations and the geo watch isn't duplicated.
+
+`App` and `SearchPage` read with `useSelector(store)` and mutate via
+`selectionStore.actions.*` — any component, no provider boundary, fine-grained
+subscriptions. The board's "Add a stop" affordances `navigate({ to: "/search" })`;
 adding a stop or closing `navigate({ to: "/" })`, and the board already shows the
-new selection because the state lives above both routes. This replaced the old
-in-place search popover/overlay that App toggled with local `searching` state.
+new selection because the stores live outside the route tree. This replaced both
+the old in-place search popover (local `searching` state) and the short-lived
+React-context `AppProvider` (see Alternatives).
 
 ### 4. `packages/web/src/main.tsx`
 
@@ -164,6 +182,7 @@ of scope here to keep this PR a pure routing scaffold.
 | **Hash routing** (`/#/path`) | Avoids any server fallback dependency, but yields ugly URLs, hurts shareability, and is simply unnecessary here — the SPA fallback already exists, so browser-history clean URLs are safe. |
 | **Gitignore `routeTree.gen.ts`, generate in CI** | Keeps generated code out of git, but `bun run typecheck` invokes `tsc` directly (no Vite), so the tree wouldn't exist and typecheck would fail. Adding a pre-typecheck generate step adds CI ceremony for no real benefit; committing the file is simpler and makes route changes visible in review. |
 | **Migrate `?s=` selection into `validateSearch` now** | The "proper" long-term shape, but it means refactoring `App`/`storage.ts` in the same PR that introduces routing — mixing a behaviour change into a scaffold. Deferred: TanStack Router preserves the unvalidated param, so the board is untouched, and the migration can land on its own with focused tests. |
+| **React Context for shared state** (the initial `AppProvider`) | Shipped first and worked, but needed a provider wrapper at the root and re-renders all consumers on any change. Replaced with **TanStack Store**: no provider, reads are fine-grained via `useSelector`, the store is usable outside React, and it composes with the rest of the TanStack stack. (Context remains the right call for genuinely tree-scoped values; this state is app-global.) |
 
 ## Backward compatibility
 

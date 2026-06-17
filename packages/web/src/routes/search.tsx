@@ -1,18 +1,21 @@
 import { useMemo } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { useSelector } from "@tanstack/react-store"
 import { selectorKey } from "@app/contract"
 import { SearchView } from "../components/search.tsx"
-import { useAppStore } from "../store.tsx"
+import { geoStore, indexStore, selectionStore } from "../store.ts"
 
 // The stop search as a real page. Exercises the router foundation: it reads the
-// shared selection/index from the root provider, and adding a stop (or closing)
-// navigates back to the board, which already reflects the new selection.
+// shared selection/index stores, and adding a stop (or closing) navigates back
+// to the board, which already reflects the new selection.
 export const Route = createFileRoute("/search")({
   component: SearchPage,
 })
 
 function SearchPage() {
-  const { index, geo, selection, add, remove } = useAppStore()
+  const index = useSelector(indexStore)
+  const geo = useSelector(geoStore)
+  const selection = useSelector(selectionStore)
   const navigate = useNavigate()
   const back = (): void => {
     void navigate({ to: "/" })
@@ -31,8 +34,8 @@ function SearchPage() {
         indexState={index}
         chosen={chosen}
         origin={origin}
-        onAdd={add}
-        onRemove={remove}
+        onAdd={selectionStore.actions.add}
+        onRemove={selectionStore.actions.remove}
       />
     </div>
   )

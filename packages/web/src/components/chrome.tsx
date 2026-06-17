@@ -1,5 +1,5 @@
 import type { WsStatus } from "../hooks/useDepartures.ts"
-import type { Geo } from "../hooks/useGeo.ts"
+import type { Geo } from "../store.ts"
 import { TIER, type Tier } from "../lib/tier.ts"
 import { SearchIcon, StopGlyph } from "./icons.tsx"
 

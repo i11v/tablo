@@ -10,6 +10,8 @@
     "@app/contract": "workspace:*",
     "@tanstack/react-router": "^1.170.16",
     "@tanstack/react-router-devtools": "^1.167.0",
+    "@tanstack/react-store": "^0.11.0",
+    "@tanstack/store": "^0.11.0",
     "effect": "4.0.0-beta.78",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

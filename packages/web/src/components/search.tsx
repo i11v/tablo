@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { selectorKey, type StopIndexEntry, type StopSelector } from "@app/contract"
-import type { IndexState } from "../hooks/useStopIndex.ts"
+import type { IndexState } from "../store.ts"
 import { haversineMetres } from "../lib/geo.ts"
 import { searchStops } from "../lib/matcher.ts"
 import { rank, type Origin } from "../lib/ranker.ts"

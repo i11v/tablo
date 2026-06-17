@@ -1,5 +1,6 @@
 import { useMemo } from "react"
 import { useNavigate } from "@tanstack/react-router"
+import { useSelector } from "@tanstack/react-store"
 import { selectorKey, type StopIndexEntry } from "@app/contract"
 import { AddTile, AppBar, EmptyState, MobileSearchTrigger, SubBar } from "./components/chrome.tsx"
 import { StopCard } from "./components/StopCard.tsx"
@@ -8,13 +9,15 @@ import { useNow } from "./hooks/useNow.ts"
 import { boardToDepartures } from "./lib/departureVM.ts"
 import { haversineMetres, metresToWalkMinutes } from "./lib/geo.ts"
 import { platformKey, type StopVM } from "./lib/stop.ts"
-import { useAppStore } from "./store.tsx"
+import { geoStore, indexStore, selectionStore } from "./store.ts"
 
 const formatClock = (ms: number): string =>
   new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
 
 export const App = () => {
-  const { index, geo, selection, remove } = useAppStore()
+  const index = useSelector(indexStore)
+  const geo = useSelector(geoStore)
+  const selection = useSelector(selectionStore)
   const now = useNow()
   const navigate = useNavigate()
   const openSearch = (): void => {
@@ -97,7 +100,7 @@ export const App = () => {
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] items-start gap-[16px] px-[28px] pb-[28px]">
             {cards.map(({ key, vm }) => (
-              <StopCard key={key} s={vm} onClose={() => remove(key)} />
+              <StopCard key={key} s={vm} onClose={() => selectionStore.actions.remove(key)} />
             ))}
             <AddTile onClick={openSearch} />
           </div>
@@ -112,7 +115,7 @@ export const App = () => {
             No stops yet — tap <b className="text-ctl-ink">Add a stop</b> to search.
           </div>
         ) : (
-          cards.map(({ key, vm }) => <StopCard key={key} s={vm} onClose={() => remove(key)} />)
+          cards.map(({ key, vm }) => <StopCard key={key} s={vm} onClose={() => selectionStore.actions.remove(key)} />)
         )}
       </div>
     </div>

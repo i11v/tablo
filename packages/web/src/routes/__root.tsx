@@ -1,6 +1,6 @@
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, useEffect } from "react"
 import { createRootRoute, Outlet } from "@tanstack/react-router"
-import { AppProvider } from "../store.tsx"
+import { startGeoWatch, startStopIndex } from "../store.ts"
 
 // Lazy + PROD-stubbed so the devtools bundle is tree-shaken out of production.
 const RouterDevtools = import.meta.env.PROD
@@ -11,20 +11,24 @@ const RouterDevtools = import.meta.env.PROD
       })),
     )
 
-// The shell every page renders into. Page chrome (AppBar/SubBar) still lives in
-// the index page, so the layout stays a thin <Outlet />; the root's job is to
-// host AppProvider so selection + stop index are shared across routes.
+// The shell every page renders into. Page chrome (AppBar/SubBar) lives in the
+// index page, so the layout stays a thin <Outlet />; the root's one job is to
+// kick off the app-state stores (stop index + geo) once for the whole session.
 export const Route = createRootRoute({
   component: RootLayout,
 })
 
 function RootLayout() {
+  useEffect(() => {
+    startStopIndex()
+    startGeoWatch()
+  }, [])
   return (
-    <AppProvider>
+    <>
       <Outlet />
       <Suspense>
         <RouterDevtools />
       </Suspense>
-    </AppProvider>
+    </>
   )
 }

@@ -7,12 +7,17 @@ export type IndexState =
   | { _tag: "ready"; stops: ReadonlyArray<StopIndexEntry> }
   | { _tag: "failed"; message: string }
 
-// IndexSource (spec §5.5): v1 loads the bundled artifact via its manifest.
+// IndexSource (spec §5.5): v1 loads the bundled, content-hashed index artifact.
+// The path is inlined at build time (vite.config.ts `define`) so this is a single
+// request; it falls back to the runtime manifest lookup when the constant is null
+// (dev before build:index, where the manifest is fetched then read for its path).
 const fetchStopIndex = async (): Promise<ReadonlyArray<StopIndexEntry>> => {
-  const manifest = Schema.decodeUnknownSync(StopsManifest)(
-    await (await fetch("/data/stops-manifest.json")).json(),
-  )
-  const index = Schema.decodeUnknownSync(StopIndex)(await (await fetch(manifest.path)).json())
+  const path =
+    __STOP_INDEX_PATH__ ??
+    Schema.decodeUnknownSync(StopsManifest)(
+      await (await fetch("/data/stops-manifest.json")).json(),
+    ).path
+  const index = Schema.decodeUnknownSync(StopIndex)(await (await fetch(path)).json())
   return index.stops
 }
 

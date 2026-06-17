@@ -4,6 +4,7 @@ import { useSelector } from "@tanstack/react-store"
 import { selectorKey } from "@app/contract"
 import { SearchView } from "../components/search.tsx"
 import { useStopIndex } from "../hooks/useStopIndex.ts"
+import { shareSearch } from "../lib/url.ts"
 import { geoStore, selectionStore } from "../store.ts"
 
 // The stop search as a real page. Exercises the router foundation: it reads the
@@ -19,7 +20,9 @@ function SearchPage() {
   const selection = useSelector(selectionStore)
   const navigate = useNavigate()
   const back = (): void => {
-    void navigate({ to: "/" })
+    // Preserve the live ?s= so returning to the board keeps the share link
+    // (a fresh add was just written to the URL via saveSelection).
+    void navigate({ to: "/", search: shareSearch() })
   }
 
   const chosen = useMemo(() => new Set(selection.map((s) => selectorKey(s.selector))), [selection])

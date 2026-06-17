@@ -10,6 +10,7 @@ import { useStopIndex } from "./hooks/useStopIndex.ts"
 import { boardToDepartures } from "./lib/departureVM.ts"
 import { haversineMetres, metresToWalkMinutes } from "./lib/geo.ts"
 import { platformKey, type StopVM } from "./lib/stop.ts"
+import { shareSearch } from "./lib/url.ts"
 import { geoStore, selectionStore } from "./store.ts"
 
 const formatClock = (ms: number): string =>
@@ -22,7 +23,9 @@ export const App = () => {
   const now = useNow()
   const navigate = useNavigate()
   const openSearch = (): void => {
-    void navigate({ to: "/search" })
+    // Carry the live ?s= through the navigation so the share link survives the
+    // page change (the router drops search params it isn't handed).
+    void navigate({ to: "/search", search: shareSearch() })
   }
 
   const selectors = useMemo(() => selection.map((s) => s.selector), [selection])

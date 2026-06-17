@@ -5,6 +5,18 @@ export interface Selection {
   readonly name: string
 }
 
+/**
+ * The router search object carrying the live `?s=` from the address bar.
+ * `saveSelection` keeps that param current via `history.replaceState`, which
+ * the router does not observe — so route navigations pass this through
+ * explicitly, preserving the share link across page changes (the router drops
+ * search params it isn't told to keep). Omits `s` entirely when absent or empty.
+ */
+export const shareSearch = (): { s?: string } => {
+  const s = new URLSearchParams(location.search).get("s")
+  return s ? { s } : {}
+}
+
 /** "1040~And%C4%9Bl;81_1_2~D%C4%9Bln..." — node[_stop...]~encodedName;… */
 export const encodeSelection = (sel: ReadonlyArray<Selection>): string =>
   sel

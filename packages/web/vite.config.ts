@@ -1,10 +1,34 @@
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 import tailwindcss from "@tailwindcss/vite"
+import { tanstackRouter } from "@tanstack/router-plugin/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
 
+// Build-time inline of the hashed stop-index path so the client fetches the
+// index in ONE request instead of the manifest->index waterfall. `bun run build`
+// runs build:index first, so the manifest exists for production builds. If it's
+// absent (e.g. `vite dev` before build:index, or a fresh checkout — public/data
+// is gitignored), this is null and fetchStopIndex falls back to reading the
+// manifest at runtime, so dev keeps working.
+const stopIndexPath: string | null = (() => {
+  try {
+    const manifest = resolve(import.meta.dirname, "public/data/stops-manifest.json")
+    const { path } = JSON.parse(readFileSync(manifest, "utf8")) as { path?: unknown }
+    return typeof path === "string" ? path : null
+  } catch {
+    return null
+  }
+})()
+
 export default defineConfig({
+  // Replaced verbatim in the bundle; see fetchStopIndex (hooks/useStopIndex.ts).
+  define: { __STOP_INDEX_PATH__: JSON.stringify(stopIndexPath) },
   plugins: [
+    // Must precede the React plugin: it generates routeTree.gen.ts from
+    // src/routes before React/Fast-Refresh transforms the route modules.
+    tanstackRouter({ target: "react", autoCodeSplitting: true }),
     react(),
     tailwindcss(),
     VitePWA({
@@ -47,7 +71,9 @@ export default defineConfig({
             },
           },
           {
-            // Tiny pointer -> serve instantly (warm/offline), revalidate in background.
+            // Fallback only: production inlines the index path at build time, so
+            // this is fetched solely when that constant is absent (see
+            // fetchStopIndex). Kept as a safety net — serve instantly, revalidate.
             urlPattern: /\/data\/stops-manifest\.json$/,
             handler: "StaleWhileRevalidate",
             options: {

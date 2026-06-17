@@ -9,9 +9,7 @@
   "dependencies": {
     "@app/contract": "workspace:*",
     "@tanstack/react-query": "^5.101.0",
-    "@tanstack/react-query-devtools": "^5.101.0",
     "@tanstack/react-router": "^1.170.16",
-    "@tanstack/react-router-devtools": "^1.167.0",
     "@tanstack/react-store": "^0.11.0",
     "@tanstack/store": "^0.11.0",
     "effect": "4.0.0-beta.78",
@@ -20,6 +18,8 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",
+    "@tanstack/react-query-devtools": "^5.101.0",
+    "@tanstack/react-router-devtools": "^1.167.0",
     "@tanstack/router-plugin": "^1.168.18",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

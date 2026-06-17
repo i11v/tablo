@@ -8,12 +8,15 @@
   },
   "dependencies": {
     "@app/contract": "workspace:*",
+    "@tanstack/react-router": "^1.170.16",
+    "@tanstack/react-router-devtools": "^1.167.0",
     "effect": "4.0.0-beta.78",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",
+    "@tanstack/router-plugin": "^1.168.18",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vite-pwa/assets-generator": "^1.0.2",

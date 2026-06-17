@@ -1,10 +1,14 @@
 import tailwindcss from "@tailwindcss/vite"
+import { tanstackRouter } from "@tanstack/router-plugin/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
 
 export default defineConfig({
   plugins: [
+    // Must precede the React plugin: it generates routeTree.gen.ts from
+    // src/routes before React/Fast-Refresh transforms the route modules.
+    tanstackRouter({ target: "react", autoCodeSplitting: true }),
     react(),
     tailwindcss(),
     VitePWA({

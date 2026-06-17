@@ -1,4 +1,3 @@
-import type { ReactNode } from "react"
 import type { WsStatus } from "../hooks/useDepartures.ts"
 import type { Geo } from "../hooks/useGeo.ts"
 import { TIER, type Tier } from "../lib/tier.ts"
@@ -58,23 +57,15 @@ const LocationChip = ({ geo, label }: { geo: Geo; label: string | null }) => {
   )
 }
 
-const DesktopSearchTrigger = ({ open, onOpen, children }: { open: boolean; onOpen: () => void; children: ReactNode }) => (
-  <span className="relative hidden sm:block">
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-expanded={open}
-      aria-haspopup="dialog"
-      className={[
-        "flex w-[260px] cursor-pointer items-center gap-[9px] rounded-[10px] border bg-sunken px-[13px] py-[9px]",
-        open ? "border-edge-hover" : "border-edge",
-      ].join(" ")}
-    >
-      <SearchIcon />
-      <span className="font-ui text-[13.5px] font-medium text-faint">Add a stop…</span>
-    </button>
-    {children}
-  </span>
+const DesktopSearchTrigger = ({ onOpen }: { onOpen: () => void }) => (
+  <button
+    type="button"
+    onClick={onOpen}
+    className="hidden w-[260px] cursor-pointer items-center gap-[9px] rounded-[10px] border border-edge bg-sunken px-[13px] py-[9px] sm:flex"
+  >
+    <SearchIcon />
+    <span className="font-ui text-[13.5px] font-medium text-faint">Add a stop…</span>
+  </button>
 )
 
 export function AppBar({
@@ -82,25 +73,19 @@ export function AppBar({
   clock,
   geo,
   locationLabel,
-  searchOpen,
   onOpenSearch,
-  searchPanel,
 }: {
   status: WsStatus
   clock: string
   geo: Geo
   locationLabel: string | null
-  searchOpen: boolean
   onOpenSearch: () => void
-  searchPanel: ReactNode
 }) {
   return (
     <div className="flex shrink-0 items-center justify-between px-[16px] pt-[10px] sm:px-[28px] sm:pt-[18px]">
       <Wordmark status={status} />
       <span className="flex items-center gap-[14px] sm:gap-[16px]">
-        <DesktopSearchTrigger open={searchOpen} onOpen={onOpenSearch}>
-          {searchOpen && searchPanel}
-        </DesktopSearchTrigger>
+        <DesktopSearchTrigger onOpen={onOpenSearch} />
         <LocationChip geo={geo} label={locationLabel} />
         <span className="font-accent text-[20px] font-bold tracking-[0.06em] text-clock-dim sm:text-[28px] sm:text-clock">
           {clock}

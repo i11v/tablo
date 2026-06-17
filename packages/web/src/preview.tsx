@@ -103,9 +103,7 @@ function Preview() {
           clock="13:29"
           geo={geo}
           locationLabel="Karlovo náměstí"
-          searchOpen={false}
           onOpenSearch={() => {}}
-          searchPanel={null}
         />
         <SubBar status="live" count={SEED.length} />
         <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] items-start gap-[16px] px-[16px] pb-[28px] sm:px-[28px]">
@@ -122,9 +120,7 @@ function Preview() {
           clock="13:29"
           geo={{ tag: "denied" }}
           locationLabel={null}
-          searchOpen={false}
           onOpenSearch={() => {}}
-          searchPanel={null}
         />
         <SubBar status="connecting" count={0} />
         <EmptyState onAdd={() => {}} />

@@ -1,60 +1,31 @@
-import { useEffect, useMemo, useState } from "react"
-import { MAX_SELECTORS, selectorKey, type StopIndexEntry, type StopSelector } from "@app/contract"
+import { useMemo } from "react"
+import { useNavigate } from "@tanstack/react-router"
+import { selectorKey, type StopIndexEntry } from "@app/contract"
 import { AddTile, AppBar, EmptyState, MobileSearchTrigger, SubBar } from "./components/chrome.tsx"
-import { SearchPanel, SearchView } from "./components/search.tsx"
 import { StopCard } from "./components/StopCard.tsx"
 import { useDepartures } from "./hooks/useDepartures.ts"
-import { useGeo } from "./hooks/useGeo.ts"
 import { useNow } from "./hooks/useNow.ts"
-import { useStopIndex } from "./hooks/useStopIndex.ts"
 import { boardToDepartures } from "./lib/departureVM.ts"
 import { haversineMetres, metresToWalkMinutes } from "./lib/geo.ts"
 import { platformKey, type StopVM } from "./lib/stop.ts"
-import { loadSelection, pushRecent, saveSelection } from "./lib/storage.ts"
-import type { Selection } from "./lib/url.ts"
+import { useAppStore } from "./store.tsx"
 
 const formatClock = (ms: number): string =>
   new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
 
 export const App = () => {
-  const index = useStopIndex()
+  const { index, geo, selection, remove } = useAppStore()
   const now = useNow()
-  const geo = useGeo()
-  const [selection, setSelection] = useState<Array<Selection>>(loadSelection)
-  const [searching, setSearching] = useState(false)
+  const navigate = useNavigate()
+  const openSearch = (): void => {
+    void navigate({ to: "/search" })
+  }
 
   const selectors = useMemo(() => selection.map((s) => s.selector), [selection])
   const { status, boards } = useDepartures(selectors)
-  const chosen = useMemo(() => new Set(selection.map((s) => selectorKey(s.selector))), [selection])
 
   const stops = index._tag === "ready" ? index.stops : []
   const byNode = useMemo(() => new Map<number, StopIndexEntry>(stops.map((e) => [e.node, e])), [stops])
-
-  // close the desktop search popover on Escape
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") setSearching(false)
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [])
-
-  const update = (next: Array<Selection>): void => {
-    setSelection(next)
-    saveSelection(next)
-  }
-  const add = (selector: StopSelector, name: string): void => {
-    // The wire protocol caps Subscribe at MAX_SELECTORS; never build a
-    // selection the encoder would reject.
-    if (selection.length >= MAX_SELECTORS) return
-    // Newest on top: the just-added stop/platform is what the user is looking
-    // for, so it leads the board rather than landing at the bottom.
-    update([{ selector, name }, ...selection])
-    pushRecent(selector.node)
-  }
-  const remove = (key: string): void => {
-    update(selection.filter((s) => selectorKey(s.selector) !== key))
-  }
 
   const walkOf = (node: number): number | null => {
     if (geo.tag !== "active") return null
@@ -100,13 +71,6 @@ export const App = () => {
     return { key, vm }
   })
 
-  // Stable reference between renders (geo only changes on a new fix), so the
-  // search panel's nearby sort doesn't rerun on every clock tick.
-  const origin = useMemo(
-    () => (geo.tag === "active" ? { lat: geo.lat, lon: geo.lon } : null),
-    [geo],
-  )
-  const searchHooks = { indexState: index, chosen, origin, onAdd: add, onRemove: remove }
   const clock = formatClock(now)
 
   return (
@@ -116,9 +80,7 @@ export const App = () => {
         clock={clock}
         geo={geo}
         locationLabel={locationLabel}
-        searchOpen={searching}
-        onOpenSearch={() => setSearching(true)}
-        searchPanel={<SearchPanel onClose={() => setSearching(false)} {...searchHooks} />}
+        onOpenSearch={openSearch}
       />
       <SubBar status={status} count={selection.length} />
 
@@ -131,32 +93,26 @@ export const App = () => {
       {/* Desktop board */}
       <div className="hidden flex-1 sm:block">
         {selection.length === 0 ? (
-          <EmptyState onAdd={() => setSearching(true)} />
+          <EmptyState onAdd={openSearch} />
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] items-start gap-[16px] px-[28px] pb-[28px]">
             {cards.map(({ key, vm }) => (
               <StopCard key={key} s={vm} onClose={() => remove(key)} />
             ))}
-            <AddTile onClick={() => setSearching(true)} />
+            <AddTile onClick={openSearch} />
           </div>
         )}
       </div>
 
       {/* Mobile board */}
       <div className="flex flex-1 flex-col gap-[12px] px-[14px] pt-[6px] pb-[16px] sm:hidden">
-        {searching ? (
-          <SearchView onClose={() => setSearching(false)} {...searchHooks} />
+        <MobileSearchTrigger onClick={openSearch} />
+        {selection.length === 0 ? (
+          <div className="px-[10px] py-[30px] text-center font-ui text-[13.5px] text-faint">
+            No stops yet — tap <b className="text-ctl-ink">Add a stop</b> to search.
+          </div>
         ) : (
-          <>
-            <MobileSearchTrigger onClick={() => setSearching(true)} />
-            {selection.length === 0 ? (
-              <div className="px-[10px] py-[30px] text-center font-ui text-[13.5px] text-faint">
-                No stops yet — tap <b className="text-ctl-ink">Add a stop</b> to search.
-              </div>
-            ) : (
-              cards.map(({ key, vm }) => <StopCard key={key} s={vm} onClose={() => remove(key)} />)
-            )}
-          </>
+          cards.map(({ key, vm }) => <StopCard key={key} s={vm} onClose={() => remove(key)} />)
         )}
       </div>
     </div>

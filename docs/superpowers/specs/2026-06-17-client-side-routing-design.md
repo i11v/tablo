@@ -73,8 +73,12 @@ src/main.tsx
   createRouter({ routeTree })  ──> <RouterProvider />
         │
         └─ routeTree (generated)
-             ├─ __root.tsx   <Outlet/> + dev-only devtools
-             └─ index.tsx    "/"  ──> existing <App/> (departures board)
+             ├─ __root.tsx   <AppProvider> { <Outlet/> + dev-only devtools }
+             ├─ index.tsx    "/"        ──> <App/>        (departures board)
+             └─ search.tsx   "/search"  ──> <SearchPage/> (stop search)
+
+  AppProvider (store.tsx) holds selection + stop index + geo, shared by
+  both routes so navigation keeps state and the index in memory.
 
 browser GET /<any client route>
   └─ worker: not /api/* or /data/*  ──> assets binding SPA fallback ──> index.html
@@ -97,9 +101,22 @@ under `import.meta.env.PROD` so they never reach the production bundle.
 
 ### 3. `packages/web/src/routes/index.tsx`
 
-`createFileRoute("/")({ component: App })` — renders the existing departures
-`App` unchanged. New pages are added as sibling files (e.g. `about.tsx` → `/about`,
-`stops.$id.tsx` → `/stops/:id`).
+`createFileRoute("/")({ component: App })` — the departures board. New pages are
+added as sibling files (e.g. `about.tsx` → `/about`, `stops.$id.tsx` →
+`/stops/:id`).
+
+### 3a. Shared state — `packages/web/src/store.tsx` and the `/search` route
+
+The first second page, added to prove the foundation, is the stop search
+(`routes/search.tsx` → `/search`). It surfaced the real cross-page concern:
+both the board and search need the same **selection**, and re-fetching /
+re-parsing the ~9k-entry stop index on every navigation would flash a loading
+state. So `store.tsx` provides an `AppProvider` (mounted in `__root`) holding
+**selection + stop index + geo**; `App` and `SearchPage` both read it via
+`useAppStore()`. The board's "Add a stop" affordances `navigate({ to: "/search" })`;
+adding a stop or closing `navigate({ to: "/" })`, and the board already shows the
+new selection because the state lives above both routes. This replaced the old
+in-place search popover/overlay that App toggled with local `searching` state.
 
 ### 4. `packages/web/src/main.tsx`
 

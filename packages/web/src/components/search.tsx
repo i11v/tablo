@@ -216,7 +216,8 @@ const useCloseOnAdd = (onClose: () => void, hooks: SearchHooks): SearchHooks =>
     [onClose, hooks],
   )
 
-/** Mobile: full-screen search that replaces the board. */
+/** The stop search body: a query field over a ranked result list. Rendered as a
+ * full page on the `/search` route; `onClose` navigates back to the board. */
 export function SearchView({ onClose, ...hooks }: { onClose: () => void } & SearchHooks) {
   const [query, setQuery] = useState("")
   const closingHooks = useCloseOnAdd(onClose, hooks)
@@ -225,24 +226,5 @@ export function SearchView({ onClose, ...hooks }: { onClose: () => void } & Sear
       <Field query={query} setQuery={setQuery} onClose={onClose} closeLabel="Done" />
       <Results query={query} hooks={closingHooks} />
     </div>
-  )
-}
-
-/** Desktop: popover anchored under the app-bar search box. */
-export function SearchPanel({ onClose, ...hooks }: { onClose: () => void } & SearchHooks) {
-  const [query, setQuery] = useState("")
-  const closingHooks = useCloseOnAdd(onClose, hooks)
-  return (
-    <>
-      <div onClick={onClose} aria-hidden="true" className="fixed inset-0 z-40" />
-      <div
-        role="dialog"
-        aria-label="Add a stop"
-        className="absolute right-0 top-[calc(100%+8px)] z-50 max-h-[560px] w-[400px] overflow-y-auto rounded-card border border-edge-2 bg-sunken p-[13px] shadow-overlay"
-      >
-        <Field query={query} setQuery={setQuery} onClose={onClose} closeLabel="Esc" />
-        <Results query={query} hooks={closingHooks} />
-      </div>
-    </>
   )
 }

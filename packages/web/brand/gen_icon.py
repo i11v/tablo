@@ -1,6 +1,12 @@
 """Render the tablo 't.' AppIcon from the real Doto Black font.
-Ports components/brand/AppIcon.jsx geometry. Master is FULL-BLEED (no rounded
-corners) — iOS/Android/PWA apply their own mask."""
+Ports the default 't.' lockup of components/brand/AppIcon.jsx: a Doto "t" with
+the green make-square as its full stop (resting on the baseline, 0.16x the
+glyph), centred as one unit — the single-glyph echo of the 'tablo.' wordmark.
+Glyph is 0.70x the canvas: bigger than the original 0.6x (which read as a tiny
+padded mark on the Home Screen) but still balanced once iOS masks the corners
+— a true full-bleed "t" leaves the off-diagonal corners dead under the mask.
+Master is FULL-BLEED (no rounded corners) — iOS/Android/PWA apply their own
+mask."""
 import os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -27,7 +33,7 @@ def board(size):
 def render(size):
     img = board(size)
     draw = ImageDraw.Draw(img)
-    fs = round(size * 0.6)
+    fs = round(size * 0.70)  # the 't.' lockup, sized to fill the tile
     sq = round(fs * 0.16)
     font = ImageFont.truetype(FONT, fs)
     # left-baseline INK box of the "t" (advance has wide trailing sidebearing
@@ -36,8 +42,9 @@ def render(size):
     gap = round(sq * 0.6)  # ~1 letter-dot between the t's ink and the stop
     block_w = (x1 - x0) + gap + sq
     pen = (size - block_w) / 2.0 - x0
-    # vertically centre the "t" ink, then nudge up by 0.035*size (the JS translateY)
+    # vertically centre the "t." block ink, then nudge up 0.035*size (the JS translateY)
     baseline = (size - (y0 + y1)) / 2.0 - round(size * 0.035)
+    # the green full-stop square, resting on the baseline just right of the "t"
     sx = pen + x1 + gap
     sy = baseline - sq
     # green full-stop glow — faithful CSS box-shadow: 0 0 (sq*1.1) make@70%

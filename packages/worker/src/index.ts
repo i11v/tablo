@@ -10,7 +10,7 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Api } from "@app/contract"
 import { ClientSession } from "./do/session.ts"
 import { GolemioGateway } from "./do/gateway.ts"
-import { resolveWorkerStage, workerName } from "./workerName.ts"
+import { resolveWorkerStage, workerDomain, workerName } from "./workerName.ts"
 
 export { ClientSession, GolemioGateway }
 
@@ -44,6 +44,9 @@ const devOptions =
 const WORKER_STAGE = resolveWorkerStage(
   typeof process !== "undefined" ? (process.env ?? {}) : {},
 )
+// Custom hostname for this stage (production → tablo.run, pr-N →
+// preview-N.tablo.run), or undefined for workers.dev-only stages.
+const WORKER_DOMAIN = workerDomain(WORKER_STAGE)
 
 const apiLayer = (version: string) =>
   HttpApiBuilder.layer(Api).pipe(
@@ -76,11 +79,13 @@ export default class Server extends Cloudflare.Worker<Server>()(
       runWorkerFirst: ["/api/*", "/data/*"],
     },
     url: true,
-    // Production also answers on the custom hostname. Only attach it for the
-    // production stage — the zone is inferred from the hostname and a preview
-    // (tablo-pr-N) must never try to grab the shared `tablo.i11v.com` domain;
-    // previews keep their suffixed workers.dev URL via `url: true` above.
-    ...(WORKER_STAGE === "production" ? { domain: "tablo.i11v.com" } : {}),
+    // Stage-aware custom hostname (see workerDomain): production answers on the
+    // apex `tablo.run`, each PR preview on `preview-<N>.tablo.run`. The zone is
+    // inferred from the hostname; Alchemy provisions the DNS record + TLS cert
+    // on deploy. Stages without a domain (local dev) stay workers.dev-only via
+    // `url: true` above. Each preview owns its own hostname, so previews can
+    // never collide with — or grab — production's domain.
+    ...(WORKER_DOMAIN ? { domain: WORKER_DOMAIN } : {}),
     ...(devOptions ? { dev: devOptions } : {}),
   },
   Effect.gen(function* () {

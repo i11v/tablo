@@ -68,11 +68,15 @@ jobs:
       - name: Comment preview URL
         uses: actions/github-script@v7
         env:
-          PREVIEW_URL: https://tablo-pr-${{ github.event.pull_request.number }}.${{ vars.CF_WORKERS_SUBDOMAIN }}.workers.dev
+          # Primary: the custom-domain hostname attached by the worker
+          # (workerDomain → preview-<N>.tablo.run). The workers.dev URL stays
+          # live via `url: true` and is shown as a fallback.
+          PREVIEW_URL: https://preview-${{ github.event.pull_request.number }}.tablo.run
+          WORKERS_DEV_URL: https://tablo-pr-${{ github.event.pull_request.number }}.${{ vars.CF_WORKERS_SUBDOMAIN }}.workers.dev
         with:
           script: |
             const marker = '<!-- tablo-preview -->';
-            const body = `${marker}\n🚀 **Preview deployed:** ${process.env.PREVIEW_URL}`;
+            const body = `${marker}\n🚀 **Preview deployed:** ${process.env.PREVIEW_URL}\n<sub>fallback: ${process.env.WORKERS_DEV_URL}</sub>`;
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner, repo: context.repo.repo,
               issue_number: context.issue.number,

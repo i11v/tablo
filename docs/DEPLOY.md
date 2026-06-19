@@ -7,12 +7,14 @@ Everything specific to deploying tablo is below.
 
 | What | URL |
 |------|-----|
-| Production (custom domain) | https://tablo.i11v.com |
+| Production (custom domain) | https://tablo.run |
 | Production (workers.dev) | https://tablo.i11v.workers.dev |
-| PR preview | https://tablo-pr-`<N>`.i11v.workers.dev (posted as a sticky PR comment) |
+| PR preview (custom domain) | https://preview-`<N>`.tablo.run (posted as a sticky PR comment) |
+| PR preview (workers.dev) | https://tablo-pr-`<N>`.i11v.workers.dev (comment fallback) |
 
 Both production URLs serve the same worker; the custom domain is in addition to
-the workers.dev one, not a replacement.
+the workers.dev one, not a replacement. Same for previews — each PR gets its own
+`preview-<N>.tablo.run` hostname *and* keeps its workers.dev URL via `url: true`.
 
 ## How a deploy happens
 
@@ -56,30 +58,59 @@ is **gitignored** — it's a build artifact, never committed, regenerated every
 deploy. CI caches the feed (`actions/cache`) so a `data.pid.cz` outage can't
 block a deploy.
 
-## Custom domain (`tablo.i11v.com`)
+## Custom domains (`tablo.run`)
 
-Attached via the worker's `domain` prop in `packages/worker/src/index.ts`, gated
-on `WORKER_STAGE === "production"`:
+Attached via the worker's `domain` prop in `packages/worker/src/index.ts`. The
+hostname is derived from the stage by `workerDomain()` in `workerName.ts`:
 
 ```ts
-...(WORKER_STAGE === "production" ? { domain: "tablo.i11v.com" } : {}),
+// workerName.ts
+export const workerDomain = (stage: string): string | undefined => {
+  if (stage === "production") return "tablo.run"          // apex
+  const pr = /^pr-(\d+)$/.exec(stage)
+  return pr ? `preview-${pr[1]}.tablo.run` : undefined     // per-PR preview
+}
+
+// index.ts
+...(WORKER_DOMAIN ? { domain: WORKER_DOMAIN } : {}),
 ```
 
-- The `i11v.com` zone already exists in the account, so Cloudflare
+- The `tablo.run` zone already exists in the account, so Cloudflare
   auto-provisions the proxied DNS record + TLS cert on deploy — no dashboard or
-  DNS steps.
-- Previews never get a custom domain (the gate), so they can't fight over the
-  shared hostname.
+  DNS steps. `preview-<N>.tablo.run` subdomains are covered by Universal SSL's
+  `*.tablo.run`.
+- Production is the apex `tablo.run`; each PR preview gets its own
+  `preview-<N>.tablo.run`, so previews can never collide with — or grab —
+  production's hostname.
 - **Don't hand-add domains in the Cloudflare dashboard** — Alchemy reconciles the
   worker's domains against the `domain` prop and would remove anything extra.
+- **Apex caveat:** Workers Custom Domains *create* the apex DNS record. Make sure
+  `tablo.run` has no conflicting proxied A/AAAA/CNAME at the apex (a parking
+  record) before the first prod deploy, or the attach fails.
+
+### The `@distilled.cloud/core` patch (do not delete lightly)
+
+Deleting a Workers custom domain (preview teardown on PR close, or production
+switching to a new domain) hits a beta CF-client bug: Cloudflare answers the
+`DELETE …/workers/domains/{id}` with an empty `200`, the client fails to decode
+it, and the whole `deploy`/`destroy` aborts with the misleading
+`CloudflareHttpError: null` — orphaning the worker + its state. Fixed by
+`patches/@distilled.cloud%2Fcore@0.23.1.patch` (a `bun patch`; treats an empty
+2xx body as no-content). `bun install --frozen-lockfile` re-applies it on every
+CI runner. **Drop the patch only once upstream
+[alchemy-run/distilled#344](https://github.com/alchemy-run/distilled/pull/344)
+ships in a released `@distilled.cloud/core`.** No-patch escape hatch: the DELETE
+*succeeds* server-side, so a failed teardown completes on a plain
+`gh run rerun <id> --failed`.
 
 ## tablo-specific footguns
 
 Two that bite this project hardest:
 
 1. **Stage name must come from `process.env.TABLO_STAGE`, read at module load —
-   never from the `Alchemy.Stage` service.** The worker derives its name (and the
-   custom-domain gate) from `WORKER_STAGE` in `packages/worker/src/index.ts`.
+   never from the `Alchemy.Stage` service.** The worker derives its name (and its
+   custom hostname, via `workerDomain`) from `WORKER_STAGE` in
+   `packages/worker/src/index.ts`.
    Reading `Alchemy.Stage` inside the worker definition leaks a deploy-only
    `Context` requirement into the *runtime*, so every `/api/*` request crashes
    with `Service not found: Stage` → Cloudflare **1101** (static assets still

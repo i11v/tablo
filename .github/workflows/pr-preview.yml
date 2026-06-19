@@ -20,14 +20,14 @@ jobs:
       contents: read
       pull-requests: write   # only this job comments on the PR
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: "1.3.14" }
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run test
       - name: Cache GTFS feed   # fallback so a data.pid.cz outage can't block a preview
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .cache
           key: gtfs-${{ github.run_id }}
@@ -66,7 +66,7 @@ jobs:
           echo "::error::preview health check failed: $URL/api/health never served version $EXPECTED"
           exit 1
       - name: Comment preview URL
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           # Primary: the custom-domain hostname attached by the worker
           # (workerDomain → preview-<N>.tablo.run). The workers.dev URL stays
@@ -94,7 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: "1.3.14" }
       - run: bun install --frozen-lockfile

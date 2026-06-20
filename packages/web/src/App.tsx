@@ -16,6 +16,11 @@ import { geoStore, selectionStore } from "./store.ts"
 const formatClock = (ms: number): string =>
   new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
 
+// Stable empty fallback: a fresh `[]` each render would change identity and
+// force the byNode/locationLabel memos to recompute on every render while the
+// index is loading/failed.
+const EMPTY_STOPS: ReadonlyArray<StopIndexEntry> = []
+
 export const App = () => {
   const index = useStopIndex()
   const geo = useSelector(geoStore)
@@ -31,7 +36,7 @@ export const App = () => {
   const selectors = useMemo(() => selection.map((s) => s.selector), [selection])
   const { status, boards } = useDepartures(selectors)
 
-  const stops = index._tag === "ready" ? index.stops : []
+  const stops = index._tag === "ready" ? index.stops : EMPTY_STOPS
   const byNode = useMemo(() => new Map<number, StopIndexEntry>(stops.map((e) => [e.node, e])), [stops])
 
   const walkOf = (node: number): number | null => {

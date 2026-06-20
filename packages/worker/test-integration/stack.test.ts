@@ -73,16 +73,15 @@ test("subscribe over ws yields a decodable DeparturesUpdate", async () => {
 
   const msg = Schema.decodeUnknownSync(ServerMessageJson)(frame)
   expect(msg._tag).toBe("DeparturesUpdate")
-  if (msg._tag === "DeparturesUpdate") {
-    // Both paths prove the pipeline end-to-end. With the dummy CI token and a
-    // cold cache the gateway has no stale data to serve, so it degrades to an
-    // empty board set (`degraded: true`, `boards: []`). With a real token the
-    // live boards come back and the subscribed selector's key ("1040") is
-    // present. Assert the invariant that holds either way, and the live-only
-    // board key only when not degraded.
-    expect(typeof msg.degraded).toBe("boolean")
-    if (!msg.degraded) {
-      expect(msg.boards.map((b) => b.key)).toContain("1040")
-    }
-  }
+  // Narrow for the field assertions below; the expect above already proves the tag.
+  if (msg._tag !== "DeparturesUpdate") throw new Error(`unexpected tag: ${msg._tag}`)
+
+  // Both paths prove the pipeline end-to-end. With the dummy CI token and a
+  // cold cache the gateway has no stale data to serve, so it degrades to an
+  // empty board set (`degraded: true`, `boards: []`). With a real token the
+  // live boards come back and the subscribed selector's key ("1040") is
+  // present. Assert the invariant that holds either way: it's degraded, or the
+  // subscribed board key came back.
+  expect(typeof msg.degraded).toBe("boolean")
+  expect(msg.degraded || msg.boards.some((b) => b.key === "1040")).toBe(true)
 })

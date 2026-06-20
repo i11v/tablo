@@ -28,17 +28,17 @@ describe("WS protocol", () => {
   it("rejects unknown tags", () => {
     expect(() =>
       Schema.decodeUnknownSync(ServerMessageJson)(JSON.stringify({ _tag: "Nope" })),
-    ).toThrow()
+    ).toThrow("_tag")
   })
 
   it("rejects non-integer and out-of-range ids", () => {
     const decode = Schema.decodeUnknownSync(ClientMessageJson)
     const subscribe = (selectors: unknown) =>
       JSON.stringify({ _tag: "Subscribe", selectors })
-    expect(() => decode(subscribe([{ node: 1040.5, stops: null }]))).toThrow()
-    expect(() => decode(subscribe([{ node: -1, stops: null }]))).toThrow()
-    expect(() => decode(subscribe([{ node: 1e308, stops: null }]))).toThrow()
-    expect(() => decode(subscribe([{ node: 1040, stops: [0] }]))).toThrow()
+    expect(() => decode(subscribe([{ node: 1040.5, stops: null }]))).toThrow("an integer")
+    expect(() => decode(subscribe([{ node: -1, stops: null }]))).toThrow("between 1 and 999999")
+    expect(() => decode(subscribe([{ node: 1e308, stops: null }]))).toThrow("an integer")
+    expect(() => decode(subscribe([{ node: 1040, stops: [0] }]))).toThrow("between 1 and 999999")
   })
 
   it("rejects oversized subscriptions (selector and platform caps)", () => {
@@ -49,13 +49,13 @@ describe("WS protocol", () => {
     }))
     expect(() =>
       decode(JSON.stringify({ _tag: "Subscribe", selectors: manySelectors })),
-    ).toThrow()
+    ).toThrow("length of at most 20")
     const manyPlatforms = [
       { node: 1040, stops: Array.from({ length: 17 }, (_, i) => i + 1) },
     ]
     expect(() =>
       decode(JSON.stringify({ _tag: "Subscribe", selectors: manyPlatforms })),
-    ).toThrow()
+    ).toThrow("length of at most 16")
     // At the caps it still decodes.
     const atCap = Array.from({ length: 20 }, (_, i) => ({
       node: i + 1,

@@ -23,8 +23,8 @@ describe("StopIndex", () => {
     const dec = Schema.decodeUnknownSync(StopIndex)
     expect(dec(v1).version).toBe(1)
     expect(dec(v1).stops[0].platforms).toEqual([{ code: "A", stop: 1 }])
-    expect(() => dec({ ...v1, version: 2 })).toThrow()
+    expect(() => dec({ ...v1, version: 2 })).toThrow('"version": 1')
     const noPlatforms = { ...v1, stops: [{ ...v1.stops[0], platforms: undefined }] }
-    expect(() => dec(noPlatforms)).toThrow()
+    expect(() => dec(noPlatforms)).toThrow("Expected array")
   })
 })

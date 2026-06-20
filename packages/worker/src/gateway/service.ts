@@ -27,13 +27,22 @@ const LAST_GOOD_CAPACITY = 64
 // internal limiter bounds our *rate* but doesn't *reduce* it when upstream
 // explicitly asks us to back off; clients ride out the pause on stale data.
 const RATE_LIMIT_COOLDOWN_MS = 30_000
-const LIMIT = { key: "golemio", limit: 20, window: "8 seconds", algorithm: "fixed-window", onExceeded: "delay" } as const
+const LIMIT = {
+  key: "golemio",
+  limit: 20,
+  window: "8 seconds",
+  algorithm: "fixed-window",
+  onExceeded: "delay",
+} as const
 
 /** Canonical, order-independent cache key carrying the selectors themselves. */
 const cacheKey = (selectors: ReadonlyArray<StopSelector>): string =>
   JSON.stringify(
     [...selectors]
-      .map((s) => ({ node: s.node, stops: s.stops === null ? null : [...s.stops].sort((a, b) => a - b) }))
+      .map((s) => ({
+        node: s.node,
+        stops: s.stops === null ? null : [...s.stops].sort((a, b) => a - b),
+      }))
       .sort((a, b) => a.node - b.node),
   )
 

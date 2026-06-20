@@ -6,7 +6,11 @@ export const fixture = {
   ],
   departures: [
     {
-      departure_timestamp: { predicted: "2026-06-06T12:05:30.000Z", scheduled: "2026-06-06T12:04:00.000Z", minutes: "5" },
+      departure_timestamp: {
+        predicted: "2026-06-06T12:05:30.000Z",
+        scheduled: "2026-06-06T12:04:00.000Z",
+        minutes: "5",
+      },
       delay: { is_available: true, minutes: 1, seconds: 90 },
       route: { short_name: "9", type: 0, is_night: false, extra_field: "ignore me" },
       trip: { headsign: "Sídliště Řepy", id: "t1", is_canceled: false, is_at_stop: false },
@@ -20,7 +24,10 @@ export const fixture = {
       stop: { id: "U1040Z1P", platform_code: null },
     },
     {
-      departure_timestamp: { predicted: "2026-06-06T12:07:00.000Z", scheduled: "2026-06-06T12:06:00.000Z" },
+      departure_timestamp: {
+        predicted: "2026-06-06T12:07:00.000Z",
+        scheduled: "2026-06-06T12:06:00.000Z",
+      },
       delay: { is_available: true, minutes: 1, seconds: 60 },
       route: { short_name: "1", type: 0, is_night: false },
       trip: { headsign: "Vozovna Kobylisy", id: "t3", is_canceled: true, is_at_stop: false },

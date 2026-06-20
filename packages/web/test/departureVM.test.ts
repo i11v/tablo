@@ -4,9 +4,15 @@ import { boardToDepartures, departureVM } from "../src/lib/departureVM.ts"
 import { reachTier } from "../src/lib/reach.ts"
 
 const dep = (over: Partial<Departure>): Departure => ({
-  route: "9", kind: "tram", headsign: "X",
-  scheduled: "2026-06-06T12:10:00.000Z", predicted: null,
-  delaySeconds: null, isCanceled: false, isAtStop: false, platform: null,
+  route: "9",
+  kind: "tram",
+  headsign: "X",
+  scheduled: "2026-06-06T12:10:00.000Z",
+  predicted: null,
+  delaySeconds: null,
+  isCanceled: false,
+  isAtStop: false,
+  platform: null,
   ...over,
 })
 

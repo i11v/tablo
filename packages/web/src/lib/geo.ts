@@ -1,10 +1,5 @@
 /** Great-circle distance between two WGS-84 points, in metres. */
-export const haversineMetres = (
-  aLat: number,
-  aLon: number,
-  bLat: number,
-  bLon: number,
-): number => {
+export const haversineMetres = (aLat: number, aLon: number, bLat: number, bLon: number): number => {
   const R = 6_371_000
   const toRad = (d: number): number => (d * Math.PI) / 180
   const dLat = toRad(bLat - aLat)

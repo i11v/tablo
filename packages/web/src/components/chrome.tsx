@@ -40,7 +40,10 @@ const LegendDot = ({ tier }: { tier: Tier }) => {
   const t = TIER[tier]
   return (
     <span className="inline-flex items-center gap-[6px] font-ui text-[11.5px] font-semibold tracking-[0.02em] text-ctl-ink">
-      <span className="rounded-full" style={{ width: 8, height: 8, background: t.color, boxShadow: `0 0 6px ${t.color}` }} />
+      <span
+        className="rounded-full"
+        style={{ width: 8, height: 8, background: t.color, boxShadow: `0 0 6px ${t.color}` }}
+      />
       {t.label}
     </span>
   )
@@ -48,10 +51,16 @@ const LegendDot = ({ tier }: { tier: Tier }) => {
 
 const LocationChip = ({ geo, label }: { geo: Geo; label: string | null }) => {
   const text =
-    geo.tag === "active" ? (label ?? "Near you") : geo.tag === "locating" ? "Locating…" : "Location off"
+    geo.tag === "active"
+      ? (label ?? "Near you")
+      : geo.tag === "locating"
+        ? "Locating…"
+        : "Location off"
   return (
     <span className="hidden items-center gap-[7px] rounded-[10px] border border-edge bg-sunken px-[12px] py-[8px] font-ui text-[13px] font-semibold text-ctl-ink sm:flex">
-      <span style={{ color: geo.tag === "active" ? "var(--color-make)" : "var(--color-meta)" }}>⌖</span>
+      <span style={{ color: geo.tag === "active" ? "var(--color-make)" : "var(--color-meta)" }}>
+        ⌖
+      </span>
       {text}
     </span>
   )
@@ -105,7 +114,9 @@ export function SubBar({ status, count }: { status: WsStatus; count: number }) {
           ? "reconnecting…"
           : "connecting…"
   const lead =
-    count === 0 ? "No stops yet · search to add your first" : `${count} saved ${count === 1 ? "stop" : "stops"} · pick a platform on any card`
+    count === 0
+      ? "No stops yet · search to add your first"
+      : `${count} saved ${count === 1 ? "stop" : "stops"} · pick a platform on any card`
   return (
     <div className="hidden shrink-0 items-center justify-between px-[28px] pt-[12px] pb-[16px] sm:flex">
       <span className="font-ui text-[13px] font-medium text-meta">
@@ -129,7 +140,9 @@ export function MobileSearchTrigger({ onClick }: { onClick: () => void }) {
       className="flex w-full cursor-pointer items-center gap-[9px] rounded-[11px] border border-edge bg-sunken px-[14px] py-[12px] sm:hidden"
     >
       <SearchIcon />
-      <span className="whitespace-nowrap font-ui text-[14.5px] font-medium text-faint">Add a stop…</span>
+      <span className="whitespace-nowrap font-ui text-[14.5px] font-medium text-faint">
+        Add a stop…
+      </span>
     </button>
   )
 }
@@ -158,10 +171,12 @@ export function EmptyState({ onAdd }: { onAdd: () => void }) {
         <div className="mb-[20px] flex justify-center">
           <StopGlyph size={68} color="var(--color-ghost-icon)" />
         </div>
-        <div className="mb-[8px] font-ui text-[22px] font-extrabold text-neutral">Your board is empty</div>
+        <div className="mb-[8px] font-ui text-[22px] font-extrabold text-neutral">
+          Your board is empty
+        </div>
         <div className="mb-[22px] font-ui text-[14.5px] font-medium leading-[1.55] text-meta">
-          Add a stop — or a single platform you use every day — and tablo shows live departures with how
-          likely you are to catch each one.
+          Add a stop — or a single platform you use every day — and tablo shows live departures with
+          how likely you are to catch each one.
         </div>
         <button
           type="button"

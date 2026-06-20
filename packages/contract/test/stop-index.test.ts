@@ -14,11 +14,20 @@ describe("StopIndex", () => {
     const v1 = {
       version: 1,
       generatedAt: "2026-06-06T00:00:00.000Z",
-      stops: [{
-        name: "Anděl", norm: "andel", node: 1040, stops: null,
-        lat: 50.07, lon: 14.4, zone: "P", modes: [], disambig: null,
-        platforms: [{ code: "A", stop: 1 }],
-      }],
+      stops: [
+        {
+          name: "Anděl",
+          norm: "andel",
+          node: 1040,
+          stops: null,
+          lat: 50.07,
+          lon: 14.4,
+          zone: "P",
+          modes: [],
+          disambig: null,
+          platforms: [{ code: "A", stop: 1 }],
+        },
+      ],
     }
     const dec = Schema.decodeUnknownSync(StopIndex)
     expect(dec(v1).version).toBe(1)

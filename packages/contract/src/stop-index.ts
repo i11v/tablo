@@ -2,15 +2,15 @@ import { Schema } from "effect"
 import { VehicleKind } from "./domain.ts"
 
 export const StopPlatform = Schema.Struct({
-  code: Schema.String,            // platform_code: "A".."H", "1", "2"
-  stop: Schema.Number,            // asw_stop_id — selector scope when picked alone
+  code: Schema.String, // platform_code: "A".."H", "1", "2"
+  stop: Schema.Number, // asw_stop_id — selector scope when picked alone
 })
 export type StopPlatform = typeof StopPlatform.Type
 
 export const StopIndexEntry = Schema.Struct({
-  name: Schema.String,            // display: "Anděl"
-  norm: Schema.String,            // fold(name), search field
-  node: Schema.Number,            // ASW node
+  name: Schema.String, // display: "Anděl"
+  norm: Schema.String, // fold(name), search field
+  node: Schema.Number, // ASW node
   stops: Schema.NullOr(Schema.Array(Schema.Number)), // null = whole node
   lat: Schema.Number,
   lon: Schema.Number,

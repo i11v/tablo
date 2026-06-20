@@ -12,8 +12,7 @@ export const addSelection = (
   prev: ReadonlyArray<Selection>,
   selector: StopSelector,
   name: string,
-): ReadonlyArray<Selection> =>
-  prev.length >= MAX_SELECTORS ? prev : [{ selector, name }, ...prev]
+): ReadonlyArray<Selection> => (prev.length >= MAX_SELECTORS ? prev : [{ selector, name }, ...prev])
 
 /** Drop the selection whose selector matches `key`. */
 export const removeSelection = (

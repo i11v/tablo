@@ -25,8 +25,7 @@ export class GolemioGateway extends Cloudflare.DurableObjectNamespace<GolemioGat
       const gateway = yield* DepartureGateway.pipe(Effect.provide(gatewayLayer))
       return {
         /** Typed RPC, called by ClientSession via getByName("singleton"). */
-        getBoards: (selectors: ReadonlyArray<StopSelector>) =>
-          gateway.getBoards(selectors),
+        getBoards: (selectors: ReadonlyArray<StopSelector>) => gateway.getBoards(selectors),
       }
     })
   }),

@@ -1,6 +1,12 @@
 import type { VehicleKind } from "@app/contract"
 
-export const SearchIcon = ({ size = 15, color = "var(--color-faint)" }: { size?: number; color?: string }) => (
+export const SearchIcon = ({
+  size = 15,
+  color = "var(--color-faint)",
+}: {
+  size?: number
+  color?: string
+}) => (
   <svg
     width={size}
     height={size}
@@ -31,7 +37,13 @@ export const WalkIcon = () => (
   </svg>
 )
 
-export const StopGlyph = ({ size = 30, color = "var(--color-icon)" }: { size?: number; color?: string }) => (
+export const StopGlyph = ({
+  size = 30,
+  color = "var(--color-icon)",
+}: {
+  size?: number
+  color?: string
+}) => (
   <span
     className="inline-flex shrink-0 items-center justify-center bg-ctl border border-white/[0.08]"
     style={{ width: size, height: size, borderRadius: size * 0.3 }}
@@ -59,7 +71,13 @@ export const VehicleIcon = ({ kind, size = 22 }: { kind: VehicleKind; size?: num
     return (
       <span
         className="inline-flex shrink-0 items-center justify-center rounded-[6px] font-ui font-extrabold leading-none"
-        style={{ width: size, height: size, border: `1.6px solid ${col}`, color: col, fontSize: size * 0.6 }}
+        style={{
+          width: size,
+          height: size,
+          border: `1.6px solid ${col}`,
+          color: col,
+          fontSize: size * 0.6,
+        }}
       >
         M
       </span>

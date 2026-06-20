@@ -13,17 +13,26 @@ export const parseCsv = (text: string): string[][] => {
     const c = text.charCodeAt(i)
     if (inQuotes) {
       if (c === QUOTE) {
-        if (text.charCodeAt(i + 1) === QUOTE) { field += text[i]; i++ }
-        else inQuotes = false
+        if (text.charCodeAt(i + 1) === QUOTE) {
+          field += text[i]
+          i++
+        } else inQuotes = false
       } else field += text[i]
     } else if (c === QUOTE) inQuotes = true
-    else if (c === COMMA) { row.push(field); field = "" }
-    else if (c === CR || c === LF) {
+    else if (c === COMMA) {
+      row.push(field)
+      field = ""
+    } else if (c === CR || c === LF) {
       if (c === CR && text.charCodeAt(i + 1) === LF) i++
-      row.push(field); field = ""
-      rows.push(row); row = []
+      row.push(field)
+      field = ""
+      rows.push(row)
+      row = []
     } else field += text[i]
   }
-  if (field !== "" || row.length > 0) { row.push(field); rows.push(row) }
+  if (field !== "" || row.length > 0) {
+    row.push(field)
+    rows.push(row)
+  }
   return rows
 }

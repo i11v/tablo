@@ -28,10 +28,7 @@ const STABLE_AFTER_MS = 10_000
  * at 30s. Jitter keeps many clients from reconnecting in lockstep after a
  * server-side blip.
  */
-export const reconnectDelay = (
-  attempt: number,
-  random: () => number = Math.random,
-): number => {
+export const reconnectDelay = (attempt: number, random: () => number = Math.random): number => {
   const base = Math.min(30_000, 1000 * 2 ** attempt)
   return base / 2 + random() * (base / 2)
 }
@@ -41,10 +38,7 @@ export const reconnectDelay = (
  * feed degraded and carries the message into `reason` — swallowing it would
  * leave the UI on "live" with boards stuck on "waiting for live data".
  */
-export const applyServerMessage = (
-  state: DeparturesState,
-  msg: ServerMessage,
-): DeparturesState => {
+export const applyServerMessage = (state: DeparturesState, msg: ServerMessage): DeparturesState => {
   switch (msg._tag) {
     case "DeparturesUpdate":
       return {
@@ -74,9 +68,7 @@ export const useDepartures = (selectors: ReadonlyArray<StopSelector>): Departure
     if (ws !== null && ws.readyState === WebSocket.OPEN) {
       ws.send(
         encodeClient(
-          selectors.length === 0
-            ? { _tag: "Unsubscribe" }
-            : { _tag: "Subscribe", selectors },
+          selectors.length === 0 ? { _tag: "Unsubscribe" } : { _tag: "Subscribe", selectors },
         ),
       )
     }
@@ -90,9 +82,7 @@ export const useDepartures = (selectors: ReadonlyArray<StopSelector>): Departure
 
     const connect = (): void => {
       const proto = location.protocol === "https:" ? "wss" : "ws"
-      const ws = new WebSocket(
-        proto + "://" + location.host + "/api/ws?session=" + sessionId(),
-      )
+      const ws = new WebSocket(proto + "://" + location.host + "/api/ws?session=" + sessionId())
       wsRef.current = ws
       ws.onopen = () => {
         // Reset the backoff only once the link has proven stable. Resetting

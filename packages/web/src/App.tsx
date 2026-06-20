@@ -37,7 +37,10 @@ export const App = () => {
   const { status, boards } = useDepartures(selectors)
 
   const stops = index._tag === "ready" ? index.stops : EMPTY_STOPS
-  const byNode = useMemo(() => new Map<number, StopIndexEntry>(stops.map((e) => [e.node, e])), [stops])
+  const byNode = useMemo(
+    () => new Map<number, StopIndexEntry>(stops.map((e) => [e.node, e])),
+    [stops],
+  )
 
   const walkOf = (node: number): number | null => {
     if (geo.tag !== "active") return null
@@ -124,7 +127,9 @@ export const App = () => {
             No stops yet — tap <b className="text-ctl-ink">Add a stop</b> to search.
           </div>
         ) : (
-          cards.map(({ key, vm }) => <StopCard key={key} s={vm} onClose={() => selectionStore.actions.remove(key)} />)
+          cards.map(({ key, vm }) => (
+            <StopCard key={key} s={vm} onClose={() => selectionStore.actions.remove(key)} />
+          ))
         )}
       </div>
     </div>

@@ -19,8 +19,7 @@ export type Geo =
   | { tag: "denied" } // denied, unsupported, or errored — same neutral behavior
   | { tag: "active"; lat: number; lon: number }
 
-const geoSupported = (): boolean =>
-  typeof navigator !== "undefined" && "geolocation" in navigator
+const geoSupported = (): boolean => typeof navigator !== "undefined" && "geolocation" in navigator
 
 export const geoStore = new Store<Geo>(geoSupported() ? { tag: "locating" } : { tag: "denied" })
 
@@ -39,7 +38,11 @@ export const startGeoWatch = (): void => {
   }
   navigator.geolocation.watchPosition(
     (pos) =>
-      geoStore.setState(() => ({ tag: "active", lat: pos.coords.latitude, lon: pos.coords.longitude })),
+      geoStore.setState(() => ({
+        tag: "active",
+        lat: pos.coords.latitude,
+        lon: pos.coords.longitude,
+      })),
     () => geoStore.setState(() => ({ tag: "denied" })),
     { enableHighAccuracy: false, maximumAge: 60_000, timeout: 15_000 },
   )

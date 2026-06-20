@@ -2,7 +2,7 @@ import { fold, type StopIndexEntry } from "@app/contract"
 
 export interface Candidate {
   readonly entry: StopIndexEntry
-  readonly platform: string | null          // null = whole stop; else platform code
+  readonly platform: string | null // null = whole stop; else platform code
   readonly stops: ReadonlyArray<number> | null // selector scope: grouped row forwards entry.stops (null = whole single-name node, or a multi-name node's id list); a per-platform row is [thatStopId]
   readonly score: number
 }
@@ -54,10 +54,7 @@ export const searchStops = (
     }
   }
   out.sort(
-    (a, b) =>
-      b.score - a.score ||
-      a.norm.length - b.norm.length ||
-      a.norm.localeCompare(b.norm),
+    (a, b) => b.score - a.score || a.norm.length - b.norm.length || a.norm.localeCompare(b.norm),
   )
   return out
     .slice(0, limit)

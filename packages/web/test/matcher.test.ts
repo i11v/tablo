@@ -4,8 +4,16 @@ import { searchStops } from "../src/lib/matcher.ts"
 import { rank } from "../src/lib/ranker.ts"
 
 const entry = (name: string, node: number): StopIndexEntry => ({
-  name, norm: name.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase(),
-  node, stops: null, lat: 50, lon: 14, zone: "P", modes: [], disambig: null, platforms: [],
+  name,
+  norm: name.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase(),
+  node,
+  stops: null,
+  lat: 50,
+  lon: 14,
+  zone: "P",
+  modes: [],
+  disambig: null,
+  platforms: [],
 })
 
 const index = [
@@ -19,7 +27,10 @@ const index = [
 describe("searchStops", () => {
   const andelP: StopIndexEntry = {
     ...entry("Anděl", 1040),
-    platforms: [{ code: "A", stop: 1 }, { code: "B", stop: 2 }],
+    platforms: [
+      { code: "A", stop: 1 },
+      { code: "B", stop: 2 },
+    ],
   }
 
   it("matches diacritics-insensitively", () => {
@@ -28,7 +39,7 @@ describe("searchStops", () => {
   })
   it("ranks exact prefix above word-boundary prefix above substring", () => {
     const r = searchStops(index, "nam")
-    expect(r[0].entry.name).toBe("Náměstí Míru")        // exact prefix
+    expect(r[0].entry.name).toBe("Náměstí Míru") // exact prefix
     expect(r[1].entry.name).toBe("Malostranské náměstí") // word-boundary prefix
   })
   it("returns nothing for no match and empty query", () => {
@@ -38,7 +49,7 @@ describe("searchStops", () => {
 
   it("expands a multi-platform stop into grouped + per-platform candidates", () => {
     const r = searchStops([andelP], "andel")
-    expect(r[0].platform).toBeNull()              // grouped row first
+    expect(r[0].platform).toBeNull() // grouped row first
     expect(r[0].stops).toBeNull()
     expect(r.slice(1).map((c) => c.platform)).toEqual(["A", "B"])
     expect(r[1].stops).toEqual([1])
@@ -63,12 +74,15 @@ describe("searchStops", () => {
     const multi: StopIndexEntry = {
       ...entry("Dělnická", 81),
       stops: [5, 6],
-      platforms: [{ code: "A", stop: 5 }, { code: "B", stop: 6 }],
+      platforms: [
+        { code: "A", stop: 5 },
+        { code: "B", stop: 6 },
+      ],
     }
     const r = searchStops([multi], "delnicka")
     expect(r[0].platform).toBeNull()
     expect(r[0].stops).toEqual([5, 6]) // grouped scope = the name's platforms, NOT null
-    expect(r[1].stops).toEqual([5])    // per-platform rows still scope to one id
+    expect(r[1].stops).toEqual([5]) // per-platform rows still scope to one id
     expect(r[2].stops).toEqual([6])
   })
 })

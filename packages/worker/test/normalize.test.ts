@@ -29,7 +29,10 @@ describe("toBoards", () => {
 
   it("groups departures into boards per selector, in selector order", () => {
     const boards = toBoards(
-      [{ node: 81, stops: [2] }, { node: 1040, stops: null }],
+      [
+        { node: 81, stops: [2] },
+        { node: 1040, stops: null },
+      ],
       data,
     )
     expect(boards.map((b) => b.key)).toEqual(["81:2", "1040"])
@@ -43,9 +46,7 @@ describe("toBoards", () => {
     // A garbage timestamp would yield NaN from the sort comparator and
     // scramble board ordering; toDeparture must drop it like a null one.
     const garbage = Schema.decodeUnknownSync(PidBoardResponse)({
-      stops: [
-        { stop_id: "U1040Z1P", stop_name: "Anděl", asw_id: { node: 1040, stop: 1 } },
-      ],
+      stops: [{ stop_id: "U1040Z1P", stop_name: "Anděl", asw_id: { node: 1040, stop: 1 } }],
       departures: [
         {
           departure_timestamp: { predicted: null, scheduled: "2026-06-06T12:04:00.000Z" },
@@ -69,9 +70,7 @@ describe("toBoards", () => {
 
   it("degrades to schedule-only when predicted is garbage but scheduled is valid", () => {
     const mixed = Schema.decodeUnknownSync(PidBoardResponse)({
-      stops: [
-        { stop_id: "U1040Z1P", stop_name: "Anděl", asw_id: { node: 1040, stop: 1 } },
-      ],
+      stops: [{ stop_id: "U1040Z1P", stop_name: "Anděl", asw_id: { node: 1040, stop: 1 } }],
       departures: [
         {
           departure_timestamp: { predicted: "not-a-date", scheduled: "2026-06-06T12:04:00.000Z" },
@@ -92,12 +91,13 @@ describe("toBoards", () => {
     // Golemio emits +01:00/+02:00 offsets, not Z. The strings pass through
     // verbatim and ordering must hold on offset-bearing values.
     const offsets = Schema.decodeUnknownSync(PidBoardResponse)({
-      stops: [
-        { stop_id: "U1040Z1P", stop_name: "Anděl", asw_id: { node: 1040, stop: 1 } },
-      ],
+      stops: [{ stop_id: "U1040Z1P", stop_name: "Anděl", asw_id: { node: 1040, stop: 1 } }],
       departures: [
         {
-          departure_timestamp: { predicted: "2026-06-09T14:50:00.000+02:00", scheduled: "2026-06-09T14:48:00.000+02:00" },
+          departure_timestamp: {
+            predicted: "2026-06-09T14:50:00.000+02:00",
+            scheduled: "2026-06-09T14:48:00.000+02:00",
+          },
           delay: { is_available: true, minutes: 2, seconds: null },
           route: { short_name: "9", type: 0, is_night: false },
           trip: { headsign: "Later", id: "o2", is_canceled: false, is_at_stop: false },
@@ -127,9 +127,15 @@ describe("toBoards", () => {
     const [board] = toBoards([{ node: 1040, stops: null }], data)
     const d = board.departures[0]
     expect(d).toEqual({
-      route: "9", kind: "tram", headsign: "Sídliště Řepy",
-      scheduled: "2026-06-06T12:04:00.000Z", predicted: "2026-06-06T12:05:30.000Z",
-      delaySeconds: 90, isCanceled: false, isAtStop: false, platform: "A",
+      route: "9",
+      kind: "tram",
+      headsign: "Sídliště Řepy",
+      scheduled: "2026-06-06T12:04:00.000Z",
+      predicted: "2026-06-06T12:05:30.000Z",
+      delaySeconds: 90,
+      isCanceled: false,
+      isAtStop: false,
+      platform: "A",
     })
     const noRealtime = board.departures[1]
     expect(noRealtime.predicted).toBeNull()

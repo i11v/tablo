@@ -23,18 +23,15 @@ export class ClientSession extends Cloudflare.DurableObjectNamespace<ClientSessi
     return Effect.gen(function* () {
       const state = yield* Cloudflare.DurableObjectState
 
-      const broadcast = Effect.fn("ClientSession.broadcast")(
-        function* (message: ServerMessage) {
-          const payload = encodeServer(message)
-          for (const socket of yield* state.getWebSockets()) {
-            yield* socket.send(payload).pipe(Effect.ignore)
-          }
-        },
-      )
+      const broadcast = Effect.fn("ClientSession.broadcast")(function* (message: ServerMessage) {
+        const payload = encodeServer(message)
+        for (const socket of yield* state.getWebSockets()) {
+          yield* socket.send(payload).pipe(Effect.ignore)
+        }
+      })
 
       const poll = Effect.fn("ClientSession.poll")(function* () {
-        const selectors =
-          (yield* state.storage.get<ReadonlyArray<StopSelector>>(STORAGE_KEY)) ?? []
+        const selectors = (yield* state.storage.get<ReadonlyArray<StopSelector>>(STORAGE_KEY)) ?? []
         const sockets = yield* state.getWebSockets()
         if (selectors.length === 0 || sockets.length === 0) {
           yield* state.storage.deleteAlarm()
@@ -49,8 +46,7 @@ export class ClientSession extends Cloudflare.DurableObjectNamespace<ClientSessi
           // subscription changed mid-flight (Unsubscribe or a new Subscribe),
           // drop this frame — broadcasting it could land *after* the fresh
           // one and briefly show boards the client no longer wants.
-          const current =
-            (yield* state.storage.get<ReadonlyArray<StopSelector>>(STORAGE_KEY)) ?? []
+          const current = (yield* state.storage.get<ReadonlyArray<StopSelector>>(STORAGE_KEY)) ?? []
           if (JSON.stringify(current) !== JSON.stringify(selectors)) return
           yield* broadcast({ _tag: "DeparturesUpdate", ...result })
         }).pipe(
@@ -66,10 +62,7 @@ export class ClientSession extends Cloudflare.DurableObjectNamespace<ClientSessi
           return response
         }),
 
-        webSocketMessage: (
-          socket: Cloudflare.DurableWebSocket,
-          message: string | ArrayBuffer,
-        ) =>
+        webSocketMessage: (socket: Cloudflare.DurableWebSocket, message: string | ArrayBuffer) =>
           Effect.gen(function* () {
             if (typeof message !== "string") return
             const msg = decodeClient(message)
@@ -107,9 +100,7 @@ export class ClientSession extends Cloudflare.DurableObjectNamespace<ClientSessi
             // call): whether the runtime still lists the closing socket
             // during this handler is unspecified timing, and guessing wrong
             // either leaks the session or freezes a still-open tab.
-            const others = (yield* state.getWebSockets()).filter(
-              (s) => s.ws !== socket.ws,
-            )
+            const others = (yield* state.getWebSockets()).filter((s) => s.ws !== socket.ws)
             if (others.length === 0) {
               // Last socket gone: release everything. A DO with any stored
               // data is retained (and billed) indefinitely, and every tab

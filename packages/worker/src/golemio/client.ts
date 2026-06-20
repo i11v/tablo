@@ -47,8 +47,9 @@ export class GolemioClient extends Context.Service<
                   duration: "10 seconds",
                   orElse: () => new GolemioUpstreamError({ status: 0, detail: "timeout" }),
                 }),
-                Effect.catchTag("HttpClientError", (e) =>
-                  new GolemioUpstreamError({ status: 0, detail: String(e) }),
+                Effect.catchTag(
+                  "HttpClientError",
+                  (e) => new GolemioUpstreamError({ status: 0, detail: String(e) }),
                 ),
               )
               if (response.status === 429) {
@@ -61,8 +62,9 @@ export class GolemioClient extends Context.Service<
                 })
               }
               return yield* HttpClientResponse.schemaBodyJson(PidBoardResponse)(response).pipe(
-                Effect.catchTag("HttpClientError", (e) =>
-                  new GolemioUpstreamError({ status: response.status, detail: String(e) }),
+                Effect.catchTag(
+                  "HttpClientError",
+                  (e) => new GolemioUpstreamError({ status: response.status, detail: String(e) }),
                 ),
               )
             }),

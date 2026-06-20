@@ -58,4 +58,6 @@ if (/["']data\/stop-index-[0-9a-f]+\.json["']/.test(sw)) {
   fail("stop-index appears to be PRECACHED (should be runtimeCaching only)")
 }
 
-console.log("verify-pwa OK: manifest standalone, icons generated, SW runtime caches present, index not precached")
+console.log(
+  "verify-pwa OK: manifest standalone, icons generated, SW runtime caches present, index not precached",
+)

@@ -25,9 +25,7 @@ let baseUrl: string
 beforeAll(() => {
   const url = process.env.TABLO_INTEGRATION_URL
   if (!url) {
-    throw new Error(
-      "TABLO_INTEGRATION_URL is not set — global setup did not start the stack.",
-    )
+    throw new Error("TABLO_INTEGRATION_URL is not set — global setup did not start the stack.")
   }
   baseUrl = url
 })

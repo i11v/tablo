@@ -1,12 +1,18 @@
-import { useMemo } from "react"
+import { type CSSProperties, useEffect, useMemo, useState } from "react"
 import { parseAsString, useQueryState } from "nuqs"
 import { selectorKey, type StopIndexEntry, type StopSelector } from "@app/contract"
+import { useDepartures } from "../hooks/useDepartures.ts"
+import { useNow } from "../hooks/useNow.ts"
 import type { IndexState } from "../hooks/useStopIndex.ts"
+import { boardToDepartures, type DepartureVM } from "../lib/departureVM.ts"
 import { haversineMetres } from "../lib/geo.ts"
 import { searchStops } from "../lib/matcher.ts"
+import { buildPlatformPicks, type PlatformPick } from "../lib/platforms.ts"
 import { rank, type Origin } from "../lib/ranker.ts"
 import { loadRecents } from "../lib/storage.ts"
-import { SearchIcon, StopGlyph } from "./icons.tsx"
+import { TIER } from "../lib/tier.ts"
+import { ChevronIcon, SearchIcon, StopGlyph, VehicleIcon } from "./icons.tsx"
+import { Count, RouteChip } from "./primitives.tsx"
 
 // The stop-search text, mirrored to the `?q=` search param and validated by
 // nuqs (always a string, defaulting to ""). Exported so the /search route can
@@ -40,12 +46,21 @@ export const AddBtn = ({
   </button>
 )
 
-interface SearchHooks {
+/** What the /search route supplies; SearchView adds the live-preview wiring. */
+interface SearchBaseHooks {
   indexState: IndexState
   chosen: ReadonlySet<string>
   origin: Origin | null
   onAdd: (selector: StopSelector, name: string) => void
   onRemove: (key: string) => void
+}
+
+interface SearchHooks extends SearchBaseHooks {
+  /** Node whose inline platform list is expanded (subscribed for live data). */
+  expandedNode: number | null
+  onExpand: (node: number | null) => void
+  /** Live departures for the expanded node, once its board has arrived. */
+  previewDepartures?: ReadonlyArray<DepartureVM> | undefined
 }
 
 /** Up to this many stops surface in the empty-query nearby/recents list. */
@@ -91,7 +106,57 @@ const useEntries = (
     return out
   }, [index, query, origin])
 
-function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry } & SearchHooks) {
+/** One platform row in an expanded result: its code, the next vehicle leaving
+ * from it (live), and an add toggle. Countdowns are neutral-tier — search has no
+ * per-platform walk time, so there's no reachability coloring here. */
+function PlatformRow({
+  pick,
+  on,
+  onToggle,
+  name,
+}: {
+  pick: PlatformPick
+  on: boolean
+  onToggle: () => void
+  name: string
+}) {
+  const d = pick.lead
+  return (
+    <div
+      className="flex items-center gap-[9px] border-b border-white/[0.05] py-[8px] last:border-b-0"
+      style={{ "--tier": TIER.neutral.color } as CSSProperties}
+    >
+      <span className="inline-flex h-[26px] min-w-[26px] shrink-0 items-center justify-center rounded-[8px] border border-white/[0.12] bg-ctl px-[7px] font-ui text-[12px] font-extrabold text-chip-muted">
+        {pick.code}
+      </span>
+      {d ? (
+        <>
+          {pick.kind && <VehicleIcon kind={pick.kind} size={18} />}
+          <RouteChip route={d.route} />
+          <span className="min-w-0 flex-1 truncate font-ui text-[14px] font-semibold leading-[1.2] text-ink-dim">
+            {d.headsign}
+          </span>
+          <Count inMinutes={d.inMinutes} atStop={d.atStop} size={20} glow={false} />
+        </>
+      ) : (
+        <span className="min-w-0 flex-1 font-ui text-[12.5px] font-medium text-faint">
+          no live departures
+        </span>
+      )}
+      <AddBtn small on={on} onClick={onToggle} name={name} />
+    </div>
+  )
+}
+
+function ResultCard({
+  entry,
+  chosen,
+  onAdd,
+  onRemove,
+  expandedNode,
+  onExpand,
+  previewDepartures,
+}: { entry: StopIndexEntry } & SearchHooks) {
   const wholeSel: StopSelector = { node: entry.node, stops: entry.stops }
   const wholeKey = selectorKey(wholeSel)
   const toggle = (sel: StopSelector, name: string): void => {
@@ -99,7 +164,16 @@ function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry 
     if (chosen.has(key)) onRemove(key)
     else onAdd(sel, name)
   }
-  const platforms = entry.platforms.length > 1 ? entry.platforms : []
+  const multi = entry.platforms.length > 1
+  // Accordion: one result expanded at a time, so exactly one node is subscribed.
+  const open = expandedNode === entry.node
+  // Live departures arrive once the on-demand subscription's board lands; until
+  // then the rows list each platform with no countdown.
+  const live = open ? previewDepartures : undefined
+  const picks = useMemo(
+    () => (open ? buildPlatformPicks(entry.platforms, live) : []),
+    [open, entry.platforms, live],
+  )
   return (
     <div className="rounded-card border border-edge bg-card px-[14px] py-[11px]">
       <div className="flex items-center gap-[11px]">
@@ -110,34 +184,44 @@ function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry 
             {entry.disambig && <span className="font-medium text-meta"> · {entry.disambig}</span>}
           </div>
           <div className="font-ui text-[12px] font-medium text-meta">
-            {entry.platforms.length > 1
-              ? `Whole stop · ${entry.platforms.length} platforms`
-              : "Whole stop"}
+            {multi ? `Whole stop · ${entry.platforms.length} platforms` : "Whole stop"}
           </div>
         </div>
+        {multi && (
+          <button
+            type="button"
+            onClick={() => onExpand(open ? null : entry.node)}
+            aria-expanded={open}
+            aria-label={`${open ? "Hide" : "Show"} live departures for each platform of ${entry.name}`}
+            className={[
+              "inline-flex h-[30px] w-[30px] shrink-0 cursor-pointer items-center justify-center rounded-[8px] border transition-colors",
+              open ? "border-paper bg-paper" : "border-white/[0.12] bg-ctl",
+            ].join(" ")}
+          >
+            <ChevronIcon
+              open={open}
+              color={open ? "var(--color-paper-ink)" : "var(--color-icon)"}
+            />
+          </button>
+        )}
         <AddBtn
           on={chosen.has(wholeKey)}
           onClick={() => toggle(wholeSel, entry.name)}
           name={entry.name}
         />
       </div>
-      {platforms.length > 0 && (
-        <div className="ml-[4px] mt-[9px] border-t border-l-2 border-white/[0.06] border-l-white/[0.07] pl-[12px]">
-          {platforms.map((p) => {
+      {multi && open && (
+        <div className="mt-[9px] border-t border-white/[0.06] pt-[4px]">
+          {picks.map((p) => {
             const sel: StopSelector = { node: entry.node, stops: [p.stop] }
             return (
-              <div key={p.stop} className="flex items-center gap-[10px] py-[8px]">
-                <span className="shrink-0 whitespace-nowrap rounded-chip border border-white/[0.08] bg-ctl px-[9px] py-[3px] font-ui text-[12px] font-bold text-ink-dim">
-                  nást. {p.code}
-                </span>
-                <span className="min-w-0 flex-1" />
-                <AddBtn
-                  small
-                  on={chosen.has(selectorKey(sel))}
-                  onClick={() => toggle(sel, `${entry.name} ${p.code}`)}
-                  name={`${entry.name} nást. ${p.code}`}
-                />
-              </div>
+              <PlatformRow
+                key={p.stop}
+                pick={p}
+                on={chosen.has(selectorKey(sel))}
+                onToggle={() => toggle(sel, `${entry.name} ${p.code}`)}
+                name={`${entry.name} nást. ${p.code}`}
+              />
             )
           })}
         </div>
@@ -231,10 +315,37 @@ const useCloseOnAdd = (onClose: () => void, hooks: SearchHooks): SearchHooks =>
 
 /** The stop search body: a query field over a ranked result list. Rendered as a
  * full page on the `/search` route; `onClose` navigates back to the board. */
-export function SearchView({ onClose, ...hooks }: { onClose: () => void } & SearchHooks) {
+export function SearchView({ onClose, ...base }: { onClose: () => void } & SearchBaseHooks) {
   // ?q= as the source of truth: the query survives reloads and is shareable,
   // and clears from the URL when emptied (nuqs clearOnDefault).
   const [query, setQuery] = useQueryState("q", queryParser)
+
+  // The result whose platform list is expanded — its whole-node board is
+  // subscribed on demand so each platform row can show its next departure live.
+  // One result open at a time keeps this to a single extra subscription.
+  const [expandedNode, setExpandedNode] = useState<number | null>(null)
+  // A new query may drop the expanded result from the list; collapse so we don't
+  // keep subscribing to a node that's no longer shown.
+  useEffect(() => setExpandedNode(null), [query])
+
+  const previewSelectors = useMemo<ReadonlyArray<StopSelector>>(
+    () => (expandedNode === null ? [] : [{ node: expandedNode, stops: null }]),
+    [expandedNode],
+  )
+  const { boards } = useDepartures(previewSelectors)
+  const now = useNow()
+  const previewDepartures = useMemo(() => {
+    if (expandedNode === null) return undefined
+    const board = boards.get(`${expandedNode}`)
+    return board === undefined ? undefined : boardToDepartures(board, now)
+  }, [expandedNode, boards, now])
+
+  const hooks: SearchHooks = {
+    ...base,
+    expandedNode,
+    onExpand: setExpandedNode,
+    previewDepartures,
+  }
   const closingHooks = useCloseOnAdd(onClose, hooks)
   return (
     <div className="flex flex-col">

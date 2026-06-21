@@ -1,0 +1,10 @@
+# Git hooks managed by Lefthook (https://lefthook.dev).
+# Installed automatically on `bun install` via the `prepare` script.
+# Mirrors the CI static checks; bypass a run with `git commit --no-verify`.
+pre-commit:
+  parallel: true
+  jobs:
+    - name: lint
+      run: bun run lint
+    - name: format
+      run: bun run fmt:check

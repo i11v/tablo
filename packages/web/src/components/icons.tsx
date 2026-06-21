@@ -62,32 +62,6 @@ export const StopGlyph = ({
   </span>
 )
 
-// Disclosure chevron — points down when collapsed, flips up when the inline
-// platform list is open.
-export const ChevronIcon = ({
-  open = false,
-  size = 16,
-  color = "var(--color-icon)",
-}: {
-  open?: boolean
-  size?: number
-  color?: string
-}) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={color}
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    style={{ transform: open ? "rotate(180deg)" : undefined, transition: "transform 120ms" }}
-  >
-    <path d="M6 9 L12 15 L18 9" />
-  </svg>
-)
-
 // Vehicle pictogram — mode by shape (tram has a pantograph pole, bus/train
 // don't, metro is an M roundel). Monochrome so the reachability color stays
 // unambiguous.

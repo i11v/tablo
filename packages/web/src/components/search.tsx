@@ -59,9 +59,10 @@ interface SearchBaseHooks {
 }
 
 interface SearchHooks extends SearchBaseHooks {
-  /** Live departures per visible multi-platform node, keyed by node id; empty
-   * until each board arrives (or for nodes past the subscription cap). */
-  departuresByNode: ReadonlyMap<number, ReadonlyArray<DepartureVM>>
+  /** Per visible multi-platform node: its live departures, or "loading" while
+   * the subscribed board is still in flight. Absent → not subscribed (past the
+   * cap), so no live data is coming. */
+  departuresByNode: ReadonlyMap<number, ReadonlyArray<DepartureVM> | "loading">
 }
 
 /** Up to this many stops surface in the empty-query nearby/recents list. */
@@ -107,16 +108,22 @@ const useEntries = (
     return out
   }, [index, query, origin])
 
-/** One platform row in an expanded result: its code, the next vehicle leaving
- * from it (live), and an add toggle. Countdowns are neutral-tier — search has no
- * per-platform walk time, so there's no reachability coloring here. */
+/** One platform row in a result: its code, the next vehicle leaving from it
+ * (live), and an add toggle. Countdowns are neutral-tier — search has no
+ * per-platform walk time, so there's no reachability coloring here. While the
+ * board is loading it shows a skeleton; once it arrives, a platform with nothing
+ * upcoming shows a quiet "no departures" note. */
 function PlatformRow({
   pick,
+  loading,
+  arrived,
   on,
   onToggle,
   name,
 }: {
   pick: PlatformPick
+  loading: boolean
+  arrived: boolean
   on: boolean
   onToggle: () => void
   name: string
@@ -139,10 +146,18 @@ function PlatformRow({
           </span>
           <Count inMinutes={d.inMinutes} atStop={d.atStop} size={20} glow={false} />
         </>
-      ) : (
-        <span className="min-w-0 flex-1 font-ui text-[12.5px] font-medium text-faint">
-          no live departures
+      ) : loading ? (
+        <span className="flex min-w-0 flex-1 animate-pulse items-center gap-[8px]" aria-hidden>
+          <span className="h-[28px] w-[38px] shrink-0 rounded-chip bg-white/[0.07]" />
+          <span className="h-[12px] min-w-0 flex-1 rounded bg-white/[0.07]" />
+          <span className="h-[18px] w-[18px] shrink-0 rounded bg-white/[0.07]" />
         </span>
+      ) : arrived ? (
+        <span className="min-w-0 flex-1 font-ui text-[12.5px] font-medium text-faint">
+          no departures
+        </span>
+      ) : (
+        <span className="min-w-0 flex-1" />
       )}
       <AddBtn small on={on} onClick={onToggle} name={name} />
     </div>
@@ -164,9 +179,13 @@ function ResultCard({
     else onAdd(sel, name)
   }
   const multi = entry.platforms.length > 1
-  // Live departures land once this node's board arrives; until then (or past the
-  // subscription cap) the rows list each platform with no countdown.
-  const live = departuresByNode.get(entry.node)
+  // Three states: "loading" (board in flight), an array (arrived), or undefined
+  // (not subscribed, past the cap). Rows show a skeleton only while loading, and
+  // "no departures" only once the board has actually arrived.
+  const state = departuresByNode.get(entry.node)
+  const loading = state === "loading"
+  const arrived = Array.isArray(state)
+  const live = arrived ? state : undefined
   const picks = useMemo(
     () => (multi ? buildPlatformPicks(entry.platforms, live) : []),
     [multi, entry.platforms, live],
@@ -198,6 +217,8 @@ function ResultCard({
               <PlatformRow
                 key={p.stop}
                 pick={p}
+                loading={loading}
+                arrived={arrived}
                 on={chosen.has(selectorKey(sel))}
                 onToggle={() => toggle(sel, `${entry.name} ${p.code}`)}
                 name={`${entry.name} nást. ${p.code}`}
@@ -324,10 +345,10 @@ export function SearchView({ onClose, ...base }: { onClose: () => void } & Searc
   const { boards } = useDepartures(liveSelectors)
   const now = useNow()
   const departuresByNode = useMemo(() => {
-    const m = new Map<number, ReadonlyArray<DepartureVM>>()
+    const m = new Map<number, ReadonlyArray<DepartureVM> | "loading">()
     for (const sel of liveSelectors) {
       const board = boards.get(`${sel.node}`)
-      if (board !== undefined) m.set(sel.node, boardToDepartures(board, now))
+      m.set(sel.node, board === undefined ? "loading" : boardToDepartures(board, now))
     }
     return m
   }, [liveSelectors, boards, now])

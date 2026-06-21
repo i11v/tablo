@@ -110,10 +110,16 @@ function ResultCard({ entry, chosen, onAdd, onRemove }: { entry: StopIndexEntry 
             {entry.disambig && <span className="font-medium text-meta"> · {entry.disambig}</span>}
           </div>
           <div className="font-ui text-[12px] font-medium text-meta">
-            {entry.platforms.length > 1 ? `Whole stop · ${entry.platforms.length} platforms` : "Whole stop"}
+            {entry.platforms.length > 1
+              ? `Whole stop · ${entry.platforms.length} platforms`
+              : "Whole stop"}
           </div>
         </div>
-        <AddBtn on={chosen.has(wholeKey)} onClick={() => toggle(wholeSel, entry.name)} name={entry.name} />
+        <AddBtn
+          on={chosen.has(wholeKey)}
+          onClick={() => toggle(wholeSel, entry.name)}
+          name={entry.name}
+        />
       </div>
       {platforms.length > 0 && (
         <div className="ml-[4px] mt-[9px] border-t border-l-2 border-white/[0.06] border-l-white/[0.07] pl-[12px]">

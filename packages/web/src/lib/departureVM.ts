@@ -36,10 +36,7 @@ export const departureVM = (dep: Departure, nowMs: number): DepartureVM | null =
 }
 
 /** Map → drop → sort ascending. Order matters: lead = first non-miss. */
-export const boardToDepartures = (
-  board: StopBoard,
-  nowMs: number,
-): ReadonlyArray<DepartureVM> =>
+export const boardToDepartures = (board: StopBoard, nowMs: number): ReadonlyArray<DepartureVM> =>
   board.departures
     .map((d) => departureVM(d, nowMs))
     .filter((d): d is DepartureVM => d !== null)

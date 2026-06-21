@@ -23,9 +23,7 @@ const AswId = Schema.Number.check(
 /** A user-facing stop selection: a whole ASW node, or specific platforms within it. */
 export const StopSelector = Schema.Struct({
   node: AswId,
-  stops: Schema.NullOr(
-    Schema.Array(AswId).check(Schema.isMaxLength(MAX_PLATFORMS_PER_SELECTOR)),
-  ),
+  stops: Schema.NullOr(Schema.Array(AswId).check(Schema.isMaxLength(MAX_PLATFORMS_PER_SELECTOR))),
 })
 export type StopSelector = typeof StopSelector.Type
 
@@ -34,7 +32,7 @@ export const selectorKey = (s: StopSelector): string =>
   s.stops === null ? `${s.node}` : `${s.node}:${[...s.stops].sort((a, b) => a - b).join(",")}`
 
 export const Departure = Schema.Struct({
-  route: Schema.String,                    // "9", "B", "S7"
+  route: Schema.String, // "9", "B", "S7"
   kind: VehicleKind,
   headsign: Schema.String,
   // ISO 8601 WITH OFFSET, passed through from Golemio — production data is

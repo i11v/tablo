@@ -14,9 +14,8 @@ export type IndexState =
 const fetchStopIndex = async (): Promise<ReadonlyArray<StopIndexEntry>> => {
   const path =
     __STOP_INDEX_PATH__ ??
-    Schema.decodeUnknownSync(StopsManifest)(
-      await (await fetch("/data/stops-manifest.json")).json(),
-    ).path
+    Schema.decodeUnknownSync(StopsManifest)(await (await fetch("/data/stops-manifest.json")).json())
+      .path
   const index = Schema.decodeUnknownSync(StopIndex)(await (await fetch(path)).json())
   return index.stops
 }

@@ -4,17 +4,68 @@ import { StopIndexV1 } from "@app/contract"
 import { buildIndex } from "../lib/build.ts"
 
 // header matches real PID stops.txt (verified 2026-06-06)
-const HEADER = ["stop_id","stop_name","stop_lat","stop_lon","zone_id","stop_url","location_type","parent_station","wheelchair_boarding","level_id","platform_code","asw_node_id","asw_stop_id","zone_region_type"]
+const HEADER = [
+  "stop_id",
+  "stop_name",
+  "stop_lat",
+  "stop_lon",
+  "zone_id",
+  "stop_url",
+  "location_type",
+  "parent_station",
+  "wheelchair_boarding",
+  "level_id",
+  "platform_code",
+  "asw_node_id",
+  "asw_stop_id",
+  "zone_region_type",
+]
 const row = (over: Record<string, string>): string[] =>
   HEADER.map((h) => over[h] ?? (h === "location_type" ? "0" : ""))
 
 const rows = [
   HEADER,
-  row({ stop_id: "U1040Z1P", stop_name: "Anděl", stop_lat: "50.0710", stop_lon: "14.4030", zone_id: "P", asw_node_id: "1040", asw_stop_id: "1", platform_code: "A" }),
-  row({ stop_id: "U1040Z2P", stop_name: "Anděl", stop_lat: "50.0712", stop_lon: "14.4032", zone_id: "P", asw_node_id: "1040", asw_stop_id: "2", platform_code: "B" }),
+  row({
+    stop_id: "U1040Z1P",
+    stop_name: "Anděl",
+    stop_lat: "50.0710",
+    stop_lon: "14.4030",
+    zone_id: "P",
+    asw_node_id: "1040",
+    asw_stop_id: "1",
+    platform_code: "A",
+  }),
+  row({
+    stop_id: "U1040Z2P",
+    stop_name: "Anděl",
+    stop_lat: "50.0712",
+    stop_lon: "14.4032",
+    zone_id: "P",
+    asw_node_id: "1040",
+    asw_stop_id: "2",
+    platform_code: "B",
+  }),
   // node 81 carries two distinct names -> platform-scoped entries
-  row({ stop_id: "U81Z1P", stop_name: "Dělnická", stop_lat: "50.10", stop_lon: "14.45", zone_id: "P", asw_node_id: "81", asw_stop_id: "1", platform_code: "A" }),
-  row({ stop_id: "U81Z2P", stop_name: "Tusarova", stop_lat: "50.11", stop_lon: "14.46", zone_id: "P", asw_node_id: "81", asw_stop_id: "2", platform_code: "B" }),
+  row({
+    stop_id: "U81Z1P",
+    stop_name: "Dělnická",
+    stop_lat: "50.10",
+    stop_lon: "14.45",
+    zone_id: "P",
+    asw_node_id: "81",
+    asw_stop_id: "1",
+    platform_code: "A",
+  }),
+  row({
+    stop_id: "U81Z2P",
+    stop_name: "Tusarova",
+    stop_lat: "50.11",
+    stop_lon: "14.46",
+    zone_id: "P",
+    asw_node_id: "81",
+    asw_stop_id: "2",
+    platform_code: "B",
+  }),
   // no ASW node -> excluded (rail/technical waypoint)
   row({ stop_id: "T53041", stop_name: "hr.VUSC 0200/0520 04" }),
   // non-platform location_type -> excluded
@@ -36,7 +87,10 @@ describe("buildIndex", () => {
     expect(andel!.lat).toBeCloseTo(50.0711, 4)
     expect(andel!.zone).toBe("P")
     expect(andel!.norm).toBe("andel")
-    expect(andel!.platforms).toEqual([{ code: "A", stop: 1 }, { code: "B", stop: 2 }])
+    expect(andel!.platforms).toEqual([
+      { code: "A", stop: 1 },
+      { code: "B", stop: 2 },
+    ])
   })
 
   it("splits multi-name nodes into platform-scoped entries", () => {
@@ -55,7 +109,18 @@ describe("buildIndex", () => {
 
   it("fills disambig when the same folded name exists at multiple nodes", () => {
     const withDupe = buildIndex(
-      [...rows, row({ stop_id: "U9000Z1", stop_name: "Anděl", stop_lat: "49.0", stop_lon: "15.0", zone_id: "B", asw_node_id: "9000", asw_stop_id: "1" })],
+      [
+        ...rows,
+        row({
+          stop_id: "U9000Z1",
+          stop_name: "Anděl",
+          stop_lat: "49.0",
+          stop_lon: "15.0",
+          zone_id: "B",
+          asw_node_id: "9000",
+          asw_stop_id: "1",
+        }),
+      ],
       "2026-06-06T00:00:00.000Z",
     )
     const both = withDupe.stops.filter((s) => s.norm === "andel")
@@ -67,8 +132,20 @@ describe("buildIndex", () => {
     const idx = buildIndex(
       [
         HEADER,
-        row({ stop_id: "U70Z1", stop_name: "Xstop", asw_node_id: "70", asw_stop_id: "1", platform_code: "A" }),
-        row({ stop_id: "U70Z2", stop_name: "Xstop", asw_node_id: "70", asw_stop_id: "2", platform_code: " " }),
+        row({
+          stop_id: "U70Z1",
+          stop_name: "Xstop",
+          asw_node_id: "70",
+          asw_stop_id: "1",
+          platform_code: "A",
+        }),
+        row({
+          stop_id: "U70Z2",
+          stop_name: "Xstop",
+          asw_node_id: "70",
+          asw_stop_id: "2",
+          platform_code: " ",
+        }),
       ],
       "2026-06-06T00:00:00.000Z",
     )

@@ -25,7 +25,10 @@ export const platformKey = (d: DepartureVM): string =>
 export const platformsOf = (
   departures: ReadonlyArray<DepartureVM>,
 ): ReadonlyArray<PlatformGroup> => {
-  const seen = new Map<string, { key: string; label: string; dests: Array<string>; count: number }>()
+  const seen = new Map<
+    string,
+    { key: string; label: string; dests: Array<string>; count: number }
+  >()
   for (const d of departures) {
     const key = platformKey(d)
     if (key === "?") continue

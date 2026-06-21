@@ -43,7 +43,5 @@ export const workerDomain = (stage: string): string | undefined => {
  * two come from different channels (process.env vs CLI flag) and a mismatch
  * would rename, and thereby replace, the deployed worker.
  */
-export const resolveWorkerStage = (env: {
-  TABLO_STAGE?: string
-  USER?: string
-}): string => env.TABLO_STAGE || (env.USER ? `dev_${env.USER}` : "local")
+export const resolveWorkerStage = (env: { TABLO_STAGE?: string; USER?: string }): string =>
+  env.TABLO_STAGE || (env.USER ? `dev_${env.USER}` : "local")

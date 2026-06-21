@@ -5,6 +5,9 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "typecheck": "tsc -p . && tsc -p packages/contract && tsc -p packages/worker && tsc -p packages/web && tsc -p scripts",
+    "lint": "oxlint",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "build:index": "bun scripts/build-stop-index.ts",
@@ -31,6 +34,8 @@
     "@types/bun": "^1.3.14",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.5.0",
+    "oxfmt": "^0.55.0",
+    "oxlint": "^1.70.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.7",
     "vitest": "^4.1.8"

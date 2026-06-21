@@ -15,7 +15,16 @@ const d = (
   inMinutes: number,
   delayMinutes = 0,
   atStop = false,
-): DepartureVM => ({ route, kind, headsign, platform, inMinutes, atStop, delayMinutes, sortKey: inMinutes })
+): DepartureVM => ({
+  route,
+  kind,
+  headsign,
+  platform,
+  inMinutes,
+  atStop,
+  delayMinutes,
+  sortKey: inMinutes,
+})
 
 // walk=3 → the first catchable departure is a comfortable "make" (green lead),
 // with the two imminent ones shown as misses.

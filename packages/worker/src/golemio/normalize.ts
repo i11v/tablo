@@ -4,12 +4,17 @@ import type { PidBoardResponse, PidDeparture } from "./schema.ts"
 
 export const routeTypeToKind = (type: number | null): VehicleKind => {
   switch (type) {
-    case 0: return "tram"
-    case 1: return "metro"
-    case 2: return "train"
+    case 0:
+      return "tram"
+    case 1:
+      return "metro"
+    case 2:
+      return "train"
     case 3:
-    case 11: return "bus"
-    default: return "other"
+    case 11:
+      return "bus"
+    default:
+      return "other"
   }
 }
 
@@ -27,7 +32,7 @@ const toDeparture = (d: PidDeparture): Departure | null => {
       ? d.departure_timestamp.predicted
       : null
   const delaySeconds = d.delay.is_available
-    ? d.delay.seconds ?? (d.delay.minutes === null ? null : d.delay.minutes * 60)
+    ? (d.delay.seconds ?? (d.delay.minutes === null ? null : d.delay.minutes * 60))
     : null
   return {
     route: d.route.short_name ?? "?",
@@ -53,7 +58,11 @@ export const toBoards = (
   const aswByStopId = new Map(
     data.stops.flatMap((s) => (s.asw_id === null ? [] : [[s.stop_id, s.asw_id] as const])),
   )
-  const boards = selectors.map((sel) => ({ sel, key: selectorKey(sel), departures: [] as Array<Departure> }))
+  const boards = selectors.map((sel) => ({
+    sel,
+    key: selectorKey(sel),
+    departures: [] as Array<Departure>,
+  }))
   for (const raw of data.departures) {
     const asw = aswByStopId.get(raw.stop.id)
     if (asw === undefined) continue

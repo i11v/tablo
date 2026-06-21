@@ -43,7 +43,9 @@ function LeadRow({
       <VehicleIcon kind={d.kind} />
       <RouteChip route={d.route} big />
       <div className="min-w-0">
-        <div className="truncate font-ui text-[17px] font-bold leading-[1.15] text-ink">{d.headsign}</div>
+        <div className="truncate font-ui text-[17px] font-bold leading-[1.15] text-ink">
+          {d.headsign}
+        </div>
         <div className="mt-[3px] flex items-center gap-[8px] overflow-hidden whitespace-nowrap">
           {info.label !== "" && (
             <span
@@ -92,7 +94,9 @@ function Row({
       <VehicleIcon kind={d.kind} size={20} />
       <RouteChip route={d.route} />
       <div className="min-w-0">
-        <div className="truncate font-ui text-[15px] font-semibold leading-[1.2] text-ink-dim">{d.headsign}</div>
+        <div className="truncate font-ui text-[15px] font-semibold leading-[1.2] text-ink-dim">
+          {d.headsign}
+        </div>
         <Meta delayMinutes={d.delayMinutes} platform={d.platform} showPlat={showPlatMeta} />
       </div>
       {trailing}
@@ -156,10 +160,14 @@ export function StopCard({
   return (
     <div className="rounded-card border border-edge bg-card px-[15px] pt-[13px] pb-[7px]">
       <div
-        className={["flex items-center justify-between", hasFilter ? "mb-[9px]" : "mb-[7px]"].join(" ")}
+        className={["flex items-center justify-between", hasFilter ? "mb-[9px]" : "mb-[7px]"].join(
+          " ",
+        )}
       >
         <span className="flex min-w-0 items-baseline gap-[8px]">
-          <span className="font-ui text-[16px] font-extrabold tracking-[0.01em] text-ink">{s.name}</span>
+          <span className="font-ui text-[16px] font-extrabold tracking-[0.01em] text-ink">
+            {s.name}
+          </span>
           {forced && (
             <span className="whitespace-nowrap rounded-[6px] bg-paper px-[7px] py-[2px] font-ui text-[12px] font-bold text-paper-ink">
               {plats.find((p) => p.key === s.pin)?.label ?? `nást. ${s.pin}`}
@@ -189,16 +197,28 @@ export function StopCard({
         <div className="flex gap-[7px] overflow-x-auto pb-[11px]">
           <PlatChip label="All" active={isAll} onClick={() => setFilter("all")} />
           {barPlats.map((p) => (
-            <PlatChip key={p.key} label={p.label} active={active === p.key} onClick={() => setFilter(p.key)} />
+            <PlatChip
+              key={p.key}
+              label={p.label}
+              active={active === p.key}
+              onClick={() => setFilter(p.key)}
+            />
           ))}
         </div>
       )}
 
       {s.departures.length === 0 && (
-        <div className="py-[16px] text-center font-ui text-[13px] text-meta">waiting for live data…</div>
+        <div className="py-[16px] text-center font-ui text-[13px] text-meta">
+          waiting for live data…
+        </div>
       )}
       {lead && (
-        <LeadRow d={lead} walk={s.walkMinutes} trailing={chipFor(lead)} showPlatMeta={!hasFilter && !forced} />
+        <LeadRow
+          d={lead}
+          walk={s.walkMinutes}
+          trailing={chipFor(lead)}
+          showPlatMeta={!hasFilter && !forced}
+        />
       )}
       {rest.map((d, i) => (
         <Row

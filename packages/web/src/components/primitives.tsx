@@ -32,7 +32,9 @@ export const Count = ({
         className="font-accent font-bold leading-[0.8] tracking-[0.02em]"
         style={{
           fontSize: size,
-          textShadow: glow ? "0 0 14px color-mix(in srgb, var(--tier) 47%, transparent)" : undefined,
+          textShadow: glow
+            ? "0 0 14px color-mix(in srgb, var(--tier) 47%, transparent)"
+            : undefined,
         }}
       >
         {txt}
@@ -92,8 +94,12 @@ export const PlatChip = ({
     aria-pressed={active}
     className={[
       "shrink-0 select-none whitespace-nowrap border font-ui font-bold transition-all duration-100",
-      small ? "rounded-[7px] px-[9px] py-[3px] text-[11.5px]" : "rounded-[9px] px-[12px] py-[6px] text-[12.5px]",
-      active ? "border-paper bg-paper text-paper-ink" : "border-white/[0.08] bg-ctl text-chip-muted",
+      small
+        ? "rounded-[7px] px-[9px] py-[3px] text-[11.5px]"
+        : "rounded-[9px] px-[12px] py-[6px] text-[12.5px]",
+      active
+        ? "border-paper bg-paper text-paper-ink"
+        : "border-white/[0.08] bg-ctl text-chip-muted",
       onClick ? "cursor-pointer" : "cursor-default",
     ].join(" ")}
   >

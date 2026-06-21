@@ -29,9 +29,7 @@ const DEV_PORT_OVERRIDE =
     ? Number(process.env.TABLO_DEV_PORT)
     : undefined
 const devOptions =
-  DEV_PORT_OVERRIDE === undefined
-    ? undefined
-    : { port: DEV_PORT_OVERRIDE, strictPort: true }
+  DEV_PORT_OVERRIDE === undefined ? undefined : { port: DEV_PORT_OVERRIDE, strictPort: true }
 
 // Deploy-time stage, read at module load. CI sets `TABLO_STAGE` to match the
 // `alchemy deploy --stage <…>` value. We deliberately do NOT read the
@@ -41,9 +39,7 @@ const devOptions =
 // "Service not found: Stage". Locally we fall back to alchemy's own default
 // (`dev_<user>`) so a stray local deploy can never grab the bare `tablo`
 // (production) name.
-const WORKER_STAGE = resolveWorkerStage(
-  typeof process !== "undefined" ? (process.env ?? {}) : {},
-)
+const WORKER_STAGE = resolveWorkerStage(typeof process !== "undefined" ? (process.env ?? {}) : {})
 // Custom hostname for this stage (production → tablo.run, pr-N →
 // preview-N.tablo.run), or undefined for workers.dev-only stages.
 const WORKER_DOMAIN = workerDomain(WORKER_STAGE)
@@ -127,9 +123,9 @@ export default class Server extends Cloudflare.Worker<Server>()(
           // with HTML where JSON is expected. Surface misses as real 404s.
           const env = yield* Cloudflare.WorkerEnvironment
           const assets = (env as Record<string, AssetsFetcher>).ASSETS
-          const res = yield* Effect.tryPromise(() =>
-            assets.fetch(req.source as Request),
-          ).pipe(Effect.orDie)
+          const res = yield* Effect.tryPromise(() => assets.fetch(req.source as Request)).pipe(
+            Effect.orDie,
+          )
           const contentType = res.headers.get("content-type") ?? ""
           if (res.status === 200 && contentType.includes("text/html")) {
             return HttpServerResponse.text("not found", { status: 404 })
@@ -142,9 +138,9 @@ export default class Server extends Cloudflare.Worker<Server>()(
         // worker ahead of assets.
         const env = yield* Cloudflare.WorkerEnvironment
         const assets = (env as Record<string, AssetsFetcher>).ASSETS
-        const res = yield* Effect.tryPromise(() =>
-          assets.fetch(req.source as Request),
-        ).pipe(Effect.orDie)
+        const res = yield* Effect.tryPromise(() => assets.fetch(req.source as Request)).pipe(
+          Effect.orDie,
+        )
         const bytes = new Uint8Array(
           yield* Effect.tryPromise(() => res.arrayBuffer()).pipe(Effect.orDie),
         )

@@ -24,7 +24,8 @@ if (res !== null && res.ok) {
   console.warn(
     "GTFS download failed (" +
       (res === null ? "network error" : "HTTP " + res.status) +
-      ") — falling back to cached " + CACHE_ZIP,
+      ") — falling back to cached " +
+      CACHE_ZIP,
   )
 } else {
   throw new Error(

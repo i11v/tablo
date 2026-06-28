@@ -153,8 +153,10 @@ The prototype components consume a stop shape:
   - `platform` ← `platform`.
   - **filter out** `isCanceled` and "gone" (departed > 30 s ago, reuse the
     `countdown` gone rule).
-  - **sort ascending** by `predicted ?? scheduled` — the design relies on order
-    for lead-vs-rest selection and `leadIdx = first non-miss`.
+  - **sort ascending** by `predicted ?? scheduled` — this arrival-time order is
+    the display order: the lead is simply the next departure (`list[0]`), so a
+    departure never jumps rank by whether it's within catch range and the board
+    stays stable as walk-time drifts. Reachability tints rows; it never reorders.
 - **reach()** colors each row. When `walkMinutes` is `null`, every row is
   `neutral`: counts render plain, no tier chips, no "min walk" — the app stays
   fully usable without location.

@@ -144,9 +144,12 @@ export function StopCard({
   const active = forced ? s.pin! : hasFilter && valid ? filter : "all"
   const isAll = active === "all"
   const list = isAll ? s.departures : s.departures.filter((d) => platformKey(d) === active)
-  const leadIdx = list.findIndex((d) => reachTier(d.inMinutes, s.walkMinutes) !== "miss")
-  const lead = list[leadIdx < 0 ? 0 : leadIdx]
-  const rest = list.filter((d) => d !== lead).slice(0, max)
+  // Order strictly by arrival time (the list is already sorted ascending). The
+  // lead is simply the next departure — never the first *catchable* one — so a
+  // tram you can't make stays above a later one you can, and the board doesn't
+  // re-sort as walk-time / catch range drifts across refreshes.
+  const lead = list[0]
+  const rest = list.slice(1, max + 1)
   const sel = plats.find((p) => p.key === active)
   const chipFor = (d: DepartureVM): ReactNode =>
     hasFilter && isAll ? (

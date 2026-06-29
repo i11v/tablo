@@ -113,7 +113,7 @@ function Row({
 
 export function StopCard({
   s,
-  max = 6,
+  max = 4,
   filterable = true,
   onClose,
 }: {
@@ -155,7 +155,9 @@ export function StopCard({
   // tram you can't make stays above a later one you can, and the board doesn't
   // re-sort as walk-time / catch range drifts across refreshes.
   const lead = list[0]
-  const rest = list.slice(1, max + 1)
+  // `max` caps the total departures shown (lead included), so this slice takes
+  // at most max-1 rows after the lead.
+  const rest = list.slice(1, max)
   const sel = plats.find((p) => p.key === active)
   const chipFor = (d: DepartureVM): ReactNode =>
     hasFilter && isAll ? (

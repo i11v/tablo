@@ -1,3 +1,5 @@
+import { formatClock } from "../lib/time.ts"
+
 /** Route badge — e.g. "9", "B", "S7". */
 export const RouteChip = ({ route, big }: { route: string; big?: boolean }) => (
   <span
@@ -48,26 +50,44 @@ export const Count = ({
   )
 }
 
-/** Platform ("nást. A") and/or realtime delay note under a headsign. */
+/** Platform ("nást. A") note under a headsign. */
 export const Meta = ({
-  delayMinutes,
   platform,
   showPlat = true,
 }: {
-  delayMinutes: number
   platform: string | null
   showPlat?: boolean
 }) => {
+  const plat = showPlat && platform && platform !== "–" ? `nást. ${platform}` : ""
+  if (!plat) return null
+  return <span className="font-ui text-[12px] font-medium text-meta">{plat}</span>
+}
+
+/**
+ * Absolute wall-clock arrival time — secondary to the countdown, shown beneath
+ * it. The realtime delay (signed minutes vs schedule) sits next to it.
+ */
+export const ArrivalTime = ({
+  arrivalMs,
+  delayMinutes,
+  big,
+}: {
+  arrivalMs: number
+  delayMinutes: number
+  big?: boolean
+}) => {
   const late = delayMinutes > 0
   const early = delayMinutes < 0
-  const plat = showPlat && platform && platform !== "–" ? `nást. ${platform}` : ""
-  if (!plat && !late && !early) return null
   return (
-    <span className="font-ui text-[12px] font-medium text-meta">
-      {plat}
+    <span
+      className={[
+        "inline-flex items-baseline gap-[5px] whitespace-nowrap font-ui font-medium",
+        big ? "text-[12px]" : "text-[11px]",
+      ].join(" ")}
+    >
+      <span className="text-meta">{formatClock(arrivalMs)}</span>
       {(late || early) && (
         <span className={late ? "text-late" : "text-early"}>
-          {plat ? " · " : ""}
           {late ? "+" : ""}
           {delayMinutes} min
         </span>

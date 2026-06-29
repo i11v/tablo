@@ -10,11 +10,9 @@ import { useStopIndex } from "./hooks/useStopIndex.ts"
 import { boardToDepartures } from "./lib/departureVM.ts"
 import { haversineMetres, metresToWalkMinutes } from "./lib/geo.ts"
 import { platformKey, type StopVM } from "./lib/stop.ts"
+import { formatClock } from "./lib/time.ts"
 import { shareSearch } from "./lib/url.ts"
 import { geoStore, selectionStore } from "./store.ts"
-
-const formatClock = (ms: number): string =>
-  new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
 
 // Stable empty fallback: a fresh `[]` each render would change identity and
 // force the byNode/locationLabel memos to recompute on every render while the

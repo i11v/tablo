@@ -5,7 +5,12 @@ import { AddTile, AppBar, EmptyState, SubBar } from "./components/chrome.tsx"
 import { StopCard } from "./components/StopCard.tsx"
 import type { DepartureVM } from "./lib/departureVM.ts"
 import type { StopVM } from "./lib/stop.ts"
+import { formatClock } from "./lib/time.ts"
 import "./styles.css"
+
+// Fixed base for the scene's "now" — drives both the header clock and the
+// per-row absolute arrival times so they stay consistent in any timezone.
+const BASE_MS = Date.parse("2026-06-29T13:29:00+02:00")
 
 const d = (
   route: string,
@@ -23,7 +28,7 @@ const d = (
   inMinutes,
   atStop,
   delayMinutes,
-  sortKey: inMinutes,
+  sortKey: BASE_MS + inMinutes * 60_000,
 })
 
 // walk=3 → the first catchable departure is a comfortable "make" (green lead),
@@ -109,7 +114,7 @@ function Preview() {
       <Scene title="Board · live data, mixed reachability">
         <AppBar
           status="live"
-          clock="13:29"
+          clock={formatClock(BASE_MS)}
           geo={geo}
           locationLabel="Karlovo náměstí"
           onOpenSearch={() => {}}
@@ -126,7 +131,7 @@ function Preview() {
       <Scene title="Empty state">
         <AppBar
           status="connecting"
-          clock="13:29"
+          clock={formatClock(BASE_MS)}
           geo={{ tag: "denied" }}
           locationLabel={null}
           onOpenSearch={() => {}}

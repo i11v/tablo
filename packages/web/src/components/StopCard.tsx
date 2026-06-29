@@ -4,7 +4,7 @@ import { reachTier } from "../lib/reach.ts"
 import { platformKey, platformsOf, type StopVM } from "../lib/stop.ts"
 import { TIER } from "../lib/tier.ts"
 import { VehicleIcon, WalkIcon } from "./icons.tsx"
-import { Count, Meta, PlatChip, RouteChip } from "./primitives.tsx"
+import { ArrivalTime, Count, Meta, PlatChip, RouteChip } from "./primitives.tsx"
 
 const tierVars = (color: string): CSSProperties => ({ "--tier": color }) as CSSProperties
 const railGlow = "0 0 9px color-mix(in srgb, var(--tier) 67%, transparent)"
@@ -57,12 +57,15 @@ function LeadRow({
           {trailing}
           {trailing === undefined && (
             <span className="min-w-0 flex-1 overflow-hidden text-ellipsis">
-              <Meta delayMinutes={d.delayMinutes} platform={d.platform} showPlat={showPlatMeta} />
+              <Meta platform={d.platform} showPlat={showPlatMeta} />
             </span>
           )}
         </div>
       </div>
-      <Count inMinutes={d.inMinutes} atStop={d.atStop} size={38} glow={glow} />
+      <div className="flex flex-col items-end gap-[1px]">
+        <Count inMinutes={d.inMinutes} atStop={d.atStop} size={38} glow={glow} />
+        <ArrivalTime arrivalMs={d.sortKey} delayMinutes={d.delayMinutes} big />
+      </div>
     </div>
   )
 }
@@ -97,10 +100,13 @@ function Row({
         <div className="truncate font-ui text-[15px] font-semibold leading-[1.2] text-ink-dim">
           {d.headsign}
         </div>
-        <Meta delayMinutes={d.delayMinutes} platform={d.platform} showPlat={showPlatMeta} />
+        <Meta platform={d.platform} showPlat={showPlatMeta} />
       </div>
       {trailing}
-      <Count inMinutes={d.inMinutes} atStop={d.atStop} size={21} glow={glow} />
+      <div className="flex flex-col items-end gap-[1px]">
+        <Count inMinutes={d.inMinutes} atStop={d.atStop} size={21} glow={glow} />
+        <ArrivalTime arrivalMs={d.sortKey} delayMinutes={d.delayMinutes} />
+      </div>
     </div>
   )
 }

@@ -61,16 +61,21 @@ export const useDepartures = (selectors: ReadonlyArray<StopSelector>): Departure
   const wsRef = useRef<WebSocket | null>(null)
   const selectorsRef = useRef(selectors)
   selectorsRef.current = selectors
+  // Last payload sent over the *current* socket. Selector arrays are often
+  // rebuilt with identical contents (memo identity churn); comparing encoded
+  // frames keeps those from re-triggering a server-side poll cycle.
+  const lastSentRef = useRef<string | null>(null)
 
   // (re)subscribe when the selection changes, over the existing socket
   useEffect(() => {
     const ws = wsRef.current
     if (ws !== null && ws.readyState === WebSocket.OPEN) {
-      ws.send(
-        encodeClient(
-          selectors.length === 0 ? { _tag: "Unsubscribe" } : { _tag: "Subscribe", selectors },
-        ),
+      const payload = encodeClient(
+        selectors.length === 0 ? { _tag: "Unsubscribe" } : { _tag: "Subscribe", selectors },
       )
+      if (payload === lastSentRef.current) return
+      lastSentRef.current = payload
+      ws.send(payload)
     }
   }, [selectors])
 
@@ -96,13 +101,11 @@ export const useDepartures = (selectors: ReadonlyArray<StopSelector>): Departure
         // the user cleared their stops must send Unsubscribe — staying
         // silent would leave the old subscription polling server-side.
         const current = selectorsRef.current
-        ws.send(
-          encodeClient(
-            current.length > 0
-              ? { _tag: "Subscribe", selectors: current }
-              : { _tag: "Unsubscribe" },
-          ),
+        const payload = encodeClient(
+          current.length > 0 ? { _tag: "Subscribe", selectors: current } : { _tag: "Unsubscribe" },
         )
+        lastSentRef.current = payload
+        ws.send(payload)
         setState((s) => ({ ...s, status: "live" }))
       }
       ws.onmessage = (event) => {

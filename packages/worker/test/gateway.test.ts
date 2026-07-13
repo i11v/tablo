@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest"
 import { Effect, Fiber, Layer, Ref } from "effect"
 import { TestClock } from "effect/testing"
 import { RateLimiter } from "effect/unstable/persistence"
+import type { StopSelector } from "@app/contract"
 import type { PidBoardResponse } from "../src/golemio/schema.ts"
 import { GolemioClient } from "../src/golemio/client.ts"
 import { GolemioRateLimitedError, GolemioUpstreamError } from "../src/golemio/errors.ts"
@@ -9,21 +10,23 @@ import { DepartureGateway } from "../src/gateway/service.ts"
 
 const emptyResponse: PidBoardResponse = { stops: [], departures: [] }
 
-/** Controllable fake GolemioClient: counts calls, can be switched to failing. */
+/** Controllable fake GolemioClient: records each call's selectors, can be
+ * switched to failing. */
 const makeFake = Effect.gen(function* () {
-  const calls = yield* Ref.make(0)
+  const batches = yield* Ref.make<ReadonlyArray<ReadonlyArray<StopSelector>>>([])
   const failing = yield* Ref.make(false)
   const layer = Layer.succeed(GolemioClient, {
-    fetchBoards: () =>
+    fetchBoards: (selectors: ReadonlyArray<StopSelector>) =>
       Effect.gen(function* () {
-        yield* Ref.update(calls, (n) => n + 1)
+        yield* Ref.update(batches, (b) => [...b, selectors])
         if (yield* Ref.get(failing)) {
           return yield* new GolemioUpstreamError({ status: 500, detail: "boom" })
         }
         return emptyResponse
       }),
   })
-  return { calls, failing, layer }
+  const calls = Ref.get(batches).pipe(Effect.map((b) => b.length))
+  return { calls, batches, failing, layer }
 })
 
 const rateLimiterLayer = RateLimiter.layer.pipe(Layer.provide(RateLimiter.layerStoreMemory))
@@ -41,7 +44,45 @@ describe("DepartureGateway", () => {
         yield* Effect.all([gw.getBoards(sel), gw.getBoards(sel)], { concurrency: "unbounded" })
         yield* TestClock.adjust("2 seconds")
         yield* gw.getBoards(sel)
-        expect(yield* Ref.get(fake.calls)).toBe(1)
+        expect(yield* fake.calls).toBe(1)
+      }).pipe(Effect.provide(gatewayLayer(fake.layer)))
+    }),
+  )
+
+  it.effect("batches all misses into a single upstream call", () =>
+    Effect.gen(function* () {
+      const fake = yield* makeFake
+      yield* Effect.gen(function* () {
+        const gw = yield* DepartureGateway
+        const result = yield* gw.getBoards([
+          { node: 1, stops: null },
+          { node: 2, stops: [10, 20] },
+          { node: 3, stops: null },
+        ])
+        expect(result.boards.map((b) => b.key)).toEqual(["1", "2:10,20", "3"])
+        expect(yield* fake.calls).toBe(1)
+      }).pipe(Effect.provide(gatewayLayer(fake.layer)))
+    }),
+  )
+
+  it.effect("reuses fresh per-selector boards across overlapping selector sets", () =>
+    Effect.gen(function* () {
+      const fake = yield* makeFake
+      yield* Effect.gen(function* () {
+        const gw = yield* DepartureGateway
+        yield* gw.getBoards([
+          { node: 1, stops: null },
+          { node: 2, stops: null },
+        ])
+        // A different set overlapping the first: only the new node is fetched.
+        const second = yield* gw.getBoards([
+          { node: 2, stops: null },
+          { node: 3, stops: null },
+        ])
+        expect(second.boards.map((b) => b.key)).toEqual(["2", "3"])
+        const batches = yield* Ref.get(fake.batches)
+        expect(batches.length).toBe(2)
+        expect(batches[1]).toEqual([{ node: 3, stops: null }])
       }).pipe(Effect.provide(gatewayLayer(fake.layer)))
     }),
   )
@@ -55,7 +96,7 @@ describe("DepartureGateway", () => {
         yield* gw.getBoards(sel)
         yield* TestClock.adjust("6 seconds")
         yield* gw.getBoards(sel)
-        expect(yield* Ref.get(fake.calls)).toBe(2)
+        expect(yield* fake.calls).toBe(2)
       }).pipe(Effect.provide(gatewayLayer(fake.layer)))
     }),
   )
@@ -104,7 +145,7 @@ describe("DepartureGateway", () => {
         yield* TestClock.adjust("6 seconds") // shed timeout < remaining window
         const result = yield* Fiber.join(fiber) // getBoards never fails
         expect(result.degraded).toBe(true)
-        expect(yield* Ref.get(fake.calls)).toBe(20)
+        expect(yield* fake.calls).toBe(20)
       }).pipe(Effect.provide(gatewayLayer(fake.layer)))
     }),
   )
@@ -156,7 +197,7 @@ describe("DepartureGateway", () => {
         }
         yield* Ref.set(fake.failing, true)
         yield* TestClock.adjust("8 seconds") // expire cache TTL + refill limiter
-        // Oldest key (node 1) was evicted from lastGood: empty-boards fallback.
+        // Oldest key (node 1) was evicted from the cache: no board comes back.
         const evicted = yield* gw.getBoards([{ node: 1, stops: null }])
         expect(evicted.degraded).toBe(true)
         expect(evicted.boards).toEqual([])

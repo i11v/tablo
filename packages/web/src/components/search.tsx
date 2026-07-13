@@ -1,6 +1,7 @@
 import { type CSSProperties, useMemo } from "react"
 import { parseAsString, useQueryState } from "nuqs"
 import { MAX_SELECTORS, selectorKey, type StopIndexEntry, type StopSelector } from "@app/contract"
+import { useDebounced } from "../hooks/useDebounced.ts"
 import { useDepartures } from "../hooks/useDepartures.ts"
 import { useNow } from "../hooks/useNow.ts"
 import type { IndexState } from "../hooks/useStopIndex.ts"
@@ -334,13 +335,27 @@ export function SearchView({ onClose, ...base }: { onClose: () => void } & Searc
   // each platform row shows its next departure live, no tap required. Capped at
   // the wire's MAX_SELECTORS — the board route is unmounted here, so the whole
   // budget is free; results past the cap render without live data.
-  const liveSelectors = useMemo<ReadonlyArray<StopSelector>>(
+  //
+  // Debounced on the node list (a stable string, so unchanged results don't
+  // churn identity): every keystroke reshuffles the visible set, and
+  // subscribing to each intermediate set fires a server poll + upstream fetch
+  // per keystroke. Only the settled result list is worth live data.
+  const liveNodesKey = useMemo(
     () =>
       entries
         .filter((e) => e.platforms.length > 1)
         .slice(0, MAX_SELECTORS)
-        .map((e) => ({ node: e.node, stops: null })),
+        .map((e) => e.node)
+        .join(","),
     [entries],
+  )
+  const settledNodesKey = useDebounced(liveNodesKey, 250)
+  const liveSelectors = useMemo<ReadonlyArray<StopSelector>>(
+    () =>
+      settledNodesKey === ""
+        ? []
+        : settledNodesKey.split(",").map((n) => ({ node: Number(n), stops: null })),
+    [settledNodesKey],
   )
   const { boards } = useDepartures(liveSelectors)
   const now = useNow()

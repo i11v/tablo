@@ -3,6 +3,10 @@ name: Deploy (production)
 on:
   push:
     branches: [main]
+  # Manual recovery path: if a push to main ever fails to dispatch a run
+  # (a GitHub Actions event-delivery miss), production can still be deployed
+  # on demand from the Actions tab or the API against the main branch.
+  workflow_dispatch:
 
 # Serialize production deploys; never cancel mid-flight (Alchemy writes state).
 concurrency:

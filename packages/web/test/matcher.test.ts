@@ -70,6 +70,28 @@ describe("searchStops", () => {
     expect(r[0].platform).toBeNull()
   })
 
+  it("caps by distinct stops, so a multi-platform prefix match can't evict another stop", () => {
+    // Regression: "Pavlov" once dropped the hub "I. P. Pavlova" — the rural
+    // "Pavlov*" stops' grouped + per-platform rows (all score 100) filled the
+    // raw-row budget before the word-boundary match (score 80) was reached.
+    const withPlatforms = (name: string, node: number): StopIndexEntry => ({
+      ...entry(name, node),
+      stops: [1, 2],
+      platforms: [
+        { code: "A", stop: 1 },
+        { code: "B", stop: 2 },
+      ],
+    })
+    const idx = [
+      withPlatforms("Pavlovice", 1), // grouped + A + B = 3 rows, all score 100
+      withPlatforms("Pavlovova", 2), // grouped + A + B = 3 rows, all score 100
+      entry("I. P. Pavlova", 3), // word-boundary match, score 80
+    ]
+    const names = new Set(searchStops(idx, "pavlov", 3).map((c) => c.entry.name))
+    expect(names.has("I. P. Pavlova")).toBe(true) // present, not crowded out by 6 platform rows
+    expect(names.size).toBe(3)
+  })
+
   it("grouped row forwards a multi-name node's stop scope (not null)", () => {
     const multi: StopIndexEntry = {
       ...entry("Dělnická", 81),

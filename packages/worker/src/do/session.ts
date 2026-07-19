@@ -14,7 +14,7 @@ const STORAGE_KEY = "selectors"
 const encodeServer = Schema.encodeUnknownSync(ServerMessageJson)
 const decodeClient = Schema.decodeUnknownSync(ClientMessageJson)
 
-export class ClientSession extends Cloudflare.DurableObjectNamespace<ClientSession>()(
+export class ClientSession extends Cloudflare.DurableObject<ClientSession>()(
   "ClientSession",
   Effect.gen(function* () {
     // Outer init: resolve the gateway namespace once.
@@ -62,7 +62,7 @@ export class ClientSession extends Cloudflare.DurableObjectNamespace<ClientSessi
           return response
         }),
 
-        webSocketMessage: (socket: Cloudflare.DurableWebSocket, message: string | ArrayBuffer) =>
+        webSocketMessage: (socket: Cloudflare.WebSocket, message: string | ArrayBuffer) =>
           Effect.gen(function* () {
             if (typeof message !== "string") return
             const msg = decodeClient(message)
@@ -93,7 +93,7 @@ export class ClientSession extends Cloudflare.DurableObjectNamespace<ClientSessi
             ),
           ),
 
-        webSocketClose: (socket: Cloudflare.DurableWebSocket) =>
+        webSocketClose: (socket: Cloudflare.WebSocket) =>
           Effect.gen(function* () {
             // Filter the closing socket out explicitly (by raw socket — the
             // DurableWebSocket wrappers are re-created per getWebSockets()

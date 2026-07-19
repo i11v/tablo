@@ -1,0 +1,40 @@
+diff --git a/lib/client.js b/lib/client.js
+index c319d75dcddba2f73ad8b02c6a07ad8b5ecbe7e9..673131588ce8822061cc6253258dc5e7c4e9326a 100644
+--- a/lib/client.js
++++ b/lib/client.js
+@@ -487,6 +487,13 @@ export const makeAPI = (config) => {
+                 // Try to parse response as JSON; fall back to text for non-JSON responses
+                 // (e.g., multipart/form-data worker scripts, raw KV values)
+                 const rawBody = yield* response.json.pipe(Effect.catchIf(() => true, () => response.text.pipe(Effect.map((text) => text))));
++                // PATCH (alchemy-run/distilled#344): treat an empty 2xx body as
++                // no-content, mirroring the `204` branch above. See src/client.ts.
++                if (rawBody === null || rawBody === undefined || rawBody === "") {
++                    if (outputAst._tag === "Unknown")
++                        return "";
++                    return undefined;
++                }
+                 let responseBody = config.transformResponse
+                     ? config.transformResponse(rawBody)
+                     : rawBody;
+diff --git a/src/client.ts b/src/client.ts
+index 3342f4e9575bc975dcb0925e1ae9c6131026eda8..062c7139cd87de284cc16eaec113aa26de98fb4f 100644
+--- a/src/client.ts
++++ b/src/client.ts
+@@ -908,6 +908,17 @@ export const makeAPI = <Creds, RequestOptions = never>(
+               () => response.text.pipe(Effect.map((text) => text as unknown)),
+             ),
+           );
++          // PATCH (alchemy-run/distilled#344): Cloudflare answers some 2xx
++          // DELETEs (e.g. DELETE /workers/domains/{id}) with an empty/`null`
++          // body. Decoding that empty body against the envelope schema fails
++          // and surfaces as a retryable TransportError that re-issues the
++          // DELETE and can still abort the whole deploy/destroy. Treat an
++          // empty 2xx body as no-content, mirroring the `204` branch above.
++          // Drop this once #344 ships.
++          if (rawBody === null || rawBody === undefined || rawBody === "") {
++            if (outputAst._tag === "Unknown") return "";
++            return undefined;
++          }
+           let responseBody = config.transformResponse
+             ? config.transformResponse(rawBody)
+             : rawBody;

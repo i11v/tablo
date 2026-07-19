@@ -37,9 +37,12 @@ test("health endpoint answers", async () => {
   expect(body.ok).toBe(true)
 })
 
-test("ws rejects a missing session id", async () => {
+test("ws answers a plain (non-upgrade) request with 426", async () => {
+  // The upgrade check runs before the session-id check, so a plain fetch can
+  // only ever see 426 (PR #6 added the 426 branch; this test predated it and
+  // expected 400, but CI never runs the integration suite, so it sat broken).
   const res = await fetch(baseUrl + "/api/ws")
-  expect(res.status).toBe(400)
+  expect(res.status).toBe(426)
 })
 
 test("subscribe over ws yields a decodable DeparturesUpdate", async () => {

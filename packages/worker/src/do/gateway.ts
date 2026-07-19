@@ -6,7 +6,7 @@ import type { StopSelector } from "@app/contract"
 import { GolemioClient } from "../golemio/client.ts"
 import { DepartureGateway } from "../gateway/service.ts"
 
-export class GolemioGateway extends Cloudflare.DurableObjectNamespace<GolemioGateway>()(
+export class GolemioGateway extends Cloudflare.DurableObject<GolemioGateway>()(
   "GolemioGateway",
   Effect.gen(function* () {
     // Outer init: runs at deploy-plan (registers the secret binding) and at

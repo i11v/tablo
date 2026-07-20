@@ -1,5 +1,6 @@
 import { Schema } from "effect"
 import { MAX_SELECTORS, StopBoard, StopSelector } from "./domain.ts"
+import { MAX_VEHICLE_ROUTES, RouteId, VehiclePosition } from "./vehicles.ts"
 
 export const ClientMessage = Schema.TaggedUnion({
   Subscribe: {
@@ -8,12 +9,23 @@ export const ClientMessage = Schema.TaggedUnion({
     selectors: Schema.Array(StopSelector).check(Schema.isMaxLength(MAX_SELECTORS)),
   },
   Unsubscribe: {},
+  SubscribeVehicles: {
+    // Bounded like Subscribe: routes become DO storage and a broadcast filter.
+    routes: Schema.Array(RouteId).check(Schema.isMaxLength(MAX_VEHICLE_ROUTES)),
+  },
+  UnsubscribeVehicles: {},
 })
 export type ClientMessage = typeof ClientMessage.Type
 
 export const ServerMessage = Schema.TaggedUnion({
   DeparturesUpdate: {
     boards: Schema.Array(StopBoard),
+    generatedAt: Schema.String,
+    degraded: Schema.Boolean,
+    reason: Schema.NullOr(Schema.String),
+  },
+  VehiclesUpdate: {
+    vehicles: Schema.Array(VehiclePosition),
     generatedAt: Schema.String,
     degraded: Schema.Boolean,
     reason: Schema.NullOr(Schema.String),

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { Schema } from "effect"
 import { PidBoardResponse } from "../src/golemio/schema.ts"
-import { routeTypeToKind, toBoards } from "../src/golemio/normalize.ts"
+import { toBoards } from "../src/golemio/normalize.ts"
 import { fixture } from "./fixtures/departureboards.ts"
 
 describe("PidBoardResponse", () => {
@@ -12,17 +12,7 @@ describe("PidBoardResponse", () => {
   })
 })
 
-describe("routeTypeToKind", () => {
-  it("maps GTFS route types", () => {
-    expect(routeTypeToKind(0)).toBe("tram")
-    expect(routeTypeToKind(1)).toBe("metro")
-    expect(routeTypeToKind(2)).toBe("train")
-    expect(routeTypeToKind(3)).toBe("bus")
-    expect(routeTypeToKind(11)).toBe("bus") // trolleybus rendered as bus in v1
-    expect(routeTypeToKind(null)).toBe("other")
-    expect(routeTypeToKind(7)).toBe("other")
-  })
-})
+// routeTypeToKind now lives in @app/contract; covered by contract/test/vehicles.test.ts.
 
 describe("toBoards", () => {
   const data = Schema.decodeUnknownSync(PidBoardResponse)(fixture)

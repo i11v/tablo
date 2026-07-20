@@ -63,15 +63,22 @@ const ALL_KINDS: ReadonlyArray<VehicleKind> = ["tram", "metro", "train", "bus", 
 // last surface fix is misleading, so it starts unchecked on the map.
 const DEFAULT_KINDS: ReadonlyArray<VehicleKind> = ["tram", "train", "bus", "other"]
 
-export const loadMapKinds = (): ReadonlySet<VehicleKind> => {
+/**
+ * Pure codec, split out from loadMapKinds so it can be unit-tested under
+ * vitest's node environment (no localStorage there). null/garbage input
+ * falls back to the default set; unknown values are filtered out.
+ */
+export const decodeMapKinds = (raw: string | null): ReadonlySet<VehicleKind> => {
   try {
-    const parsed: unknown = JSON.parse(readLocal(MAP_KINDS_KEY) ?? "null")
+    const parsed: unknown = JSON.parse(raw ?? "null")
     if (!Array.isArray(parsed)) return new Set(DEFAULT_KINDS)
     return new Set(parsed.filter((k): k is VehicleKind => (ALL_KINDS as Array<string>).includes(k)))
   } catch {
     return new Set(DEFAULT_KINDS)
   }
 }
+
+export const loadMapKinds = (): ReadonlySet<VehicleKind> => decodeMapKinds(readLocal(MAP_KINDS_KEY))
 
 export const saveMapKinds = (kinds: ReadonlySet<VehicleKind>): void => {
   writeLocal(MAP_KINDS_KEY, JSON.stringify([...kinds]))

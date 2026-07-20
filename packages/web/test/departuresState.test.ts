@@ -12,6 +12,8 @@ const live: DeparturesState = {
   reason: null,
   vehicles: [],
   vehiclesAt: null,
+  boardsDegraded: false,
+  vehiclesDegraded: false,
 }
 
 const initial: DeparturesState = {
@@ -20,6 +22,8 @@ const initial: DeparturesState = {
   reason: null,
   vehicles: [],
   vehiclesAt: null,
+  boardsDegraded: false,
+  vehiclesDegraded: false,
 }
 
 describe("applyServerMessage", () => {
@@ -94,7 +98,57 @@ describe("applyServerMessage", () => {
       reason: "GolemioRateLimitedError",
     })
     expect(next.status).toBe("degraded")
+    expect(next.reason).toBe("GolemioRateLimitedError")
     expect(next.vehiclesAt).toBe("2026-07-20T09:00:01.000Z")
+  })
+
+  it("keeps status degraded and preserves the reason when the other stream recovers", () => {
+    const degradedBoards = applyServerMessage(live, {
+      _tag: "DeparturesUpdate",
+      boards: [],
+      generatedAt: "2026-07-20T09:00:00.000Z",
+      degraded: true,
+      reason: "GolemioRateLimitedError",
+    })
+    expect(degradedBoards.status).toBe("degraded")
+
+    const next = applyServerMessage(degradedBoards, {
+      _tag: "VehiclesUpdate",
+      vehicles: [],
+      generatedAt: "2026-07-20T09:00:01.000Z",
+      degraded: false,
+      reason: null,
+    })
+    expect(next.status).toBe("degraded")
+    expect(next.reason).toBe("GolemioRateLimitedError")
+  })
+
+  it("returns to live with a null reason once both streams report healthy", () => {
+    const degradedBoards = applyServerMessage(live, {
+      _tag: "DeparturesUpdate",
+      boards: [],
+      generatedAt: "2026-07-20T09:00:00.000Z",
+      degraded: true,
+      reason: "GolemioRateLimitedError",
+    })
+    const healthyVehicles = applyServerMessage(degradedBoards, {
+      _tag: "VehiclesUpdate",
+      vehicles: [],
+      generatedAt: "2026-07-20T09:00:01.000Z",
+      degraded: false,
+      reason: null,
+    })
+    expect(healthyVehicles.status).toBe("degraded")
+
+    const next = applyServerMessage(healthyVehicles, {
+      _tag: "DeparturesUpdate",
+      boards: [],
+      generatedAt: "2026-07-20T09:00:02.000Z",
+      degraded: false,
+      reason: null,
+    })
+    expect(next.status).toBe("live")
+    expect(next.reason).toBeNull()
   })
 })
 

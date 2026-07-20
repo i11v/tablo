@@ -18,6 +18,14 @@ export interface DeparturesState {
   readonly reason: string | null
   readonly vehicles: ReadonlyArray<VehiclePosition>
   readonly vehiclesAt: string | null
+  /**
+   * Per-stream degraded flags. DeparturesUpdate and VehiclesUpdate arrive
+   * independently, so each may only report on its own stream — without
+   * these, a healthy message on one stream would clobber `status`/`reason`
+   * set by a still-degraded other stream.
+   */
+  readonly boardsDegraded: boolean
+  readonly vehiclesDegraded: boolean
 }
 
 const encodeClient = Schema.encodeUnknownSync(ClientMessageJson)
@@ -43,21 +51,27 @@ export const reconnectDelay = (attempt: number, random: () => number = Math.rand
  */
 export const applyServerMessage = (state: DeparturesState, msg: ServerMessage): DeparturesState => {
   switch (msg._tag) {
-    case "DeparturesUpdate":
+    case "DeparturesUpdate": {
+      const boardsDegraded = msg.degraded
       return {
         ...state,
-        status: msg.degraded ? "degraded" : "live",
+        boardsDegraded,
+        status: boardsDegraded || state.vehiclesDegraded ? "degraded" : "live",
         boards: new Map(msg.boards.map((b) => [b.key, b])),
-        reason: msg.reason,
+        reason: boardsDegraded ? msg.reason : state.vehiclesDegraded ? state.reason : null,
       }
-    case "VehiclesUpdate":
+    }
+    case "VehiclesUpdate": {
+      const vehiclesDegraded = msg.degraded
       return {
         ...state,
-        status: msg.degraded ? "degraded" : "live",
+        vehiclesDegraded,
+        status: state.boardsDegraded || vehiclesDegraded ? "degraded" : "live",
         vehicles: msg.vehicles,
         vehiclesAt: msg.generatedAt,
-        reason: msg.reason,
+        reason: vehiclesDegraded ? msg.reason : state.boardsDegraded ? state.reason : null,
       }
+    }
     case "ServerError":
       return { ...state, status: "degraded", reason: msg.message }
   }
@@ -74,6 +88,8 @@ export const useDepartures = (
     reason: null,
     vehicles: [],
     vehiclesAt: null,
+    boardsDegraded: false,
+    vehiclesDegraded: false,
   })
   const wsRef = useRef<WebSocket | null>(null)
   const selectorsRef = useRef(selectors)

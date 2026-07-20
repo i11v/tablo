@@ -4,10 +4,14 @@ import * as Context from "effect/Context"
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
 import { GolemioRateLimitedError, GolemioUpstreamError } from "./errors.ts"
 import { PidBoardResponse } from "./schema.ts"
+import { VehiclePositionsResponse } from "./vehicles.ts"
 
 const BASE_URL = "https://api.golemio.cz/v2/pid/departureboards"
+const VEHICLES_URL = "https://api.golemio.cz/v2/vehiclepositions"
 const MINUTES_AFTER = 90
 const PER_STOP_LIMIT = 20
+// The API's default limit is 100 — far below the ~600 vehicles live at once.
+const VEHICLES_LIMIT = 5000
 
 export class GolemioClient extends Context.Service<
   GolemioClient,
@@ -16,6 +20,10 @@ export class GolemioClient extends Context.Service<
       selectors: ReadonlyArray<StopSelector>,
     ) => Effect.Effect<
       PidBoardResponse,
+      GolemioRateLimitedError | GolemioUpstreamError | Schema.SchemaError
+    >
+    readonly fetchVehicles: () => Effect.Effect<
+      VehiclePositionsResponse,
       GolemioRateLimitedError | GolemioUpstreamError | Schema.SchemaError
     >
   }
@@ -70,7 +78,43 @@ export class GolemioClient extends Context.Service<
             }),
         )
 
-        return { fetchBoards }
+        const fetchVehicles = Effect.fn("GolemioClient.fetchVehicles")(() =>
+          Effect.gen(function* () {
+            const request = HttpClientRequest.get(VEHICLES_URL).pipe(
+              HttpClientRequest.setUrlParams({ limit: `${VEHICLES_LIMIT}` }),
+              HttpClientRequest.setHeader("X-Access-Token", Redacted.value(token)),
+            )
+            const response = yield* http.execute(request).pipe(
+              Effect.timeoutOrElse({
+                duration: "10 seconds",
+                orElse: () => new GolemioUpstreamError({ status: 0, detail: "timeout" }),
+              }),
+              Effect.catchTag(
+                "HttpClientError",
+                (e) => new GolemioUpstreamError({ status: 0, detail: String(e) }),
+              ),
+            )
+            if (response.status === 429) {
+              return yield* new GolemioRateLimitedError()
+            }
+            if (response.status < 200 || response.status >= 300) {
+              return yield* new GolemioUpstreamError({
+                status: response.status,
+                detail: yield* response.text.pipe(Effect.orElseSucceed(() => "")),
+              })
+            }
+            return yield* HttpClientResponse.schemaBodyJson(VehiclePositionsResponse)(
+              response,
+            ).pipe(
+              Effect.catchTag(
+                "HttpClientError",
+                (e) => new GolemioUpstreamError({ status: response.status, detail: String(e) }),
+              ),
+            )
+          }),
+        )
+
+        return { fetchBoards, fetchVehicles }
       }),
     )
 }

@@ -24,6 +24,7 @@ const makeFake = Effect.gen(function* () {
         }
         return emptyResponse
       }),
+    fetchVehicles: () => Effect.succeed({ features: [] }),
   })
   const calls = Ref.get(batches).pipe(Effect.map((b) => b.length))
   return { calls, batches, failing, layer }
@@ -163,6 +164,7 @@ describe("DepartureGateway", () => {
             }
             return emptyResponse
           }),
+        fetchVehicles: () => Effect.succeed({ features: [] }),
       })
       yield* Effect.gen(function* () {
         const gw = yield* DepartureGateway

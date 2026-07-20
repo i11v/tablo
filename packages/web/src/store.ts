@@ -1,7 +1,13 @@
 import { Store } from "@tanstack/store"
-import { type StopSelector } from "@app/contract"
+import { type StopSelector, type VehicleKind } from "@app/contract"
 import { addSelection, removeSelection } from "./lib/selection.ts"
-import { loadSelection, pushRecent, saveSelection } from "./lib/storage.ts"
+import {
+  loadMapKinds,
+  loadSelection,
+  pushRecent,
+  saveMapKinds,
+  saveSelection,
+} from "./lib/storage.ts"
 import type { Selection } from "./lib/url.ts"
 
 /**
@@ -76,3 +82,18 @@ export const selectionStore = new Store<ReadonlyArray<Selection>, SelectionActio
     },
   }),
 )
+
+// ---- Map vehicle-kind filters ----
+
+/** Which vehicle kinds the map view renders; persisted like `selectionStore`. */
+export const mapKindsStore = new Store<ReadonlySet<VehicleKind>>(loadMapKinds())
+
+export const toggleMapKind = (kind: VehicleKind): void => {
+  mapKindsStore.setState((prev) => {
+    const next = new Set(prev)
+    if (next.has(kind)) next.delete(kind)
+    else next.add(kind)
+    saveMapKinds(next)
+    return next
+  })
+}

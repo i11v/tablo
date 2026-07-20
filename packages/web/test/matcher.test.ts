@@ -12,6 +12,7 @@ const entry = (name: string, node: number): StopIndexEntry => ({
   lon: 14,
   zone: "P",
   modes: [],
+  routes: [],
   disambig: null,
   platforms: [],
 })
@@ -28,8 +29,8 @@ describe("searchStops", () => {
   const andelP: StopIndexEntry = {
     ...entry("Anděl", 1040),
     platforms: [
-      { code: "A", stop: 1 },
-      { code: "B", stop: 2 },
+      { code: "A", stop: 1, lat: 0, lon: 0 },
+      { code: "B", stop: 2, lat: 0, lon: 0 },
     ],
   }
 
@@ -64,7 +65,10 @@ describe("searchStops", () => {
   })
 
   it("does not expand a single-platform stop", () => {
-    const haje: StopIndexEntry = { ...entry("Háje", 100), platforms: [{ code: "A", stop: 1 }] }
+    const haje: StopIndexEntry = {
+      ...entry("Háje", 100),
+      platforms: [{ code: "A", stop: 1, lat: 0, lon: 0 }],
+    }
     const r = searchStops([haje], "haje")
     expect(r).toHaveLength(1)
     expect(r[0].platform).toBeNull()
@@ -75,8 +79,8 @@ describe("searchStops", () => {
       ...entry("Dělnická", 81),
       stops: [5, 6],
       platforms: [
-        { code: "A", stop: 5 },
-        { code: "B", stop: 6 },
+        { code: "A", stop: 5, lat: 0, lon: 0 },
+        { code: "B", stop: 6, lat: 0, lon: 0 },
       ],
     }
     const r = searchStops([multi], "delnicka")

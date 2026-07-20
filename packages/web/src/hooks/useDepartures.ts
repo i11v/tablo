@@ -6,6 +6,7 @@ import {
   type ServerMessage,
   type StopBoard,
   type StopSelector,
+  type VehiclePosition,
 } from "@app/contract"
 import { sessionId } from "../lib/storage.ts"
 
@@ -15,6 +16,8 @@ export interface DeparturesState {
   readonly status: WsStatus
   readonly boards: ReadonlyMap<string, StopBoard>
   readonly reason: string | null
+  readonly vehicles: ReadonlyArray<VehiclePosition>
+  readonly vehiclesAt: string | null
 }
 
 const encodeClient = Schema.encodeUnknownSync(ClientMessageJson)
@@ -42,8 +45,17 @@ export const applyServerMessage = (state: DeparturesState, msg: ServerMessage): 
   switch (msg._tag) {
     case "DeparturesUpdate":
       return {
+        ...state,
         status: msg.degraded ? "degraded" : "live",
         boards: new Map(msg.boards.map((b) => [b.key, b])),
+        reason: msg.reason,
+      }
+    case "VehiclesUpdate":
+      return {
+        ...state,
+        status: msg.degraded ? "degraded" : "live",
+        vehicles: msg.vehicles,
+        vehiclesAt: msg.generatedAt,
         reason: msg.reason,
       }
     case "ServerError":
@@ -52,19 +64,29 @@ export const applyServerMessage = (state: DeparturesState, msg: ServerMessage): 
 }
 
 /** Owns the WS lifecycle: connect, subscribe, reconnect with backoff, re-subscribe. */
-export const useDepartures = (selectors: ReadonlyArray<StopSelector>): DeparturesState => {
+export const useDepartures = (
+  selectors: ReadonlyArray<StopSelector>,
+  vehicleRoutes: ReadonlyArray<string> = [],
+): DeparturesState => {
   const [state, setState] = useState<DeparturesState>({
     status: "connecting",
     boards: new Map(),
     reason: null,
+    vehicles: [],
+    vehiclesAt: null,
   })
   const wsRef = useRef<WebSocket | null>(null)
   const selectorsRef = useRef(selectors)
   selectorsRef.current = selectors
+  const vehicleRoutesRef = useRef(vehicleRoutes)
+  vehicleRoutesRef.current = vehicleRoutes
   // Last payload sent over the *current* socket. Selector arrays are often
   // rebuilt with identical contents (memo identity churn); comparing encoded
   // frames keeps those from re-triggering a server-side poll cycle.
   const lastSentRef = useRef<string | null>(null)
+  // Same dedupe, kept separate so a selector-only re-render doesn't touch
+  // the vehicle subscription's last-sent frame (and vice versa).
+  const lastSentVehiclesRef = useRef<string | null>(null)
 
   // (re)subscribe when the selection changes, over the existing socket
   useEffect(() => {
@@ -78,6 +100,22 @@ export const useDepartures = (selectors: ReadonlyArray<StopSelector>): Departure
       ws.send(payload)
     }
   }, [selectors])
+
+  // (re)subscribe to the vehicle feed when the route filter changes, over the
+  // existing socket — mirrors the selectors effect above.
+  useEffect(() => {
+    const ws = wsRef.current
+    if (ws !== null && ws.readyState === WebSocket.OPEN) {
+      const payload = encodeClient(
+        vehicleRoutes.length === 0
+          ? { _tag: "UnsubscribeVehicles" }
+          : { _tag: "SubscribeVehicles", routes: vehicleRoutes },
+      )
+      if (payload === lastSentVehiclesRef.current) return
+      lastSentVehiclesRef.current = payload
+      ws.send(payload)
+    }
+  }, [vehicleRoutes])
 
   useEffect(() => {
     let attempt = 0
@@ -106,6 +144,14 @@ export const useDepartures = (selectors: ReadonlyArray<StopSelector>): Departure
         )
         lastSentRef.current = payload
         ws.send(payload)
+        // The vehicle feed is opt-in (only the map view subscribes), unlike
+        // the board subscription above which always makes its state explicit.
+        const currentRoutes = vehicleRoutesRef.current
+        if (currentRoutes.length > 0) {
+          const vehiclesPayload = encodeClient({ _tag: "SubscribeVehicles", routes: currentRoutes })
+          lastSentVehiclesRef.current = vehiclesPayload
+          ws.send(vehiclesPayload)
+        }
         setState((s) => ({ ...s, status: "live" }))
       }
       ws.onmessage = (event) => {

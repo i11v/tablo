@@ -3,7 +3,13 @@ import type { StopPlatform } from "@app/contract"
 import type { DepartureVM } from "../src/lib/departureVM.ts"
 import { buildPlatformPicks } from "../src/lib/platforms.ts"
 
-const plat = (over: Partial<StopPlatform>): StopPlatform => ({ code: "A", stop: 1, ...over })
+const plat = (over: Partial<StopPlatform>): StopPlatform => ({
+  code: "A",
+  stop: 1,
+  lat: 0,
+  lon: 0,
+  ...over,
+})
 
 const vm = (over: Partial<DepartureVM>): DepartureVM => ({
   route: "9",

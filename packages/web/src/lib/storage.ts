@@ -1,8 +1,10 @@
+import type { VehicleKind } from "@app/contract"
 import type { Selection } from "./url.ts"
 import { decodeSelection, encodeSelection } from "./url.ts"
 
 const SELECTION_KEY = "tablo.selection"
 const RECENTS_KEY = "tablo.recents"
+const MAP_KINDS_KEY = "tablo.mapKinds"
 
 /**
  * Storage access can throw (Safari "Block all cookies", embedded webviews,
@@ -54,6 +56,25 @@ export const loadRecents = (): Array<string> => {
 export const pushRecent = (node: number): void => {
   const next = [String(node), ...loadRecents().filter((n) => n !== String(node))].slice(0, 8)
   writeLocal(RECENTS_KEY, JSON.stringify(next))
+}
+
+const ALL_KINDS: ReadonlyArray<VehicleKind> = ["tram", "metro", "train", "bus", "other"]
+// Metro runs underground for most of its route — a marker snapped to the
+// last surface fix is misleading, so it starts unchecked on the map.
+const DEFAULT_KINDS: ReadonlyArray<VehicleKind> = ["tram", "train", "bus", "other"]
+
+export const loadMapKinds = (): ReadonlySet<VehicleKind> => {
+  try {
+    const parsed: unknown = JSON.parse(readLocal(MAP_KINDS_KEY) ?? "null")
+    if (!Array.isArray(parsed)) return new Set(DEFAULT_KINDS)
+    return new Set(parsed.filter((k): k is VehicleKind => (ALL_KINDS as Array<string>).includes(k)))
+  } catch {
+    return new Set(DEFAULT_KINDS)
+  }
+}
+
+export const saveMapKinds = (kinds: ReadonlySet<VehicleKind>): void => {
+  writeLocal(MAP_KINDS_KEY, JSON.stringify([...kinds]))
 }
 
 /**

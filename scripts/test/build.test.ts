@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { Schema } from "effect"
-import { StopIndexV1 } from "@app/contract"
+import { StopIndexV2 } from "@app/contract"
 import { buildIndex } from "../lib/build.ts"
 
 // header matches real PID stops.txt (verified 2026-06-06)
@@ -73,10 +73,25 @@ const rows = [
 ]
 
 describe("buildIndex", () => {
-  const index = buildIndex(rows, "2026-06-06T00:00:00.000Z")
+  const nodeRouteMap = new Map([[1040, new Set(["L9", "L22"])]])
+  const routeTypes = new Map([
+    ["L9", 0],
+    ["L22", 0],
+  ])
+  const index = buildIndex(rows, "2026-06-06T00:00:00.000Z", nodeRouteMap, routeTypes)
 
-  it("produces a schema-valid v1 artifact", () => {
-    expect(() => Schema.decodeUnknownSync(StopIndexV1)(index)).not.toThrow()
+  it("produces a schema-valid v2 artifact", () => {
+    expect(() => Schema.decodeUnknownSync(StopIndexV2)(index)).not.toThrow()
+    expect(index.version).toBe(2)
+  })
+
+  it("carries node routes and derived modes", () => {
+    const andel = index.stops.find((s) => s.name === "Anděl")!
+    expect(andel.routes).toEqual(["L22", "L9"])
+    expect(andel.modes).toEqual(["tram"])
+    const delnicka = index.stops.find((s) => s.name === "Dělnická")!
+    expect(delnicka.routes).toEqual([])
+    expect(delnicka.modes).toEqual([])
   })
 
   it("groups single-name nodes as whole-node entries with centroid", () => {
@@ -88,8 +103,8 @@ describe("buildIndex", () => {
     expect(andel!.zone).toBe("P")
     expect(andel!.norm).toBe("andel")
     expect(andel!.platforms).toEqual([
-      { code: "A", stop: 1 },
-      { code: "B", stop: 2 },
+      { code: "A", stop: 1, lat: 50.071, lon: 14.403 },
+      { code: "B", stop: 2, lat: 50.0712, lon: 14.4032 },
     ])
   })
 
@@ -99,7 +114,7 @@ describe("buildIndex", () => {
     expect(delnicka!.stops).toEqual([1])
     expect(tusarova!.stops).toEqual([2])
     expect(delnicka!.node).toBe(81)
-    expect(delnicka!.platforms).toEqual([{ code: "A", stop: 1 }])
+    expect(delnicka!.platforms).toEqual([{ code: "A", stop: 1, lat: 50.1, lon: 14.45 }])
   })
 
   it("excludes ASW-less and non-platform rows", () => {
@@ -122,6 +137,8 @@ describe("buildIndex", () => {
         }),
       ],
       "2026-06-06T00:00:00.000Z",
+      new Map(),
+      new Map(),
     )
     const both = withDupe.stops.filter((s) => s.norm === "andel")
     expect(both).toHaveLength(2)
@@ -148,9 +165,11 @@ describe("buildIndex", () => {
         }),
       ],
       "2026-06-06T00:00:00.000Z",
+      new Map(),
+      new Map(),
     )
     const x = idx.stops.find((s) => s.name === "Xstop")!
-    expect(x.platforms).toEqual([{ code: "A", stop: 1 }])
+    expect(x.platforms).toEqual([{ code: "A", stop: 1, lat: 0, lon: 0 }])
     expect(x.stops).toBeNull() // single-name node: whole-node selector still covers stop 2
   })
 })

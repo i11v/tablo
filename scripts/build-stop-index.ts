@@ -3,9 +3,10 @@ import { existsSync } from "node:fs"
 import { mkdir, rm } from "node:fs/promises"
 import { $ } from "bun"
 import { Schema } from "effect"
-import { StopIndexV1, StopsManifest } from "@app/contract"
+import { StopIndexV2, StopsManifest } from "@app/contract"
 import { parseCsv } from "./lib/csv.ts"
 import { buildIndex } from "./lib/build.ts"
+import { indexGtfsStops, nodeRoutes, parseRoutes, parseTrips } from "./lib/gtfs.ts"
 
 const GTFS_URL = "https://data.pid.cz/PID_GTFS.zip"
 const TMP = ".alchemy/tmp-gtfs"
@@ -36,11 +37,19 @@ if (res !== null && res.ok) {
 }
 await rm(TMP, { recursive: true, force: true })
 await mkdir(TMP, { recursive: true })
-await $`unzip -o ${CACHE_ZIP} stops.txt -d ${TMP}`.quiet()
+await $`unzip -o ${CACHE_ZIP} stops.txt routes.txt trips.txt stop_times.txt shapes.txt -d ${TMP}`.quiet()
 
 const rows = parseCsv(await Bun.file(TMP + "/stops.txt").text())
-const index = buildIndex(rows, new Date().toISOString())
-Schema.decodeUnknownSync(StopIndexV1)(index) // fail loudly on schema drift
+const routeMeta = parseRoutes(parseCsv(await Bun.file(TMP + "/routes.txt").text()))
+const trips = parseTrips(await Bun.file(TMP + "/trips.txt").text())
+const nodeRouteMap = nodeRoutes(
+  await Bun.file(TMP + "/stop_times.txt").text(),
+  trips,
+  indexGtfsStops(rows),
+)
+const routeTypes = new Map([...routeMeta].map(([id, m]) => [id, m.type] as const))
+const index = buildIndex(rows, new Date().toISOString(), nodeRouteMap, routeTypes)
+Schema.decodeUnknownSync(StopIndexV2)(index) // fail loudly on schema drift
 
 const json = JSON.stringify(index)
 // Hash only the data payload. generatedAt changes on every build, and

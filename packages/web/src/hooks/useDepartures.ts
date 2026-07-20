@@ -144,14 +144,19 @@ export const useDepartures = (
         )
         lastSentRef.current = payload
         ws.send(payload)
-        // The vehicle feed is opt-in (only the map view subscribes), unlike
-        // the board subscription above which always makes its state explicit.
+        // Same rationale as the board subscription above: the session DO
+        // outlives individual sockets, so a tab that leaves the map view
+        // and reconnects (same session id) must send UnsubscribeVehicles —
+        // staying silent would leave the old vehicles subscription polling
+        // server-side.
         const currentRoutes = vehicleRoutesRef.current
-        if (currentRoutes.length > 0) {
-          const vehiclesPayload = encodeClient({ _tag: "SubscribeVehicles", routes: currentRoutes })
-          lastSentVehiclesRef.current = vehiclesPayload
-          ws.send(vehiclesPayload)
-        }
+        const vehiclesPayload = encodeClient(
+          currentRoutes.length > 0
+            ? { _tag: "SubscribeVehicles", routes: currentRoutes }
+            : { _tag: "UnsubscribeVehicles" },
+        )
+        lastSentVehiclesRef.current = vehiclesPayload
+        ws.send(vehiclesPayload)
         setState((s) => ({ ...s, status: "live" }))
       }
       ws.onmessage = (event) => {

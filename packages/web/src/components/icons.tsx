@@ -21,6 +21,28 @@ export const SearchIcon = ({
   </svg>
 )
 
+export const MapIcon = ({
+  size = 15,
+  color = "var(--color-faint)",
+}: {
+  size?: number
+  color?: string
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 15 15"
+    fill="none"
+    stroke={color}
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M7.5 1.5 C9.7 1.5 11.5 3.3 11.5 5.5 C11.5 8.5 7.5 13.5 7.5 13.5 C7.5 13.5 3.5 8.5 3.5 5.5 C3.5 3.3 5.3 1.5 7.5 1.5 Z" />
+    <circle cx="7.5" cy="5.5" r="1.5" />
+  </svg>
+)
+
 export const WalkIcon = () => (
   <svg
     width="10"

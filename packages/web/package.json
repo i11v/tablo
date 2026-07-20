@@ -13,6 +13,7 @@
     "@tanstack/react-store": "^0.11.0",
     "@tanstack/store": "^0.11.0",
     "effect": "4.0.0-beta.99",
+    "maplibre-gl": "^5.24.0",
     "nuqs": "^2.8.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

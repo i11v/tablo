@@ -41,6 +41,7 @@ export const StopsManifest = Schema.Struct({
   path: Schema.String,
   generatedAt: Schema.String,
   count: Schema.Number,
+  routesPath: Schema.String, // hashed RoutesAsset file, e.g. "/data/routes-<hash>.json"
 })
 export type StopsManifest = typeof StopsManifest.Type
 

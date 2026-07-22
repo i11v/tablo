@@ -267,7 +267,7 @@ export function MapScreen() {
         </div>
       )}
 
-      {feed.status !== "live" && (
+      {feed.status === "degraded" && (
         <div className="pointer-events-none absolute inset-x-0 top-[58px] z-10 flex justify-center px-[16px]">
           <span className="rounded-[8px] border border-edge bg-card/90 px-[12px] py-[6px] font-ui text-[12px] font-medium text-run shadow-lg backdrop-blur">
             live feed degraded — showing last known positions

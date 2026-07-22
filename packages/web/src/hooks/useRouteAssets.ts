@@ -1,3 +1,4 @@
+import { useMemo } from "react"
 import { queryOptions, useQueries, useQuery } from "@tanstack/react-query"
 import { Schema } from "effect"
 import {
@@ -35,7 +36,10 @@ export const useRoutesTable = (): ReadonlyMap<string, RouteInfo> | null => {
       gcTime: Infinity,
     }),
   )
-  return routes.data === undefined ? null : new Map(routes.data.map((r) => [r.id, r]))
+  return useMemo(
+    () => (routes.data === undefined ? null : new Map(routes.data.map((r) => [r.id, r]))),
+    [routes.data],
+  )
 }
 
 /** Shapes for the focused stop's routes, fetched individually and cached. */

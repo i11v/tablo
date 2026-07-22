@@ -50,10 +50,15 @@ describe("vehicle positions normalization", () => {
     expect(toVehicles(decode({ features: [feature({ is_canceled: true })] }))).toEqual([])
   })
 
+  it("drops untracked vehicles", () => {
+    expect(toVehicles(decode({ features: [feature({ tracking: false })] }))).toEqual([])
+  })
+
   it("tolerates null bearing/delay/tracking", () => {
     const [v] = toVehicles(
       decode({ features: [feature({ bearing: null, delay: { actual: null }, tracking: null })] }),
     )
+    expect(v).toBeDefined()
     expect(v.bearing).toBeNull()
     expect(v.delaySeconds).toBeNull()
   })

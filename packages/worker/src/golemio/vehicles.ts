@@ -28,12 +28,13 @@ const VpFeature = Schema.Struct({
 export const VehiclePositionsResponse = Schema.Struct({ features: Schema.Array(VpFeature) })
 export type VehiclePositionsResponse = typeof VehiclePositionsResponse.Type
 
-/** Slim Golemio features to the wire shape; drop canceled runs. */
+/** Slim Golemio features to the wire shape; drop canceled and untracked runs. */
 export const toVehicles = (data: VehiclePositionsResponse): Array<VehiclePosition> => {
   const out: Array<VehiclePosition> = []
   for (const f of data.features) {
     const p = f.properties
     if (p.last_position.is_canceled === true) continue
+    if (p.last_position.tracking === false) continue
     const [lon, lat] = f.geometry.coordinates
     if (lon === undefined || lat === undefined) continue
     out.push({

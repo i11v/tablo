@@ -40,6 +40,44 @@ describe("WS protocol", () => {
     expect(() => decode(subscribe([{ node: 1040, stops: [0] }]))).toThrow("between 1 and 999999")
   })
 
+  it("round-trips SubscribeVehicles / UnsubscribeVehicles", () => {
+    const sub = { _tag: "SubscribeVehicles" as const, routes: ["L22", "L991"] }
+    const encoded = Schema.encodeUnknownSync(ClientMessageJson)(sub)
+    expect(Schema.decodeUnknownSync(ClientMessageJson)(encoded)).toEqual(sub)
+    const unsub = { _tag: "UnsubscribeVehicles" as const }
+    expect(
+      Schema.decodeUnknownSync(ClientMessageJson)(
+        Schema.encodeUnknownSync(ClientMessageJson)(unsub),
+      ),
+    ).toEqual(unsub)
+  })
+
+  it("rejects oversized or malformed vehicle route subscriptions", () => {
+    const decode = Schema.decodeUnknownSync(ClientMessageJson)
+    const routes33 = Array.from({ length: 33 }, (_, i) => "L" + i)
+    expect(() => decode(JSON.stringify({ _tag: "SubscribeVehicles", routes: routes33 }))).toThrow(
+      "length of at most 32",
+    )
+    expect(() =>
+      decode(JSON.stringify({ _tag: "SubscribeVehicles", routes: ["x".repeat(17)] })),
+    ).toThrow("length of at most 16")
+    expect(() => decode(JSON.stringify({ _tag: "SubscribeVehicles", routes: [""] }))).toThrow(
+      "length of at least 1",
+    )
+  })
+
+  it("round-trips a VehiclesUpdate", () => {
+    const msg = {
+      _tag: "VehiclesUpdate" as const,
+      vehicles: [],
+      generatedAt: "2026-07-20T09:00:00.000Z",
+      degraded: false,
+      reason: null,
+    }
+    const encoded = Schema.encodeUnknownSync(ServerMessageJson)(msg)
+    expect(Schema.decodeUnknownSync(ServerMessageJson)(encoded)).toEqual(msg)
+  })
+
   it("rejects oversized subscriptions (selector and platform caps)", () => {
     const decode = Schema.decodeUnknownSync(ClientMessageJson)
     const manySelectors = Array.from({ length: 21 }, (_, i) => ({

@@ -1,7 +1,9 @@
+import { Link } from "@tanstack/react-router"
 import type { WsStatus } from "../hooks/useDepartures.ts"
 import type { Geo } from "../store.ts"
 import { TIER, type Tier } from "../lib/tier.ts"
-import { SearchIcon, StopGlyph } from "./icons.tsx"
+import { shareSearch } from "../lib/url.ts"
+import { MapIcon, SearchIcon, StopGlyph } from "./icons.tsx"
 
 /* The canonical mark: lowercase "tablo" in Doto, closed by a square full stop
    that doubles as the live connection signal — green (make) = feed connected,
@@ -66,6 +68,18 @@ const LocationChip = ({ geo, label }: { geo: Geo; label: string | null }) => {
   )
 }
 
+/** The only entry to the map view — visible on mobile and desktop. */
+const MapLink = () => (
+  <Link
+    to="/map"
+    search={shareSearch()}
+    aria-label="Map"
+    className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] border border-edge bg-sunken"
+  >
+    <MapIcon size={17} color="var(--color-ctl-ink)" />
+  </Link>
+)
+
 const DesktopSearchTrigger = ({ onOpen }: { onOpen: () => void }) => (
   <button
     type="button"
@@ -95,6 +109,7 @@ export function AppBar({
       <Wordmark status={status} />
       <span className="flex items-center gap-[14px] sm:gap-[16px]">
         <DesktopSearchTrigger onOpen={onOpenSearch} />
+        <MapLink />
         <LocationChip geo={geo} label={locationLabel} />
         <span className="font-accent text-[20px] font-bold tracking-[0.06em] text-clock-dim sm:text-[28px] sm:text-clock">
           {clock}

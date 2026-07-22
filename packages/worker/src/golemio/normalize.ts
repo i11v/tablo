@@ -1,22 +1,6 @@
-import type { Departure, StopBoard, StopSelector, VehicleKind } from "@app/contract"
-import { selectorKey } from "@app/contract"
+import type { Departure, StopBoard, StopSelector } from "@app/contract"
+import { routeTypeToKind, selectorKey } from "@app/contract"
 import type { PidBoardResponse, PidDeparture } from "./schema.ts"
-
-export const routeTypeToKind = (type: number | null): VehicleKind => {
-  switch (type) {
-    case 0:
-      return "tram"
-    case 1:
-      return "metro"
-    case 2:
-      return "train"
-    case 3:
-    case 11:
-      return "bus"
-    default:
-      return "other"
-  }
-}
 
 const toDeparture = (d: PidDeparture): Departure | null => {
   const scheduled = d.departure_timestamp.scheduled ?? d.departure_timestamp.predicted

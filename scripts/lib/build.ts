@@ -1,14 +1,21 @@
-import { fold, type StopIndexEntry, type StopIndexV1 } from "@app/contract"
+import { fold, routeTypeToKind, type StopIndexEntry, type StopIndexV2 } from "@app/contract"
 import type { VehicleKind } from "@app/contract"
 
 /**
- * stops.txt rows -> StopIndexV1.
+ * stops.txt rows -> StopIndexV2.
  * Groups platforms by (asw_node_id, stop_name): single-name nodes become one
  * whole-node entry (stops: null); multi-name nodes get one platform-scoped
  * entry per name. ASW-less rows (rail/technical waypoints) and non-platform
- * location_types are excluded.
+ * location_types are excluded. `nodeRouteMap`/`routeTypes` come from the
+ * stop_times→trips→routes join (scripts/lib/gtfs.ts) and fill each entry's
+ * `routes` and derived `modes`.
  */
-export const buildIndex = (rows: string[][], generatedAt: string): StopIndexV1 => {
+export const buildIndex = (
+  rows: string[][],
+  generatedAt: string,
+  nodeRouteMap: Map<number, Set<string>>,
+  routeTypes: Map<string, number>,
+): StopIndexV2 => {
   const [header, ...data] = rows
   const col = new Map(header.map((name, i) => [name, i]))
   const need = (name: string): number => {
@@ -32,7 +39,7 @@ export const buildIndex = (rows: string[][], generatedAt: string): StopIndexV1 =
     lats: number[]
     lons: number[]
     zones: string[]
-    plats: Map<number, string> // asw_stop_id -> trimmed platform_code
+    plats: Map<number, { code: string; lat: number; lon: number }> // by asw_stop_id
   }
   const groups = new Map<string, Group>()
   const namesPerNode = new Map<number, Set<string>>()
@@ -51,7 +58,7 @@ export const buildIndex = (rows: string[][], generatedAt: string): StopIndexV1 =
     if (r[iStop] !== "") {
       const stop = Number(r[iStop])
       g.stops.add(stop)
-      g.plats.set(stop, r[iPlat].trim())
+      g.plats.set(stop, { code: r[iPlat].trim(), lat: Number(r[iLat]), lon: Number(r[iLon]) })
     }
     g.lats.push(Number(r[iLat]))
     g.lons.push(Number(r[iLon]))
@@ -83,25 +90,30 @@ export const buildIndex = (rows: string[][], generatedAt: string): StopIndexV1 =
     lon: number
     zone: string | null
     modes: VehicleKind[]
+    routes: string[]
     disambig: string | null
-    platforms: { code: string; stop: number }[]
+    platforms: { code: string; stop: number; lat: number; lon: number }[]
   }
 
-  const entries: MutableEntry[] = [...groups.values()].map((g) => ({
-    name: g.name,
-    norm: fold(g.name),
-    node: g.node,
-    stops: namesPerNode.get(g.node)!.size > 1 ? [...g.stops].sort((a, b) => a - b) : null,
-    lat: Number(mean(g.lats).toFixed(5)),
-    lon: Number(mean(g.lons).toFixed(5)),
-    zone: mode(g.zones),
-    modes: [],
-    disambig: null,
-    platforms: [...g.plats.entries()]
-      .filter(([, code]) => code !== "")
-      .map(([stop, code]) => ({ code, stop }))
-      .sort((a, b) => a.code.localeCompare(b.code)),
-  }))
+  const entries: MutableEntry[] = [...groups.values()].map((g) => {
+    const routes = [...(nodeRouteMap.get(g.node) ?? [])].sort()
+    return {
+      name: g.name,
+      norm: fold(g.name),
+      node: g.node,
+      stops: namesPerNode.get(g.node)!.size > 1 ? [...g.stops].sort((a, b) => a - b) : null,
+      lat: Number(mean(g.lats).toFixed(5)),
+      lon: Number(mean(g.lons).toFixed(5)),
+      zone: mode(g.zones),
+      modes: [...new Set(routes.map((id) => routeTypeToKind(routeTypes.get(id) ?? null)))].sort(),
+      routes,
+      disambig: null,
+      platforms: [...g.plats.entries()]
+        .filter(([, p]) => p.code !== "")
+        .map(([stop, p]) => ({ code: p.code, stop, lat: p.lat, lon: p.lon }))
+        .sort((a, b) => a.code.localeCompare(b.code)),
+    }
+  })
 
   // disambiguate identical folded names across different nodes (zone is enough for v1)
   const byNorm = new Map<string, MutableEntry[]>()
@@ -118,5 +130,5 @@ export const buildIndex = (rows: string[][], generatedAt: string): StopIndexV1 =
 
   entries.sort((a, b) => a.norm.localeCompare(b.norm) || a.node - b.node)
   const stops: StopIndexEntry[] = entries
-  return { version: 1 as const, generatedAt, stops }
+  return { version: 2 as const, generatedAt, stops }
 }

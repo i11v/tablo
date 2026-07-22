@@ -4,13 +4,44 @@ import { HttpClient, HttpClientResponse } from "effect/unstable/http"
 import { GolemioClient } from "../src/golemio/client.ts"
 import { fixture } from "./fixtures/departureboards.ts"
 
-const capture: { url: URL | null } = { url: null }
+const vehiclesFixture = {
+  features: [
+    {
+      geometry: { coordinates: [14.6161737, 50.0837135] },
+      properties: {
+        trip: {
+          gtfs: {
+            route_id: "L1001",
+            route_short_name: "S1",
+            route_type: 2,
+            trip_id: "1001_9360_260603",
+            trip_headsign: "Praha hl.n.",
+          },
+        },
+        last_position: {
+          bearing: 264,
+          delay: { actual: 85 },
+          is_canceled: false,
+          origin_timestamp: "2026-07-20T09:00:00.000Z",
+          state_position: "at_stop",
+          tracking: true,
+        },
+      },
+    },
+  ],
+}
+
+const capture: { url: URL | null; headers: Record<string, string> | null } = {
+  url: null,
+  headers: null,
+}
 
 const mockHttp = (status: number, body: unknown) =>
   Layer.succeed(
     HttpClient.HttpClient,
     HttpClient.make((request, url) => {
       capture.url = url
+      capture.headers = request.headers
       return Effect.succeed(
         HttpClientResponse.fromWeb(
           request,
@@ -56,6 +87,34 @@ describe("GolemioClient", () => {
     Effect.gen(function* () {
       const client = yield* GolemioClient
       const exit = yield* Effect.exit(client.fetchBoards([{ node: 1, stops: null }]))
+      expect(JSON.stringify(exit)).toContain("GolemioUpstreamError")
+      expect(JSON.stringify(exit)).toContain("401")
+    }).pipe(Effect.provide(layerWith(401, { error_message: "unauthorized", error_status: 401 }))),
+  )
+
+  it.effect("requests vehiclepositions with limit and access token, and decodes the response", () =>
+    Effect.gen(function* () {
+      const client = yield* GolemioClient
+      const data = yield* client.fetchVehicles()
+      expect(data.features).toHaveLength(1)
+      expect(capture.url!.toString()).toBe("https://api.golemio.cz/v2/vehiclepositions?limit=5000")
+      expect(capture.headers!["x-access-token"]).toBe("test-token")
+    }).pipe(Effect.provide(layerWith(200, vehiclesFixture))),
+  )
+
+  it.effect("maps 429 to GolemioRateLimitedError for fetchVehicles", () =>
+    Effect.gen(function* () {
+      const client = yield* GolemioClient
+      const exit = yield* Effect.exit(client.fetchVehicles())
+      expect(exit._tag).toBe("Failure")
+      expect(JSON.stringify(exit)).toContain("GolemioRateLimitedError")
+    }).pipe(Effect.provide(layerWith(429, {}))),
+  )
+
+  it.effect("maps 401 to GolemioUpstreamError with status for fetchVehicles", () =>
+    Effect.gen(function* () {
+      const client = yield* GolemioClient
+      const exit = yield* Effect.exit(client.fetchVehicles())
       expect(JSON.stringify(exit)).toContain("GolemioUpstreamError")
       expect(JSON.stringify(exit)).toContain("401")
     }).pipe(Effect.provide(layerWith(401, { error_message: "unauthorized", error_status: 401 }))),

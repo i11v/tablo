@@ -3,6 +3,23 @@ import { Schema } from "effect"
 export const VehicleKind = Schema.Literals(["tram", "metro", "train", "bus", "other"])
 export type VehicleKind = typeof VehicleKind.Type
 
+/** GTFS route_type -> our vehicle kind: 0 tram, 1 metro, 2 train, 3/11 bus. */
+export const routeTypeToKind = (type: number | null): VehicleKind => {
+  switch (type) {
+    case 0:
+      return "tram"
+    case 1:
+      return "metro"
+    case 2:
+      return "train"
+    case 3:
+    case 11:
+      return "bus"
+    default:
+      return "other"
+  }
+}
+
 /**
  * Caps on client-supplied selections. The Subscribe payload drives upstream
  * Golemio URLs, gateway cache keys and DO storage, all keyed by anonymous

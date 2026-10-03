@@ -5,7 +5,6 @@ import SwiftUI
 struct StopSheet: View {
     let model: StopModel
     let bottomInset: CGFloat
-    @State private var dragStart: CGFloat?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,18 +31,10 @@ struct StopSheet: View {
             .fill(Palette.grip)
             .frame(width: 38, height: 5)
             .frame(maxWidth: .infinity)
-            .padding(.top, 10)
-            .padding(.bottom, 6)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
             .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .global)
-                    .onChanged { value in
-                        let start = dragStart ?? model.sheetHeight
-                        dragStart = start
-                        model.dragSheet(to: start - value.translation.height)
-                    }
-                    .onEnded { _ in dragStart = nil }
-            )
+            .sheetDrag(model, minimumDistance: 0)
             .accessibilityLabel("Resize sheet")
             .accessibilityAdjustableAction { direction in
                 switch direction {
@@ -52,6 +43,32 @@ struct StopSheet: View {
                 @unknown default: break
                 }
             }
+    }
+}
+
+/// Resizes the sheet by dragging the view vertically: the grip, and the pinned
+/// headers below it.
+private struct SheetDrag: ViewModifier {
+    let model: StopModel
+    let minimumDistance: CGFloat
+    @State private var dragStart: CGFloat?
+
+    func body(content: Content) -> some View {
+        content.simultaneousGesture(
+            DragGesture(minimumDistance: minimumDistance, coordinateSpace: .global)
+                .onChanged { value in
+                    let start = dragStart ?? model.sheetHeight
+                    dragStart = start
+                    model.dragSheet(to: start - value.translation.height)
+                }
+                .onEnded { _ in dragStart = nil }
+        )
+    }
+}
+
+extension View {
+    fileprivate func sheetDrag(_ model: StopModel, minimumDistance: CGFloat = 6) -> some View {
+        modifier(SheetDrag(model: model, minimumDistance: minimumDistance))
     }
 }
 
@@ -121,11 +138,13 @@ private struct StatusLine<Trailing: View>: View {
 private struct BoardPanel: View {
     let model: StopModel
     let bottomInset: CGFloat
+    @State private var scrolled = false
 
     var body: some View {
         let board = model.board
         let message = model.boardMessage
-        ScrollView {
+        VStack(spacing: 0) {
+            // pinned: the stop and its platform tabs stay put while the departures scroll
             VStack(alignment: .leading, spacing: 0) {
                 header
                 if model.indexState == .failed {
@@ -140,19 +159,34 @@ private struct BoardPanel: View {
                 }
                 let tabs = model.platformTabs
                 if !tabs.isEmpty { tabStrip(tabs) }
-                if let lead = board.lead { LeadRow(row: lead) { model.openJourney(lead.departure) } }
-                ForEach(board.rest) { row in
-                    SecondaryRow(row: row) { model.openJourney(row.departure) }
-                }
-                if let message, board.lead == nil {
-                    QuietLine(text: message)
-                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 2)
-            .padding(.bottom, 22 + bottomInset)
+            .contentShape(Rectangle())
+            .sheetDrag(model)
+            .overlay(alignment: .bottom) { Hairline(opacity: 0.06).opacity(scrolled ? 1 : 0) }
+            .animation(.easeOut(duration: 0.12), value: scrolled)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let lead = board.lead { LeadRow(row: lead) { model.openJourney(lead.departure) } }
+                    ForEach(board.rest) { row in
+                        SecondaryRow(row: row) { model.openJourney(row.departure) }
+                    }
+                    if let message, board.lead == nil {
+                        QuietLine(text: message)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 22 + bottomInset)
+            }
+            .scrollIndicators(.hidden)
+            .onScrollGeometryChange(for: Bool.self) { geo in
+                geo.contentOffset.y + geo.contentInsets.top > 1
+            } action: { _, isScrolled in
+                scrolled = isScrolled
+            }
         }
-        .scrollIndicators(.hidden)
     }
 
     private var header: some View {
@@ -343,6 +377,8 @@ private struct JourneyPanel: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 10)
+                .contentShape(Rectangle())
+                .sheetDrag(model)
                 Hairline(opacity: 0.06)
 
                 if let journey {

@@ -1,10 +1,10 @@
 import type { StopBoard, StopSelector } from "@app/contract"
 import { selectorKey } from "@app/contract"
-import { Clock, Deferred, Effect, Layer, Ref, Schema } from "effect"
+import { Clock, Deferred, Effect, Layer, Ref } from "effect"
 import * as Context from "effect/Context"
-import { RateLimiter } from "effect/unstable/persistence"
 import { GolemioClient } from "../golemio/client.ts"
 import { toBoards } from "../golemio/normalize.ts"
+import { reasonOf, UpstreamGuard } from "./upstream.ts"
 
 export interface BoardsResult {
   readonly boards: ReadonlyArray<StopBoard>
@@ -13,29 +13,12 @@ export interface BoardsResult {
   readonly reason: string | null
 }
 
-export class GatewayShedError extends Schema.TaggedErrorClass<GatewayShedError>()(
-  "GatewayShedError",
-  {},
-) {}
-
 const CACHE_TTL_MS = 5_000
-const SHED_TIMEOUT = "5 seconds"
 // One entry per selector key (a single stop's board). Entries newer than the
 // TTL are served as fresh; older ones double as the stale fallback when
 // upstream fails. Keys derive from client input, so unbounded the map is an
 // OOM vector — evicted keys just lose their stale fallback.
 const BOARD_CAPACITY = 64
-// After an upstream 429, stop calling Golemio entirely for this long. The
-// internal limiter bounds our *rate* but doesn't *reduce* it when upstream
-// explicitly asks us to back off; clients ride out the pause on stale data.
-const RATE_LIMIT_COOLDOWN_MS = 30_000
-const LIMIT = {
-  key: "golemio",
-  limit: 20,
-  window: "8 seconds",
-  algorithm: "fixed-window",
-  onExceeded: "delay",
-} as const
 
 interface CacheEntry {
   readonly board: StopBoard
@@ -53,11 +36,6 @@ interface Claim {
   readonly deferred: Deferred.Deferred<FetchOutcome>
 }
 
-const reasonOf = (error: unknown): string =>
-  typeof error === "object" && error !== null && "_tag" in error
-    ? String(error._tag)
-    : String(error)
-
 export class DepartureGateway extends Context.Service<
   DepartureGateway,
   {
@@ -69,10 +47,9 @@ export class DepartureGateway extends Context.Service<
     DepartureGateway,
     Effect.gen(function* () {
       const client = yield* GolemioClient
-      const withLimiter = yield* RateLimiter.makeWithRateLimiter
+      const guard = yield* UpstreamGuard
       const cache = yield* Ref.make(new Map<string, CacheEntry>())
       const inflight = yield* Ref.make(new Map<string, Deferred.Deferred<FetchOutcome>>())
-      const cooldownUntil = yield* Ref.make(0)
 
       const store = (boards: ReadonlyArray<StopBoard>, fetchedAt: number) =>
         Ref.update(cache, (m) => {
@@ -92,23 +69,8 @@ export class DepartureGateway extends Context.Service<
        * other fibers can never hang. */
       const fetchClaimed = (claims: ReadonlyArray<Claim>) =>
         Effect.gen(function* () {
-          const now = yield* Clock.currentTimeMillis
-          if (now < (yield* Ref.get(cooldownUntil))) {
-            return yield* new GatewayShedError()
-          }
           const selectors = claims.map((c) => c.selector)
-          const data = yield* client.fetchBoards(selectors).pipe(
-            withLimiter(LIMIT),
-            Effect.timeoutOrElse({
-              duration: SHED_TIMEOUT,
-              orElse: () => new GatewayShedError(),
-            }),
-            Effect.tapError((e) =>
-              e._tag === "GolemioRateLimitedError"
-                ? Ref.set(cooldownUntil, now + RATE_LIMIT_COOLDOWN_MS)
-                : Effect.void,
-            ),
-          )
+          const data = yield* guard.run(client.fetchBoards(selectors))
           const boards = toBoards(selectors, data)
           yield* store(boards, yield* Clock.currentTimeMillis)
           const byKey = new Map(boards.map((b) => [b.key, b] as const))

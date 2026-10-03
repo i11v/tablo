@@ -4,6 +4,8 @@ import { VehicleKind } from "./domain.ts"
 export const StopPlatform = Schema.Struct({
   code: Schema.String, // platform_code: "A".."H", "1", "2"
   stop: Schema.Number, // asw_stop_id — selector scope when picked alone
+  lat: Schema.Number, // where this platform is (stop-level lat/lon is the mean)
+  lon: Schema.Number,
 })
 export type StopPlatform = typeof StopPlatform.Type
 

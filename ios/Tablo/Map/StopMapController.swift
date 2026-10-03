@@ -101,6 +101,8 @@ final class StopMapController: NSObject, MKMapViewDelegate {
     private var platformMarkers: [String: Marker] = [:]
     private var stopMarker: Marker?
     private let userMarker: Marker
+    /// Your latest location fix (the dot may still be gliding toward it).
+    private var userFix: LngLat?
     private var vehicles: [String: Glide] = [:]
     private var vehicleTiers: [String: Tier] = [:]
 
@@ -165,6 +167,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
 
     /// The user dot: hidden until a fix, gliding over small moves.
     func setUser(_ coord: LngLat?) {
+        userFix = coord
         guard let coord else {
             show(userMarker, false)
             return
@@ -401,9 +404,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         journeyFocus = i
         // centre in the map left visible above the sheet (the prototype centred
         // in the full view, which put the stop under the sheet)
-        let box = marginBox
-        let offset = CGPoint(x: box.midX - mapView.bounds.midX, y: box.midY - mapView.bounds.midY)
-        fly(to: j.stops[i].coord, zoom: max(currentZoom, 15.6), offset: offset, duration: 0.6)
+        fly(to: j.stops[i].coord, zoom: max(currentZoom, 15.6), offset: visibleCentreOffset, duration: 0.6)
         pushJourneySnapshot()
     }
 
@@ -424,12 +425,22 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         }
     }
 
+    /// The locate button: your position, centred in the map above the sheet.
+    /// Without a location fix it frames the followed journey or the stop.
     func recenter(sheetHeight: CGFloat) {
-        if journey != nil {
+        if let userFix {
+            fly(to: userFix, zoom: max(currentZoom, Self.homeZoom), offset: visibleCentreOffset, duration: 0.6)
+        } else if journey != nil {
             fitJourney(sheetHeight: sheetHeight)
         } else {
             fly(to: center, zoom: Self.homeZoom, duration: 0.6)
         }
+    }
+
+    /// Where the centre of the map left visible above the sheet sits, relative to the view centre.
+    private var visibleCentreOffset: CGPoint {
+        let box = marginBox
+        return CGPoint(x: box.midX - mapView.bounds.midX, y: box.midY - mapView.bounds.midY)
     }
 
     /// Keeps Apple's legal label above the sheet.

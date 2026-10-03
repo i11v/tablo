@@ -1,16 +1,22 @@
 import Foundation
 
-/// Where the backend lives. Production by default; a launch argument
-/// `-TabloAPIBase http://localhost:1337` (NSArgumentDomain) points the app
-/// at a local dev server.
+/// Where the backend lives. In order: a launch argument
+/// `-TabloAPIBase http://localhost:1337` (NSArgumentDomain), then the
+/// `TabloAPIBase` Info.plist value baked in at build time (the
+/// `TABLO_API_BASE` build setting, e.g. a PR preview for a device build),
+/// then production.
 enum APIConfig {
     static let production = URL(string: "https://tablo.run")!
 
     static var base: URL {
-        guard let text = UserDefaults.standard.string(forKey: "TabloAPIBase"),
-              let url = URL(string: text), url.scheme != nil, url.host != nil
-        else { return production }
-        return url
+        let candidates = [
+            UserDefaults.standard.string(forKey: "TabloAPIBase"),
+            Bundle.main.object(forInfoDictionaryKey: "TabloAPIBase") as? String,
+        ]
+        for case let text? in candidates {
+            if let url = URL(string: text), url.scheme != nil, url.host != nil { return url }
+        }
+        return production
     }
 
     /// wss://host/api/ws?session=… (ws:// for a plain-http base).

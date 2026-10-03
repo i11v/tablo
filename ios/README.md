@@ -42,6 +42,13 @@ ATS allows local networking:
 xcrun simctl launch booted run.tablo.app -TabloAPIBase http://localhost:1337
 ```
 
+A launch argument only lasts for that launch. To bake a backend into a build
+(say, a PR preview on a phone), set the `TABLO_API_BASE` build setting:
+
+```bash
+xcodebuild -project Tablo.xcodeproj -scheme Tablo -destination 'platform=iOS,name=<phone>' TABLO_API_BASE=https://preview-32.tablo.run -allowProvisioningUpdates build
+```
+
 ## Layout
 
 | Path | What |

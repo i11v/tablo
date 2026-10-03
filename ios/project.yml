@@ -37,6 +37,7 @@ targets:
         NSLocationWhenInUseUsageDescription: tablo uses your location to show where you are and how long it takes you to walk to each stop.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        TabloAPIBase: $(TABLO_API_BASE)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: run.tablo.app
@@ -44,6 +45,9 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
+        # Backend baked into the build; override per build, e.g.
+        # `xcodebuild … TABLO_API_BASE=https://preview-32.tablo.run`.
+        TABLO_API_BASE: https://tablo.run
   TabloTests:
     type: bundle.unit-test
     platform: iOS

@@ -1,7 +1,7 @@
 import type { BBox, StopSelector } from "@app/contract"
 import { Effect, Layer, Redacted, Schema } from "effect"
 import * as Context from "effect/Context"
-import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
+import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http"
 import { GolemioNotFoundError, GolemioRateLimitedError, GolemioUpstreamError } from "./errors.ts"
 import { PidBoardResponse, PidPublicVehicles, PidTripPosition, PidTripResponse } from "./schema.ts"
 

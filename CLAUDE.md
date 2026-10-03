@@ -26,14 +26,14 @@ The Effect v4 repository is cloned to `~/.local/share/effect-solutions/effect`
 for reference. Use this to explore APIs, find usage examples, and understand
 implementation details when the documentation isn't enough.
 
-## Effect v4 (beta) notes for this repo
+## Effect v4 notes for this repo
 
-- We use **Effect v4**, pinned exactly in `package.json` (`4.0.0-beta.78`, the Alchemy 2.0 peer floor) for a slimmer bundle.
-- Everything lives in the single `effect` package under `effect/unstable/*` — there is **no `@effect/platform`** on v4:
-  - HttpApi → `effect/unstable/httpapi`
-  - HttpClient / FetchHttpClient / HttpServer → `effect/unstable/http`
-  - Schema → **top-level** `effect/Schema` (`import { Schema } from "effect"`); `effect/unstable/schema` holds only `Model`/`VariantSchema`
-  - RateLimiter → `effect/unstable/persistence`
+- We use **Effect v4** (stable), pinned exactly in `package.json`.
+- Everything lives in the single `effect` package — there is **no `@effect/platform`** on v4:
+  - HttpApi → `effect/http-api`
+  - HttpClient / FetchHttpClient / HttpServer → `effect/http`
+  - Schema → **top-level** `effect/Schema` (`import { Schema } from "effect"`); `effect/schema` holds only `Model`/`VariantSchema`
+  - RateLimiter → `effect/persistence`
 - TypeScript 6 + the language-service patch work together. TS6 quirk: running `tsc <file>` with a tsconfig present needs `--ignoreConfig`.
 
 ## Commit Convention

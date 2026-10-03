@@ -1,10 +1,10 @@
 /// <reference types="node" />
 import * as Cloudflare from "alchemy/Cloudflare"
 import { Config, Effect } from "effect"
-import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest"
-import * as HttpServerError from "effect/unstable/http/HttpServerError"
-import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse"
-import * as HttpRouter from "effect/unstable/http/HttpRouter"
+import * as HttpServerRequest from "effect/http/HttpServerRequest"
+import * as HttpServerError from "effect/http/HttpServerError"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import * as HttpRouter from "effect/http/HttpRouter"
 import { apiLayer } from "./api.ts"
 import { ClientSession } from "./do/session.ts"
 import { GolemioGateway } from "./do/gateway.ts"
@@ -62,12 +62,11 @@ export default class Server extends Cloudflare.Worker<Server>()(
       // see the /data/ branch in fetch below.
       runWorkerFirst: ["/api/*", "/data/*"],
     },
-    url: true,
     // Stage-aware custom hostname (see workerDomain): production answers on the
     // apex `tablo.run`, each PR preview on `preview-<N>.tablo.run`. The zone is
     // inferred from the hostname; Alchemy provisions the DNS record + TLS cert
-    // on deploy. Stages without a domain (local dev) stay workers.dev-only via
-    // `url: true` above. Each preview owns its own hostname, so previews can
+    // on deploy. Stages without a domain (local dev) stay workers.dev-only
+    // (`workersDev` defaults to on). Each preview owns its own hostname, so previews can
     // never collide with — or grab — production's domain.
     ...(WORKER_DOMAIN ? { domain: WORKER_DOMAIN } : {}),
     ...(devOptions ? { dev: devOptions } : {}),
@@ -75,7 +74,7 @@ export default class Server extends Cloudflare.Worker<Server>()(
   Effect.gen(function* () {
     const sessions = yield* ClientSession
     const gateways = yield* GolemioGateway
-    const version = yield* Config.string("TABLO_COMMIT").pipe(
+    const version = yield* Config.String("TABLO_COMMIT").pipe(
       Config.withDefault(VERSION),
       Effect.orDie,
     )

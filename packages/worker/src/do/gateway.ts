@@ -1,7 +1,7 @@
 import * as Cloudflare from "alchemy/Cloudflare"
 import { Config, Effect, Layer } from "effect"
-import { FetchHttpClient } from "effect/unstable/http"
-import { RateLimiter } from "effect/unstable/persistence"
+import { FetchHttpClient } from "effect/http"
+import { RateLimiter } from "effect/persistence"
 import type { BBox, StopSelector } from "@app/contract"
 import { GolemioClient } from "../golemio/client.ts"
 import { DepartureGateway } from "../gateway/service.ts"
@@ -14,7 +14,7 @@ export class GolemioGateway extends Cloudflare.DurableObject<GolemioGateway>()(
     // Outer init: runs at deploy-plan (registers the secret binding) and at
     // cold start. `orDie` discharges the `ConfigError` the DO init phase
     // forbids (the namespace requires a `never` error channel).
-    const token = yield* Config.redacted("GOLEMIO_API_TOKEN").pipe(Effect.orDie)
+    const token = yield* Config.Redacted("GOLEMIO_API_TOKEN").pipe(Effect.orDie)
     // Both gateways share ONE client and ONE UpstreamGuard (built once per
     // layer build), so boards, trips and vehicles draw from the same rate
     // budget and honour the same 429 cooldown.

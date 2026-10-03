@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Effect, Layer, Redacted } from "effect"
-import { HttpClient, HttpClientResponse } from "effect/unstable/http"
+import { HttpClient, HttpClientResponse } from "effect/http"
 import { GolemioClient } from "../src/golemio/client.ts"
 import { fixture } from "./fixtures/departureboards.ts"
 import { publicVehiclesFixture, tripFixture, tripPositionFixture } from "./fixtures/transit.ts"

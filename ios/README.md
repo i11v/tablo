@@ -1,5 +1,8 @@
 # tablo for iOS
 
+tablo's **primary client**. The React PWA in `packages/web` is the secondary,
+web client on the same backend.
+
 A native SwiftUI + MapKit build of the **Stop prototype** design
 (claude.ai/design project "Map-centered stop page"): a live map of the
 stop nearest you with platform pins and live vehicles, a draggable
@@ -10,6 +13,11 @@ It runs on the tablo backend (production `https://tablo.run` by default):
 the stop index, the live departures WebSocket, and the trip / vehicle
 endpoints. Location (when-in-use) drives walk times, reachability and the
 starting stop.
+
+Payload shapes are mirrored by hand in `Tablo/API/Wire.swift` from
+`packages/contract` (no codegen). The backend deploys on its own and installed
+builds don't update with it, so contract changes must stay compatible: added
+fields are fine; renamed, removed or retyped ones break the app.
 
 ## Run
 
@@ -30,6 +38,15 @@ In the simulator, give it a Prague location and permission:
 xcrun simctl location booted set 50.0817,14.4194        # Národní třída
 xcrun simctl privacy booted grant location run.tablo.app
 ```
+
+Not on the App Store. To install on a phone, sign with your own development
+team: `project.yml` leaves `DEVELOPMENT_TEAM` empty, so pick one in Xcode
+(Signing & Capabilities; lost on the next `xcodegen generate`) or pass
+`DEVELOPMENT_TEAM=<team id>` to `xcodebuild`.
+
+CI (`.github/workflows/ios.yml`) runs `xcodegen generate` + `xcodebuild test`
+on PRs and pushes that touch `ios/`. The production deploy doesn't build the
+app ([`docs/DEPLOY.md`](../docs/DEPLOY.md)).
 
 ### Pointing at another backend
 

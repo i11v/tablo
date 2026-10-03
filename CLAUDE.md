@@ -1,9 +1,32 @@
 # tablo
 
-Personal Prague public-transport departures SPA. Single Cloudflare Worker
-(static assets + API + Durable Objects), deployed with Alchemy V2, backend
-logic in Effect. React + Vite frontend, client-side stop selection.
-See `docs/superpowers/specs/` for the design.
+Personal Prague public-transport departures app. The **primary client is the
+native iOS app** (`ios/`, SwiftUI + MapKit); the React + Vite PWA
+(`packages/web`) is a secondary web client. Both run on one Cloudflare Worker
+(static assets + HTTP API + WebSocket + Durable Objects, Golemio upstream),
+deployed with Alchemy V2, backend logic in Effect. Production: https://tablo.run.
+Dated design docs (historical, web-era) live in `docs/superpowers/`.
+
+## Repo layout
+
+- `packages/contract` — shared Effect schemas + `HttpApi` definition (the wire contract)
+- `packages/worker` — the Worker: HTTP API, `/api/ws`, Durable Objects, serves the web build
+- `packages/web` — React + Vite PWA, client-side stop selection
+- `scripts/` — GTFS → stop index build (`build:index`), PWA / WebSocket checks
+- `ios/` — the iOS app; XcodeGen project, **not** a Bun workspace package
+- `docs/DEPLOY.md` — CI deploys (backend + web only; never the iOS app)
+
+## iOS app
+
+- `cd ios && xcodegen generate`. `Tablo.xcodeproj` and `Tablo/Info.plist` are
+  generated and gitignored — edit `project.yml`, never the project.
+- Test: `xcodebuild -project Tablo.xcodeproj -scheme Tablo -destination 'platform=iOS Simulator,name=iPhone 17' test`.
+  More in `ios/README.md`.
+- The app mirrors the contract by hand in `ios/Tablo/API/Wire.swift` (no
+  codegen). Changes to `packages/contract` (HTTP API, `/api/ws` protocol,
+  stop-index format) must stay compatible with it: adding fields is safe;
+  renaming, removing or retyping one breaks the app. Installed builds don't
+  auto-update, so keep old shapes working.
 
 <!-- effect-solutions:start -->
 ## Effect Best Practices

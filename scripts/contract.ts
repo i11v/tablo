@@ -8,7 +8,6 @@
  */
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises"
 import { $ } from "bun"
-import { FIXTURES_DIR, fixtureText, fixtures } from "./lib/wire-fixtures.ts"
 import { breakingChanges, describeWire, type WireShape } from "./lib/wire-shape.ts"
 
 export const SHAPE_FILE = "packages/contract/wire-shape.json"
@@ -16,6 +15,8 @@ export const SHAPE_FILE = "packages/contract/wire-shape.json"
 const [command, ref = "origin/main"] = process.argv.slice(2)
 
 if (command === "write") {
+  // imported here: encoding the samples throws on schema changes `check` must still report
+  const { FIXTURES_DIR, fixtureText, fixtures } = await import("./lib/wire-fixtures.ts")
   await writeFile(SHAPE_FILE, JSON.stringify(describeWire(), null, 2) + "\n")
   await mkdir(FIXTURES_DIR, { recursive: true })
   for (const file of await readdir(FIXTURES_DIR)) {

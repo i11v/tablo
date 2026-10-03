@@ -181,6 +181,25 @@ export const parentPath = (path: string): string | undefined => {
 const isUnder = (path: string, ancestor: string): boolean =>
   path.startsWith(ancestor) && /^[.[<]/.test(path.slice(ancestor.length))
 
+/** `path` is in the shape — a `_tag` variant ("$<Tag>") lives as a token of its union. */
+const has = (paths: Record<string, string>, path: string): boolean => {
+  if (path in paths) return true
+  const variant = /^(.*)(<[^>]+>)$/.exec(path)
+  return (
+    variant !== null &&
+    has(paths, variant[1]!) &&
+    tokensOf(paths[variant[1]!] ?? "").includes(variant[2]!)
+  )
+}
+
+/** Some `_tag` variant `path` sits under no longer exists. */
+const inDroppedVariant = (paths: Record<string, string>, path: string): boolean => {
+  for (let p = parentPath(path); p !== undefined; p = parentPath(p)) {
+    if (p.endsWith(">") && !has(paths, p)) return true
+  }
+  return false
+}
+
 /**
  * Changes from `before` to `after` that would break a client already in use:
  *
@@ -207,6 +226,8 @@ export function breakingChanges(before: WireShape, after: WireShape): string[] {
     for (const [path, alts] of Object.entries(paths)) {
       const nextAlts = next[path]
       if (nextAlts === undefined) {
+        // a variant the server stopped sending can't trip up a client
+        if (inDroppedVariant(next, path)) continue
         if (!removed.some((r) => isUnder(path, r))) {
           removed.push(path)
           problems.push(`${surface} ${path}: removed`)
@@ -242,7 +263,7 @@ export function breakingChanges(before: WireShape, after: WireShape): string[] {
       if (path in paths || tokensOf(alts).includes("absent")) continue
       const parent = parentPath(path)
       // under a new optional parent, a required child is fine: old clients send neither
-      if (parent === undefined || parent in paths) {
+      if (parent === undefined || has(paths, parent)) {
         problems.push(`${surface} ${path}: new required field (${alts})`)
       }
     }

@@ -189,6 +189,36 @@ describe("breakingChanges", () => {
     ])
   })
 
+  it("flags a new required field in a request variant, but not in a new variant", () => {
+    const tagged = (edit: (s: WireShape) => void): string[] => {
+      const before: WireShape = {
+        responses: {},
+        requests: { WS: { $: "<A>", "$<A>._tag": '"A"' } },
+      }
+      const after: WireShape = structuredClone(before)
+      edit(after)
+      return breakingChanges(before, after)
+    }
+    expect(tagged((s) => (s.requests["WS"]!["$<A>.session"] = "string"))).toEqual([
+      "WS $<A>.session: new required field (string)",
+    ])
+    expect(
+      tagged((s) => {
+        s.requests["WS"]!.$ = "<A> | <B>"
+        s.requests["WS"]!["$<B>._tag"] = '"B"'
+      }),
+    ).toEqual([])
+  })
+
+  it("doesn't report the fields of a response variant that was dropped", () => {
+    expect(
+      change((s) => {
+        s.responses["WS server"]!.$ = "<A>"
+        delete s.responses["WS server"]!["$<B>._tag"]
+      }),
+    ).toEqual([])
+  })
+
   it("allows required fields inside a new optional request field", () => {
     expect(
       change((s) => {

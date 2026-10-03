@@ -1,0 +1,8 @@
+/* tablo design system — global CSS entry point. Standalone consumers link THIS
+   one file. Keep it as @import lines only; everything reachable from here ships.
+   (Apps that own their own base layer + fonts should @import "./tokens.css".) */
+@import "./tokens/fonts.css";
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
+@import "./tokens/spacing.css";
+@import "./tokens/base.css";

@@ -1,4 +1,9 @@
 @import "tailwindcss";
+/* Design-system token source-of-truth (:root vars only — no base/body side-effects).
+   Provides the raw tokens (--make, --ink, --font-accent, --track-led, …) the
+   @app/design-system brand components read. The @theme block below mirrors the
+   subset Tailwind needs as utilities. */
+@import "@app/design-system/tokens.css";
 
 /* The final design encoded as theme tokens → utilities (bg-bg, text-ink,
    font-accent, text-make, rounded-card, …). See spec 2026-06-08-tablo-ui-redesign. */

@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@app/contract": "workspace:*",
+    "@app/design-system": "workspace:*",
     "effect": "4.0.0-beta.78",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

@@ -1,0 +1,62 @@
+/* tablo — base layer
+   Dark-only by design: the LED departure-board metaphor. Sets the warm near-black
+   ground + glow, default ink, and font smoothing so any surface that links
+   styles.css inherits the board look without extra setup.
+
+   NOTE: this sets global side-effects on html/body/*. An app that already owns
+   its own base layer (e.g. @app/web, which floors these via Tailwind) should
+   @import "../tokens.css" instead of styles.css to pick up only the :root vars. */
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg);
+  /* fixed top-down radial glow — the "screen is on" feeling */
+  background-image: var(--ground);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-weight: var(--fw-regular);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* LED glow helpers — apply to Doto numerals at size. Glow scales with the hue;
+   small inline numbers and the neutral tier carry none. */
+.led-make {
+  text-shadow: var(--glow-make);
+}
+.led-run {
+  text-shadow: var(--glow-run);
+}
+.led-miss {
+  text-shadow: var(--glow-miss);
+}
+
+/* status-dot halo */
+.dot-glow {
+  box-shadow: var(--dot-glow);
+}
+
+/* ── Forms · iOS Safari auto-zoom guard ──────────────────────────────────
+   Mobile Safari zooms toward any focused text input whose font-size is below
+   16px — and BY DESIGN it never zooms back out on blur, stranding the user
+   mid-page at the wrong scale. So tablo floors every text-entry control at
+   --text-input (16px). A field that must *look* smaller is scaled with
+   transform; its font-size never drops below 16px. This is a hard rule. */
+input,
+textarea,
+select {
+  font-size: var(--text-input); /* 16px — never lower on a real input */
+}

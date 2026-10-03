@@ -3,29 +3,16 @@ import type { WsStatus } from "../hooks/useDepartures.ts"
 import type { Geo } from "../hooks/useGeo.ts"
 import { TIER, type Tier } from "../lib/tier.ts"
 import { SearchIcon, StopGlyph } from "./icons.tsx"
-
-const STATUS: Record<WsStatus, { color: string; pulse: boolean }> = {
-  live: { color: "#22e06b", pulse: false },
-  degraded: { color: "#ffb02e", pulse: false },
-  connecting: { color: "#ff3b4e", pulse: true },
-  reconnecting: { color: "#ff3b4e", pulse: true },
-}
-
-export const StatusDot = ({ status }: { status: WsStatus }) => {
-  const s = STATUS[status]
-  return (
-    <span
-      className={["inline-block rounded-full", s.pulse ? "animate-pulse" : ""].join(" ")}
-      style={{ width: 9, height: 9, background: s.color, boxShadow: `0 0 10px ${s.color}` }}
-    />
-  )
-}
+import { Wordmark } from "@app/design-system"
 
 const LegendDot = ({ tier }: { tier: Tier }) => {
   const t = TIER[tier]
   return (
     <span className="inline-flex items-center gap-[6px] font-ui text-[11.5px] font-semibold tracking-[0.02em] text-[#9a9aa2]">
-      <span className="rounded-full" style={{ width: 8, height: 8, background: t.color, boxShadow: `0 0 6px ${t.color}` }} />
+      <span
+        className="rounded-full"
+        style={{ width: 8, height: 8, background: t.color, boxShadow: `0 0 6px ${t.color}` }}
+      />
       {t.label}
     </span>
   )
@@ -33,7 +20,11 @@ const LegendDot = ({ tier }: { tier: Tier }) => {
 
 const LocationChip = ({ geo, label }: { geo: Geo; label: string | null }) => {
   const text =
-    geo.tag === "active" ? (label ?? "Near you") : geo.tag === "locating" ? "Locating…" : "Location off"
+    geo.tag === "active"
+      ? (label ?? "Near you")
+      : geo.tag === "locating"
+        ? "Locating…"
+        : "Location off"
   return (
     <span className="hidden items-center gap-[7px] rounded-[10px] border border-edge bg-[#0d0d11] px-[12px] py-[8px] font-ui text-[13px] font-semibold text-[#a7a7af] sm:flex">
       <span style={{ color: geo.tag === "active" ? "#22e06b" : "#76767e" }}>⌖</span>
@@ -42,7 +33,15 @@ const LocationChip = ({ geo, label }: { geo: Geo; label: string | null }) => {
   )
 }
 
-const DesktopSearchTrigger = ({ open, onOpen, children }: { open: boolean; onOpen: () => void; children: ReactNode }) => (
+const DesktopSearchTrigger = ({
+  open,
+  onOpen,
+  children,
+}: {
+  open: boolean
+  onOpen: () => void
+  children: ReactNode
+}) => (
   <span className="relative hidden sm:block">
     <span
       onClick={onOpen}
@@ -75,11 +74,18 @@ export function AppBar({
   onOpenSearch: () => void
   searchPanel: ReactNode
 }) {
+  // The wordmark's green full stop IS the live-feed connection signal: green
+  // while the feed is up (live / degraded), red while (re)connecting.
+  const connected = status === "live" || status === "degraded"
   return (
     <div className="flex shrink-0 items-center justify-between px-[16px] pt-[10px] sm:px-[28px] sm:pt-[18px]">
-      <span className="flex items-center gap-[10px]">
-        <span className="font-accent text-[27px] font-black tracking-[0.04em] text-ink sm:text-[34px]">tablo</span>
-        <StatusDot status={status} />
+      <span className="flex items-center">
+        <span className="sm:hidden">
+          <Wordmark size={27} connected={connected} />
+        </span>
+        <span className="hidden sm:block">
+          <Wordmark size={34} connected={connected} />
+        </span>
       </span>
       <span className="flex items-center gap-[14px] sm:gap-[16px]">
         <DesktopSearchTrigger open={searchOpen} onOpen={onOpenSearch}>
@@ -104,7 +110,9 @@ export function SubBar({ status, count }: { status: WsStatus; count: number }) {
           ? "reconnecting…"
           : "connecting…"
   const lead =
-    count === 0 ? "No stops yet · search to add your first" : `${count} saved ${count === 1 ? "stop" : "stops"} · pick a platform on any card`
+    count === 0
+      ? "No stops yet · search to add your first"
+      : `${count} saved ${count === 1 ? "stop" : "stops"} · pick a platform on any card`
   return (
     <div className="hidden shrink-0 items-center justify-between px-[28px] pt-[12px] pb-[16px] sm:flex">
       <span className="font-ui text-[13px] font-medium text-meta">
@@ -127,7 +135,9 @@ export function MobileSearchTrigger({ onClick }: { onClick: () => void }) {
       className="flex cursor-pointer items-center gap-[9px] rounded-[11px] border border-edge bg-[#0c0c0f] px-[14px] py-[12px] sm:hidden"
     >
       <SearchIcon />
-      <span className="whitespace-nowrap font-ui text-[14.5px] font-medium text-[#5e5e66]">Add a stop…</span>
+      <span className="whitespace-nowrap font-ui text-[14.5px] font-medium text-[#5e5e66]">
+        Add a stop…
+      </span>
     </div>
   )
 }
@@ -143,7 +153,9 @@ export function AddTile({ onClick }: { onClick: () => void }) {
         +
       </span>
       <span className="font-ui text-[14px] font-semibold text-[#6b6b73]">Add a stop</span>
-      <span className="font-ui text-[12px] font-medium text-[#4a4a52]">stop or single platform</span>
+      <span className="font-ui text-[12px] font-medium text-[#4a4a52]">
+        stop or single platform
+      </span>
     </div>
   )
 }
@@ -155,10 +167,12 @@ export function EmptyState({ onAdd }: { onAdd: () => void }) {
         <div className="mb-[20px] flex justify-center">
           <StopGlyph size={68} color="#3f3f47" />
         </div>
-        <div className="mb-[8px] font-ui text-[22px] font-extrabold text-[#c9c7c0]">Your board is empty</div>
+        <div className="mb-[8px] font-ui text-[22px] font-extrabold text-[#c9c7c0]">
+          Your board is empty
+        </div>
         <div className="mb-[22px] font-ui text-[14.5px] font-medium leading-[1.55] text-[#76767e]">
-          Add a stop — or a single platform you use every day — and tablo shows live departures with how
-          likely you are to catch each one.
+          Add a stop — or a single platform you use every day — and tablo shows live departures with
+          how likely you are to catch each one.
         </div>
         <span
           onClick={onAdd}

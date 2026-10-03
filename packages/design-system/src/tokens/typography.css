@@ -1,0 +1,34 @@
+/* tablo — typography tokens
+   Two families: Hanken Grotesk (everything legible) + Doto (LED glyphs only). */
+:root {
+  /* families */
+  --font-ui: "Hanken Grotesk", system-ui, sans-serif; /* headsigns, labels, body */
+  --font-accent: "Doto", monospace; /* countdowns, clock, wordmark */
+
+  /* weights */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fw-extrabold: 800;
+  --fw-black: 900;
+
+  /* UI type scale (Hanken) */
+  --text-meta: 12px; /* nást. A · +2 min */
+  --text-row: 15px; /* secondary stop row */
+  --text-label: 16px; /* card title */
+  --text-headsign: 17px; /* lead row destination */
+  --text-input: 16px; /* text-entry floor — iOS Safari zooms focused inputs below 16px and never zooms back */
+  --text-display: 28px; /* stop hero */
+
+  /* LED scale (Doto) */
+  --led-inline: 21px; /* secondary countdown */
+  --led-lead: 38px; /* lead-row countdown */
+  --led-clock: 20px; /* app-bar clock */
+  --led-wall: 64px; /* wallboard countdown */
+
+  /* tracking */
+  --track-tight: -0.01em; /* large UI headings */
+  --track-led: 0.04em; /* LED numerals + wordmark breathe */
+  --track-clock: 0.06em;
+}

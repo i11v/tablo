@@ -1,0 +1,51 @@
+/* tablo — color tokens
+   Base palette + semantic aliases. Dark-only: the LED departure-board metaphor.
+   Reachability hues (make/run/miss) are semantic and never used decoratively. */
+:root {
+  /* ── base surfaces (warm near-black stack) ───────────────────────── */
+  --bg: #08080a; /* page ground */
+  --card: #0f0f12; /* raised surface */
+  --chip: #1b1b20; /* route badge / inset */
+  --ctl: #191920; /* control fill (segmented, add btn) */
+  --edge: #1f1f25; /* hairline border */
+
+  /* ── base ink (warm bone, never blue-cold) ───────────────────────── */
+  --ink: #eceae3; /* primary text */
+  --ink-dim: #d8d6cf; /* secondary row text */
+  --meta: #76767e; /* meta / muted */
+  --chip-ink: #e7e5de; /* text on chip */
+  --paper: #e9e7e0; /* inverted surface (active pill, CTA) */
+  --paper-ink: #0a0a0a; /* text on paper */
+
+  /* ── reachability (semantic — meaning, not decoration) ───────────── */
+  --make: #22e06b; /* catch it — comfortable */
+  --run: #ffb02e; /* run — tight */
+  --miss: #ff3b4e; /* missed — gone */
+  --neutral: #c9c7c0; /* location unknown — no glow */
+
+  /* on-tier ink (for filled chips/blocks) */
+  --on-make: #06210f;
+  --on-run: #2b1c00;
+  --on-miss: #2b060a;
+
+  /* ── supporting (delay / accents — candidates for promotion) ─────── */
+  --late: #e7a13a; /* "+3 min" delayed */
+  --early: #5fae7a; /* "−1 min" ahead */
+  --icon: #a09a8f; /* vehicle pictogram stroke */
+  --add-ok: #1f8a5b; /* added-confirm green */
+
+  /* ── semantic aliases ────────────────────────────────────────────── */
+  --surface-page: var(--bg);
+  --surface-card: var(--card);
+  --surface-chip: var(--chip);
+  --text-primary: var(--ink);
+  --text-secondary: var(--ink-dim);
+  --text-muted: var(--meta);
+  --border-hairline: var(--edge);
+
+  /* ── ground + glow ───────────────────────────────────────────────── */
+  --ground: radial-gradient(120% 80% at 50% 0%, #101014, #08080a 72%);
+  --glow-make: 0 0 14px color-mix(in srgb, var(--make) 47%, transparent);
+  --glow-run: 0 0 14px color-mix(in srgb, var(--run) 47%, transparent);
+  --glow-miss: 0 0 14px color-mix(in srgb, var(--miss) 47%, transparent);
+}

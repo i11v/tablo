@@ -1,0 +1,17 @@
+{
+  "name": "@app/design-system",
+  "private": true,
+  "type": "module",
+  "description": "tablo design system — token source-of-truth + brand components (Wordmark, AppIcon).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/styles.css",
+    "./tokens.css": "./src/tokens.css"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0"
+  }
+}

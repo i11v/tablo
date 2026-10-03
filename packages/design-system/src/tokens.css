@@ -1,0 +1,7 @@
+/* tablo design-system tokens — :root variable definitions only.
+   No global/body side-effects, so this is safe to @import into an app that owns
+   its own base layer + font loading (e.g. @app/web + Tailwind v4). Standalone
+   consumers should link "./styles.css" instead (it also pulls fonts + base). */
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
+@import "./tokens/spacing.css";

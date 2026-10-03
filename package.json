@@ -4,7 +4,7 @@
   "type": "module",
   "workspaces": ["packages/*"],
   "scripts": {
-    "typecheck": "tsc -p . && tsc -p packages/contract && tsc -p packages/worker && tsc -p packages/web && tsc -p scripts",
+    "typecheck": "tsc -p . && tsc -p packages/contract && tsc -p packages/design-system && tsc -p packages/worker && tsc -p packages/web && tsc -p scripts",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "build:index": "bun scripts/build-stop-index.ts",

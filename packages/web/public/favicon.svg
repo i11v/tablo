@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="board" cx="50%" cy="0%" r="105%">
+      <stop offset="0" stop-color="#17171d"/>
+      <stop offset="0.7" stop-color="#08080a"/>
+    </radialGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="1.6"/>
+    </filter>
+  </defs>
+  <rect width="64" height="64" fill="url(#board)"/>
+  <g>
+    <rect x="24.50" y="13.80" width="4" height="4" rx="1.1" fill="#eceae3"/>
+    <rect x="24.50" y="19.20" width="4" height="4" rx="1.1" fill="#eceae3"/>
+    <rect x="13.70" y="24.60" width="4" height="4" rx="1.1" fill="#eceae3"/>
+    <rect x="19.10" y="24.60" width="4" height="4" rx="1.1" fill="#eceae3"/>
+    <rect x="24.50" y="24.60" width="4" height="4" rx="1.1" fill="#eceae3"/>
+    <rect x="29.91" y="24.60" width="4" height="4" rx="1.1" fill="#eceae3"/>
+    <rect x="35.30" y="24.60" width="4" height="4" rx="1.1" fill="#eceae3"/>
+    <rect x="24.50" y="30.00" width="4" height="4" rx="1.1" fill="#eceae3"/>
+    <rect x="24.50" y="35.40" width="4" height="4" rx="1.1" fill="#eceae3"/>
+    <rect x="24.50" y="40.80" width="4" height="4" rx="1.1" fill="#eceae3"/>
+    <rect x="24.50" y="46.20" width="4" height="4" rx="1.1" fill="#eceae3"/>
+    <rect x="29.91" y="46.20" width="4" height="4" rx="1.1" fill="#eceae3"/>
+  </g>
+  <rect x="43.89" y="43.80" width="6.40" height="6.40" rx="1.54" fill="#22e06b" filter="url(#glow)" opacity="0.9"/>
+  <rect x="43.89" y="43.80" width="6.40" height="6.40" rx="1.54" fill="#22e06b"/>
+</svg>

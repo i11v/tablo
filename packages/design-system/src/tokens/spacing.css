@@ -1,0 +1,31 @@
+/* tablo — spacing, radii, depth tokens */
+:root {
+  /* radii */
+  --radius-card: 13px; /* containers / stop cards */
+  --radius-chip: 7px; /* route badges, small pills */
+  --radius-pill: 9px; /* platform filter pills */
+  --radius-ctl: 8px; /* add buttons */
+
+  /* spacing scale (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 36px;
+
+  /* row grid template (edge-bar · pictogram · route · body · countdown) */
+  --row-lead: 3px 22px 46px 1fr auto;
+  --row-secondary: 20px 38px 1fr auto;
+
+  /* borders */
+  --hairline: 1px solid var(--edge);
+  --row-divide: 1px solid rgba(255, 255, 255, 0.07);
+  --chip-stroke: 1px solid rgba(255, 255, 255, 0.06);
+  --ctl-stroke: 1px solid rgba(255, 255, 255, 0.08);
+
+  /* depth */
+  --shadow-overlay: 0 24px 60px -22px rgba(0, 0, 0, 0.8);
+  --dot-glow: 0 0 9px currentColor;
+}

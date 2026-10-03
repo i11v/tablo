@@ -1,17 +1,17 @@
 import { Schema } from "effect"
 
-export class GolemioRateLimitedError extends Schema.TaggedErrorClass<GolemioRateLimitedError>()(
+export class GolemioRateLimitedError extends Schema.TaggedError<GolemioRateLimitedError>()(
   "GolemioRateLimitedError",
   {},
 ) {}
 
-export class GolemioUpstreamError extends Schema.TaggedErrorClass<GolemioUpstreamError>()(
+export class GolemioUpstreamError extends Schema.TaggedError<GolemioUpstreamError>()(
   "GolemioUpstreamError",
   { status: Schema.Number, detail: Schema.String },
 ) {}
 
 /** Upstream answered 404 — an unknown trip, or one with no live position. */
-export class GolemioNotFoundError extends Schema.TaggedErrorClass<GolemioNotFoundError>()(
+export class GolemioNotFoundError extends Schema.TaggedError<GolemioNotFoundError>()(
   "GolemioNotFoundError",
   {},
 ) {}

@@ -1,6 +1,6 @@
 import { Effect, Layer } from "effect"
 import type * as Context from "effect/Context"
-import { RateLimiter } from "effect/unstable/persistence"
+import { RateLimiter } from "effect/persistence"
 import { GolemioClient } from "../src/golemio/client.ts"
 import { UpstreamGuard } from "../src/gateway/upstream.ts"
 

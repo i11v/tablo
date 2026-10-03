@@ -1,10 +1,10 @@
 import { Clock, Effect, Layer, Ref, Schema } from "effect"
 import * as Context from "effect/Context"
-import { RateLimiter } from "effect/unstable/persistence"
+import { RateLimiter } from "effect/persistence"
 import { GolemioRateLimitedError } from "../golemio/errors.ts"
 
 /** The call was refused locally: 429 cooldown active, or the limiter queue took too long. */
-export class GatewayShedError extends Schema.TaggedErrorClass<GatewayShedError>()(
+export class GatewayShedError extends Schema.TaggedError<GatewayShedError>()(
   "GatewayShedError",
   {},
 ) {}

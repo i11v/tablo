@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { Effect, FileSystem, Layer, Path, Schema } from "effect"
-import { HttpRouter } from "effect/unstable/http"
+import { HttpRouter } from "effect/http"
 import { LiveVehicles, Trip, TripVehicle, type BBox } from "@app/contract"
 import { apiLayer } from "../src/api.ts"
 import type { Outcome, TransitApi } from "../src/gateway/transit.ts"

@@ -1,8 +1,8 @@
 import { Api, TripNotFound, UpstreamUnavailable } from "@app/contract"
 import { Cause, Effect, Layer } from "effect"
-import * as Etag from "effect/unstable/http/Etag"
-import * as HttpPlatform from "effect/unstable/http/HttpPlatform"
-import { HttpApiBuilder } from "effect/unstable/httpapi"
+import * as Etag from "effect/http/Etag"
+import * as HttpPlatform from "effect/http/HttpPlatform"
+import { HttpApiBuilder } from "effect/http-api"
 import type { Outcome, TransitApi } from "./gateway/transit.ts"
 import { reasonOf } from "./gateway/upstream.ts"
 

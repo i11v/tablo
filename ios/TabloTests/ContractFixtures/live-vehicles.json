@@ -1,0 +1,23 @@
+{
+  "vehicles": [
+    {
+      "tripId": "9_1",
+      "route": "9",
+      "kind": "tram",
+      "lat": 50.08,
+      "lon": 14.42,
+      "bearing": 90,
+      "delaySeconds": 30
+    },
+    {
+      "tripId": "136_1",
+      "route": "136",
+      "kind": "bus",
+      "lat": 50.1,
+      "lon": 14.4,
+      "bearing": null,
+      "delaySeconds": null
+    }
+  ],
+  "generatedAt": "2026-10-03T09:10:45.000Z"
+}

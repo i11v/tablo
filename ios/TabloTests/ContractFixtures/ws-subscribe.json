@@ -1,0 +1,16 @@
+{
+  "_tag": "Subscribe",
+  "selectors": [
+    {
+      "node": 539,
+      "stops": null
+    },
+    {
+      "node": 1040,
+      "stops": [
+        1,
+        2
+      ]
+    }
+  ]
+}

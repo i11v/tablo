@@ -4,12 +4,12 @@ name: iOS
 # builds from ios/ alone (XcodeGen project.yml + Swift sources), so web- and
 # worker-only changes skip the macOS runner.
 #
-# Deliberately NOT filtered on packages/contract/**: TabloTests decode inline
-# JSON literals and never read the contract, so a contract-only change can't
-# change this workflow's result — a green run there would only suggest an iOS
-# compatibility check that never happened. A wire change the app must follow
-# edits ios/Tablo/API/Wire.swift (and WireTests) in the same PR, which
-# triggers this anyway.
+# Deliberately NOT filtered on packages/contract/**: what TabloTests read of
+# the contract is ios/TabloTests/ContractFixtures/, JSON generated from the
+# schemas (`bun run contract:write`, kept current by `bun run test`). A
+# contract change that alters the wire alters those files, which are under
+# ios/ and trigger this; one that doesn't can't change this workflow's result.
+# Breaks for builds already installed are caught by contract.yml instead.
 on:
   pull_request:
     paths:

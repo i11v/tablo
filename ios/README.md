@@ -18,6 +18,10 @@ Payload shapes are mirrored by hand in `Tablo/API/Wire.swift` from
 `packages/contract` (no codegen). The backend deploys on its own and installed
 builds don't update with it, so contract changes must stay compatible: added
 fields are fine; renamed, removed or retyped ones break the app.
+`TabloTests/ContractFixtures/` holds payloads generated from the backend's
+schemas (`bun run contract:write` at the repo root — don't edit them by hand),
+and `ContractTests` decodes each one; CI also rejects backend changes that
+would break installed builds ([`docs/DEPLOY.md`](../docs/DEPLOY.md#ios-compatibility)).
 
 ## Run
 

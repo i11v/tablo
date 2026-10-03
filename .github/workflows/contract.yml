@@ -1,0 +1,44 @@
+name: Contract
+
+# Fails a PR whose wire contract would break iOS builds already installed
+# (they never auto-update): compares the PR's packages/contract/wire-shape.json
+# with the base branch's — see scripts/lib/wire-shape.ts for the rules. That
+# the committed file matches the schemas is checked by `bun run test`.
+#
+# A deliberate break the app provably tolerates (say, a new enum value it
+# maps to a fallback) gets the `contract-break` label, which skips the check;
+# labeling re-runs this workflow.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    paths:
+      - "packages/contract/**"
+      - "scripts/contract.ts"
+      - "scripts/lib/wire-*.ts"
+      - ".github/workflows/contract.yml"
+
+concurrency:
+  group: contract-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  compatible:
+    name: Backward compatible with installed clients
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'contract-break') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: "1.3.14" }
+      - run: bun install --frozen-lockfile
+      - name: Fetch the base branch
+        run: git fetch --no-tags --depth=1 origin "$BASE_REF"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+      - run: bun run contract:check "origin/$BASE_REF"
+        env:
+          BASE_REF: ${{ github.base_ref }}

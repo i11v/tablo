@@ -26,7 +26,10 @@ Dated design docs (historical, web-era) live in `docs/superpowers/`.
   codegen). Changes to `packages/contract` (HTTP API, `/api/ws` protocol,
   stop-index format) must stay compatible with it: adding fields is safe;
   renaming, removing or retyping one breaks the app. Installed builds don't
-  auto-update, so keep old shapes working.
+  auto-update, so keep old shapes working. After a contract change run
+  `bun run contract:write` and commit `packages/contract/wire-shape.json` and
+  `ios/TabloTests/ContractFixtures/`; `bun run contract:check` (CI on PRs)
+  flags breaking changes against `origin/main`.
 
 <!-- effect-solutions:start -->
 ## Effect Best Practices

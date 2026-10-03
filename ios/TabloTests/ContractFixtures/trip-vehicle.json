@@ -1,0 +1,12 @@
+{
+  "tripId": "22_1234_261003",
+  "lat": 50.08,
+  "lon": 14.42,
+  "bearing": 250,
+  "delaySeconds": 45,
+  "lastStopSequence": 11,
+  "nextStopSequence": 12,
+  "distance": 4.9,
+  "state": "on_track",
+  "updatedAt": "2026-10-03T09:10:45.000Z"
+}

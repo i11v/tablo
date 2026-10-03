@@ -110,19 +110,20 @@ export const workerDomain = (stage: string): string | undefined => {
   `tablo.run` has no conflicting proxied A/AAAA/CNAME at the apex (a parking
   record) before the first prod deploy, or the attach fails.
 
-### The `@distilled.cloud/core` patch (do not delete lightly)
+### Custom-domain teardown (formerly the `@distilled.cloud/core` patch)
 
 Deleting a Workers custom domain (preview teardown on PR close, or production
-switching to a new domain) hits a beta CF-client bug: Cloudflare answers the
-`DELETE …/workers/domains/{id}` with an empty `200`, the client fails to decode
-it, and the whole `deploy`/`destroy` aborts with the misleading
-`CloudflareHttpError: null` — orphaning the worker + its state. Fixed by
-`patches/@distilled.cloud%2Fcore@0.29.1.patch` (a `bun patch`; treats an empty
-2xx body as no-content). `bun install --frozen-lockfile` re-applies it on every
-CI runner. **Drop the patch only once upstream
-[alchemy-run/distilled#344](https://github.com/alchemy-run/distilled/pull/344)
-ships in a released `@distilled.cloud/core`.** No-patch escape hatch: the DELETE
-*succeeds* server-side, so a failed teardown completes on a plain
+switching to a new domain) used to hit a beta CF-client bug: Cloudflare answers
+the `DELETE …/workers/domains/{id}` with an empty `200`, the old client failed
+to decode it, and the whole `deploy`/`destroy` aborted with the misleading
+`CloudflareHttpError: null`. We carried a `bun patch` against
+`@distilled.cloud/core@0.29.1` for it
+([alchemy-run/distilled#344](https://github.com/alchemy-run/distilled/pull/344)).
+Since alchemy `2.0.0-beta.80` (distilled `1.0.0-rc.13`) the Cloudflare protocol
+parses an empty 2xx body as `{}`, so the patch was dropped; the first preview
+teardown on the new stack (#34) deleted its custom domain cleanly. If the
+`CloudflareHttpError: null` abort ever comes back, the DELETE still *succeeds*
+server-side, so a failed teardown completes on a plain
 `gh run rerun <id> --failed`.
 
 ## tablo-specific footguns

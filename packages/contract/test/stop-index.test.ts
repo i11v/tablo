@@ -25,13 +25,13 @@ describe("StopIndex", () => {
           zone: "P",
           modes: [],
           disambig: null,
-          platforms: [{ code: "A", stop: 1 }],
+          platforms: [{ code: "A", stop: 1, lat: 50.07, lon: 14.4 }],
         },
       ],
     }
     const dec = Schema.decodeUnknownSync(StopIndex)
     expect(dec(v1).version).toBe(1)
-    expect(dec(v1).stops[0].platforms).toEqual([{ code: "A", stop: 1 }])
+    expect(dec(v1).stops[0].platforms).toEqual([{ code: "A", stop: 1, lat: 50.07, lon: 14.4 }])
     expect(() => dec({ ...v1, version: 2 })).toThrow('"version": 1')
     const noPlatforms = { ...v1, stops: [{ ...v1.stops[0], platforms: undefined }] }
     expect(() => dec(noPlatforms)).toThrow("Expected array")

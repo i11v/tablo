@@ -1,13 +1,11 @@
 /// <reference types="node" />
 import * as Cloudflare from "alchemy/Cloudflare"
-import { Config, Effect, Layer } from "effect"
+import { Config, Effect } from "effect"
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest"
+import * as HttpServerError from "effect/unstable/http/HttpServerError"
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse"
 import * as HttpRouter from "effect/unstable/http/HttpRouter"
-import * as HttpPlatform from "effect/unstable/http/HttpPlatform"
-import * as Etag from "effect/unstable/http/Etag"
-import { HttpApiBuilder } from "effect/unstable/httpapi"
-import { Api } from "@app/contract"
+import { apiLayer } from "./api.ts"
 import { ClientSession } from "./do/session.ts"
 import { GolemioGateway } from "./do/gateway.ts"
 import { resolveWorkerStage, workerDomain, workerName } from "./workerName.ts"
@@ -44,16 +42,6 @@ const WORKER_STAGE = resolveWorkerStage(typeof process !== "undefined" ? (proces
 // preview-N.tablo.run), or undefined for workers.dev-only stages.
 const WORKER_DOMAIN = workerDomain(WORKER_STAGE)
 
-const apiLayer = (version: string) =>
-  HttpApiBuilder.layer(Api).pipe(
-    Layer.provide(
-      HttpApiBuilder.group(Api, "system", (handlers) =>
-        handlers.handle("health", () => Effect.succeed({ ok: true, version })),
-      ),
-    ),
-    Layer.provide([HttpPlatform.layer, Etag.layer]),
-  )
-
 export default class Server extends Cloudflare.Worker<Server>()(
   "Server",
   {
@@ -86,12 +74,16 @@ export default class Server extends Cloudflare.Worker<Server>()(
   },
   Effect.gen(function* () {
     const sessions = yield* ClientSession
-    yield* GolemioGateway // bind the namespace even though only ClientSession calls it
+    const gateways = yield* GolemioGateway
     const version = yield* Config.string("TABLO_COMMIT").pipe(
       Config.withDefault(VERSION),
       Effect.orDie,
     )
-    const apiHandler = yield* HttpRouter.toHttpEffect(apiLayer(version))
+    // Trips and vehicles go through the same singleton gateway DO as the
+    // boards, so every upstream call shares its rate budget and caches.
+    const apiHandler = yield* HttpRouter.toHttpEffect(
+      apiLayer(version, () => gateways.getByName("singleton")),
+    )
 
     return {
       fetch: Effect.gen(function* () {
@@ -113,7 +105,19 @@ export default class Server extends Cloudflare.Worker<Server>()(
           return yield* sessions.getByName(session).fetch(req)
         }
         if (url.pathname.startsWith("/api/")) {
-          return yield* apiHandler
+          // HttpApi rejects malformed input (a bad bbox or trip id) by dying
+          // with a Respondable error that renders as 400. Render causes the way
+          // an Effect HTTP server does, rather than letting the Worker runtime
+          // turn every defect into a bare 500.
+          return yield* apiHandler.pipe(
+            Effect.catchCause((cause) =>
+              Effect.flatMap(HttpServerError.causeResponse(cause), ([response, rest]) =>
+                response.status >= 500
+                  ? Effect.as(Effect.logError("api request failed", rest), response)
+                  : Effect.succeed(response),
+              ),
+            ),
+          )
         }
         if (url.pathname.startsWith("/data/")) {
           // Old hashed stop-index files disappear from assets on every deploy,

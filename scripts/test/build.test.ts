@@ -88,8 +88,8 @@ describe("buildIndex", () => {
     expect(andel!.zone).toBe("P")
     expect(andel!.norm).toBe("andel")
     expect(andel!.platforms).toEqual([
-      { code: "A", stop: 1 },
-      { code: "B", stop: 2 },
+      { code: "A", stop: 1, lat: 50.071, lon: 14.403 },
+      { code: "B", stop: 2, lat: 50.0712, lon: 14.4032 },
     ])
   })
 
@@ -99,7 +99,7 @@ describe("buildIndex", () => {
     expect(delnicka!.stops).toEqual([1])
     expect(tusarova!.stops).toEqual([2])
     expect(delnicka!.node).toBe(81)
-    expect(delnicka!.platforms).toEqual([{ code: "A", stop: 1 }])
+    expect(delnicka!.platforms).toEqual([{ code: "A", stop: 1, lat: 50.1, lon: 14.45 }])
   })
 
   it("excludes ASW-less and non-platform rows", () => {
@@ -150,7 +150,45 @@ describe("buildIndex", () => {
       "2026-06-06T00:00:00.000Z",
     )
     const x = idx.stops.find((s) => s.name === "Xstop")!
-    expect(x.platforms).toEqual([{ code: "A", stop: 1 }])
+    expect(x.platforms).toEqual([{ code: "A", stop: 1, lat: 0, lon: 0 }])
     expect(x.stops).toBeNull() // single-name node: whole-node selector still covers stop 2
+  })
+
+  it("places each platform at the mean of its own rows", () => {
+    const idx = buildIndex(
+      [
+        HEADER,
+        row({
+          stop_name: "Yst",
+          stop_lat: "50.0",
+          stop_lon: "14.0",
+          asw_node_id: "71",
+          asw_stop_id: "1",
+          platform_code: "A",
+        }),
+        row({
+          stop_name: "Yst",
+          stop_lat: "50.2",
+          stop_lon: "14.2",
+          asw_node_id: "71",
+          asw_stop_id: "1",
+          platform_code: "A",
+        }),
+        row({
+          stop_name: "Yst",
+          stop_lat: "51.0",
+          stop_lon: "15.0",
+          asw_node_id: "71",
+          asw_stop_id: "2",
+          platform_code: "B",
+        }),
+      ],
+      "2026-06-06T00:00:00.000Z",
+    )
+    const y = idx.stops.find((s) => s.name === "Yst")!
+    expect(y.platforms).toEqual([
+      { code: "A", stop: 1, lat: 50.1, lon: 14.1 },
+      { code: "B", stop: 2, lat: 51, lon: 15 },
+    ])
   })
 })

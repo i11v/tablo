@@ -10,4 +10,10 @@ export class GolemioUpstreamError extends Schema.TaggedErrorClass<GolemioUpstrea
   { status: Schema.Number, detail: Schema.String },
 ) {}
 
-export type GolemioError = GolemioRateLimitedError | GolemioUpstreamError
+/** Upstream answered 404 — an unknown trip, or one with no live position. */
+export class GolemioNotFoundError extends Schema.TaggedErrorClass<GolemioNotFoundError>()(
+  "GolemioNotFoundError",
+  {},
+) {}
+
+export type GolemioError = GolemioRateLimitedError | GolemioUpstreamError | GolemioNotFoundError

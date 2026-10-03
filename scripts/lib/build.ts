@@ -32,7 +32,7 @@ export const buildIndex = (rows: string[][], generatedAt: string): StopIndexV1 =
     lats: number[]
     lons: number[]
     zones: string[]
-    plats: Map<number, string> // asw_stop_id -> trimmed platform_code
+    plats: Map<number, { code: string; lats: number[]; lons: number[] }> // by asw_stop_id
   }
   const groups = new Map<string, Group>()
   const namesPerNode = new Map<number, Set<string>>()
@@ -51,7 +51,10 @@ export const buildIndex = (rows: string[][], generatedAt: string): StopIndexV1 =
     if (r[iStop] !== "") {
       const stop = Number(r[iStop])
       g.stops.add(stop)
-      g.plats.set(stop, r[iPlat].trim())
+      const plat = g.plats.get(stop) ?? { code: r[iPlat].trim(), lats: [], lons: [] }
+      plat.lats.push(Number(r[iLat]))
+      plat.lons.push(Number(r[iLon]))
+      g.plats.set(stop, plat)
     }
     g.lats.push(Number(r[iLat]))
     g.lons.push(Number(r[iLon]))
@@ -84,7 +87,7 @@ export const buildIndex = (rows: string[][], generatedAt: string): StopIndexV1 =
     zone: string | null
     modes: VehicleKind[]
     disambig: string | null
-    platforms: { code: string; stop: number }[]
+    platforms: { code: string; stop: number; lat: number; lon: number }[]
   }
 
   const entries: MutableEntry[] = [...groups.values()].map((g) => ({
@@ -98,8 +101,13 @@ export const buildIndex = (rows: string[][], generatedAt: string): StopIndexV1 =
     modes: [],
     disambig: null,
     platforms: [...g.plats.entries()]
-      .filter(([, code]) => code !== "")
-      .map(([stop, code]) => ({ code, stop }))
+      .filter(([, p]) => p.code !== "")
+      .map(([stop, p]) => ({
+        code: p.code,
+        stop,
+        lat: Number(mean(p.lats).toFixed(5)),
+        lon: Number(mean(p.lons).toFixed(5)),
+      }))
       .sort((a, b) => a.code.localeCompare(b.code)),
   }))
 

@@ -44,6 +44,8 @@ export const Departure = Schema.Struct({
   isCanceled: Schema.Boolean,
   isAtStop: Schema.Boolean,
   platform: Schema.NullOr(Schema.String),
+  // GTFS trip id — the key for /api/trips/:tripId (journey) lookups.
+  tripId: Schema.NullOr(Schema.String),
 })
 export type Departure = typeof Departure.Type
 

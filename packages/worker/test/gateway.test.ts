@@ -1,12 +1,12 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Effect, Fiber, Layer, Ref } from "effect"
 import { TestClock } from "effect/testing"
-import { RateLimiter } from "effect/unstable/persistence"
 import type { StopSelector } from "@app/contract"
 import type { PidBoardResponse } from "../src/golemio/schema.ts"
 import { GolemioClient } from "../src/golemio/client.ts"
 import { GolemioRateLimitedError, GolemioUpstreamError } from "../src/golemio/errors.ts"
 import { DepartureGateway } from "../src/gateway/service.ts"
+import { fakeClient, guardLayer } from "./fakes.ts"
 
 const emptyResponse: PidBoardResponse = { stops: [], departures: [] }
 
@@ -15,7 +15,7 @@ const emptyResponse: PidBoardResponse = { stops: [], departures: [] }
 const makeFake = Effect.gen(function* () {
   const batches = yield* Ref.make<ReadonlyArray<ReadonlyArray<StopSelector>>>([])
   const failing = yield* Ref.make(false)
-  const layer = Layer.succeed(GolemioClient, {
+  const layer = fakeClient({
     fetchBoards: (selectors: ReadonlyArray<StopSelector>) =>
       Effect.gen(function* () {
         yield* Ref.update(batches, (b) => [...b, selectors])
@@ -29,10 +29,8 @@ const makeFake = Effect.gen(function* () {
   return { calls, batches, failing, layer }
 })
 
-const rateLimiterLayer = RateLimiter.layer.pipe(Layer.provide(RateLimiter.layerStoreMemory))
-
 const gatewayLayer = (clientLayer: Layer.Layer<GolemioClient>) =>
-  DepartureGateway.layer.pipe(Layer.provide([clientLayer, rateLimiterLayer]))
+  DepartureGateway.layer.pipe(Layer.provide([clientLayer, guardLayer]))
 
 describe("DepartureGateway", () => {
   it.effect("coalesces identical requests within the cache TTL", () =>
@@ -154,7 +152,7 @@ describe("DepartureGateway", () => {
     Effect.gen(function* () {
       const calls = yield* Ref.make(0)
       const limited = yield* Ref.make(false)
-      const layer = Layer.succeed(GolemioClient, {
+      const layer = fakeClient({
         fetchBoards: () =>
           Effect.gen(function* () {
             yield* Ref.update(calls, (n) => n + 1)

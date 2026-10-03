@@ -25,9 +25,8 @@ export const workerName = (stage: string): string =>
  * the hostname and provisions the proxied DNS record + TLS cert on deploy.
  *
  * NOTE: a preview's domain is deleted on teardown (and switching production's
- * domain deletes the previous one), which trips a beta CF-client bug on the
- * empty-body DELETE response — fixed by the @distilled.cloud/core patch in
- * `patches/`. Drop that patch only once the upstream fix ships.
+ * domain deletes the previous one). Cloudflare answers that DELETE with an
+ * empty body; see "Custom-domain teardown" in docs/DEPLOY.md.
  */
 export const workerDomain = (stage: string): string | undefined => {
   if (stage === "production") return "tablo.run"

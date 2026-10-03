@@ -3,6 +3,14 @@
 CI-owned [Alchemy](https://github.com/alchemy-run/alchemy) deploys to Cloudflare.
 Everything specific to deploying tablo is below.
 
+A deploy ships the **backend** (the worker: HTTP API, `/api/ws`, Durable
+Objects) and the **web client** it serves as static assets — nothing else. The
+iOS app (`ios/`), the primary client, isn't deployed: it's built and installed
+from Xcode (see [`ios/README.md`](../ios/README.md)) and has its own CI
+workflow, `.github/workflows/ios.yml` (`xcodegen generate` + `xcodebuild test`
+on changes under `ios/`). Neither deploy workflow builds it. It does run on the
+deployed API, though — see [iOS compatibility](#ios-compatibility).
+
 ## Live URLs
 
 | What | URL |
@@ -28,11 +36,11 @@ the workers.dev one, not a replacement. Same for previews — each PR gets its o
 production (idempotent; docs-only merges re-upload the same bundle).
 
 Each CI run, before deploying:
-`bun install --frozen-lockfile` → `typecheck` → `test` → build the GTFS stop
-index (`build:index`) → build the web app (`build:web`) → `verify:pwa` →
-deploy → **smoke test**. The smoke test polls `/api/health` for up to ~72 s and
-fails unless it reports the exact commit SHA just deployed (a plain 200 isn't
-enough — the previous build's health endpoint also answers 200).
+`bun install --frozen-lockfile` → `lint` → `fmt:check` → `typecheck` → `test`
+→ build the GTFS stop index (`build:index`) → build the web app (`build:web`) →
+`verify:pwa` → deploy → **smoke test**. The smoke test polls `/api/health` for
+up to ~72 s and fails unless it reports the exact commit SHA just deployed (a
+plain 200 isn't enough — the previous build's health endpoint also answers 200).
 
 ## Required GitHub config (repo `i11v/tablo`)
 
@@ -56,7 +64,21 @@ enough — the previous build's health endpoint also answers 200).
 token**) and writes a hashed stop index into `packages/web/public/data/`, which
 is **gitignored** — it's a build artifact, never committed, regenerated every
 deploy. CI caches the feed (`actions/cache`) so a `data.pid.cz` outage can't
-block a deploy.
+block a deploy. Both clients load it through `/data/stops-manifest.json`, which
+points at the current hashed file.
+
+## iOS compatibility
+
+The iOS app talks to production by default, and installed builds don't update
+when the backend does (no App Store — a build stays on a phone until it's
+reinstalled). The app reads the stop index, `/api/ws`, `/api/trips/:tripId`,
+`/api/trips/:tripId/vehicle` and `/api/vehicles`, and mirrors their shapes by
+hand in `ios/Tablo/API/Wire.swift` (no codegen). So changes to
+`packages/contract` must be backward compatible: adding a field is safe (both
+Effect Schema and Swift `Decodable` ignore unknown keys); renaming, removing or
+retyping one breaks installed builds. To try a backend change on a phone before
+merge, bake the PR preview into a build (`TABLO_API_BASE=https://preview-<N>.tablo.run`,
+see [`ios/README.md`](../ios/README.md#pointing-at-another-backend)).
 
 ## Custom domains (`tablo.run`)
 
@@ -95,7 +117,7 @@ switching to a new domain) hits a beta CF-client bug: Cloudflare answers the
 `DELETE …/workers/domains/{id}` with an empty `200`, the client fails to decode
 it, and the whole `deploy`/`destroy` aborts with the misleading
 `CloudflareHttpError: null` — orphaning the worker + its state. Fixed by
-`patches/@distilled.cloud%2Fcore@0.23.1.patch` (a `bun patch`; treats an empty
+`patches/@distilled.cloud%2Fcore@0.29.1.patch` (a `bun patch`; treats an empty
 2xx body as no-content). `bun install --frozen-lockfile` re-applies it on every
 CI runner. **Drop the patch only once upstream
 [alchemy-run/distilled#344](https://github.com/alchemy-run/distilled/pull/344)

@@ -1,0 +1,134 @@
+name: iOS
+
+# Builds the native app (ios/) and runs TabloTests on a simulator. The app
+# builds from ios/ alone (XcodeGen project.yml + Swift sources), so web- and
+# worker-only changes skip the macOS runner.
+#
+# Deliberately NOT filtered on packages/contract/**: TabloTests decode inline
+# JSON literals and never read the contract, so a contract-only change can't
+# change this workflow's result — a green run there would only suggest an iOS
+# compatibility check that never happened. A wire change the app must follow
+# edits ios/Tablo/API/Wire.swift (and WireTests) in the same PR, which
+# triggers this anyway.
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+# One run per ref: a new push to a PR cancels its superseded run. On main a
+# started run always finishes (GitHub may still drop a queued one in favour of
+# a newer push).
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build & test (simulator)
+    # Xcode 27 — what the app is developed with — is only on the `xcode-27`
+    # image (macOS 27, public preview: no SLA, possible queueing) as of
+    # 2026-10; the GA `macos-26`/`macos-latest` image tops out at Xcode 26.6
+    # (iOS 26.5 SDK). Once Xcode 27 lands on a GA image, switch to that label.
+    # GA fallback: `runs-on: macos-26` + XCODE_VERSION "26.6".
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      XCODE_VERSION: "27.0" # selects /Applications/Xcode_<version>.app
+    defaults:
+      run:
+        shell: bash # = bash -eo pipefail, so `xcodebuild | xcbeautify` fails when xcodebuild does
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Select Xcode
+        run: |
+          app="/Applications/Xcode_${XCODE_VERSION}.app"
+          if [ ! -d "$app" ]; then
+            installed=(/Applications/Xcode*.app)
+            echo "::error::Xcode $XCODE_VERSION is not on this runner image ($app missing). Installed: ${installed[*]}"
+            exit 1
+          fi
+          sudo xcode-select -s "$app"
+          xcodebuild -version
+          echo "iOS Simulator SDK: $(xcrun --sdk iphonesimulator --show-sdk-version)"
+
+      - name: Install XcodeGen (+ xcbeautify if the image lacks it)
+        run: |
+          brew install xcodegen
+          command -v xcbeautify >/dev/null || brew install xcbeautify   # preinstalled on GitHub's macOS images
+          echo "XcodeGen $(xcodegen --version | sed 's/^Version: //'), xcbeautify $(xcbeautify --version)"
+
+      - name: Generate Xcode project # Tablo.xcodeproj + Tablo/Info.plist are generated, not committed
+        run: xcodegen generate
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          # Device sets differ per image (and change as images update), so
+          # never hardcode a name: take the first available iPhone on the
+          # newest iOS runtime the selected Xcode's SDK can run.
+          sdk=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          pick=$(xcrun simctl list devices available -j | jq -r --arg sdk "$sdk" '
+            def ver: gsub("-"; ".") | split(".") | map(tonumber);
+            ($sdk | ver) as $max
+            | [ .devices | to_entries[]
+                | select(.key | test("\\.SimRuntime\\.iOS-[0-9]"))
+                | (.key | sub(".*\\.SimRuntime\\.iOS-"; "") | ver) as $v
+                | select($v <= $max)
+                | .value[] | select(.isAvailable and (.name | startswith("iPhone")))
+                | {v: $v, udid, name} ]
+            | group_by(.v) | last // [] | first // empty
+            | "\(.udid)\t\(.name) (iOS \(.v | map(tostring) | join(".")))"')
+          if [ -z "$pick" ]; then
+            echo "::error::No available iPhone simulator with an iOS runtime <= the iOS $sdk SDK (Xcode $XCODE_VERSION). Available devices:"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          udid=${pick%%$'\t'*}
+          echo "Using ${pick#*$'\t'} — $udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Boot simulator # up front, so a slow first boot can't time out the test runner
+        run: xcrun simctl bootstatus "$SIM_UDID" -b
+        env:
+          SIM_UDID: ${{ steps.sim.outputs.udid }}
+
+      - name: Build & test
+        env:
+          SIM_UDID: ${{ steps.sim.outputs.udid }}
+          NSUnbufferedIO: "YES" # stream xcodebuild output through the pipe as it happens
+        run: |
+          mkdir -p build   # gitignored (ios/.gitignore); holds DerivedData, the result bundle and the raw log
+          args=(
+            test
+            -project Tablo.xcodeproj
+            -scheme Tablo
+            -destination "platform=iOS Simulator,id=$SIM_UDID"
+            -derivedDataPath build/DerivedData
+            -resultBundlePath build/Tablo.xcresult
+            CODE_SIGNING_ALLOWED=NO          # simulator build: nothing to sign, no team needed
+            COMPILER_INDEX_STORE_ENABLE=NO   # no IDE on CI — skip indexing
+          )
+          xcodebuild "${args[@]}" 2>&1 | tee build/xcodebuild.log | xcbeautify --renderer github-actions
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v7 # v6+ runs on Node 24 (v5 still defaults to Node 20)
+        with:
+          name: ios-test-results
+          path: |
+            ios/build/Tablo.xcresult
+            ios/build/xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 14

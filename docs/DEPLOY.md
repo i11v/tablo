@@ -80,6 +80,27 @@ retyping one breaks installed builds. To try a backend change on a phone before
 merge, bake the PR preview into a build (`TABLO_API_BASE=https://preview-<N>.tablo.run`,
 see [`ios/README.md`](../ios/README.md#pointing-at-another-backend)).
 
+Two checks hold the contract in place, both generated from the Effect schemas
+by `bun run contract:write` (commit what it writes):
+
+- **`packages/contract/wire-shape.json`** lists every field the clients see or
+  send — HTTP API (from its OpenAPI), `/api/ws` and the stop index — with the
+  JSON forms it can take. `.github/workflows/contract.yml` runs
+  `bun run contract:check` on PRs touching the contract and fails on a change
+  that breaks an installed build: a response field removed, retyped, or newly
+  null/absent/given a new enum value; a request form the server stops
+  accepting; a new required request field. Additions pass. The
+  `contract-break` PR label skips it for a break the app provably tolerates.
+  It sees types, not refinements (a tightened range or max length isn't
+  flagged).
+- **`ios/TabloTests/ContractFixtures/*.json`** are sample payloads encoded by
+  the schemas (`scripts/lib/wire-fixtures.ts`), which `ContractTests.swift`
+  decodes, asserting every value. A wire change regenerates them, so it runs
+  the iOS workflow — the current app must read what the backend now sends.
+
+`bun run test` fails when either file is out of date, or when the samples
+don't show every field in every form (a nullable field both null and set).
+
 ## Custom domains (`tablo.run`)
 
 Attached via the worker's `domain` prop in `packages/worker/src/index.ts`. The

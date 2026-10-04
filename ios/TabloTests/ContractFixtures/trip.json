@@ -1,0 +1,42 @@
+{
+  "tripId": "22_1234_261003",
+  "headsign": "Bílá Hora",
+  "stops": [
+    {
+      "name": "Národní třída",
+      "lat": 50.0813,
+      "lon": 14.4189,
+      "node": 539,
+      "stop": 1,
+      "platform": "A",
+      "sequence": 12,
+      "arrival": 87000,
+      "departure": 87020,
+      "distance": 5.123
+    },
+    {
+      "name": "Rail waypoint",
+      "lat": 50.1,
+      "lon": 14.5,
+      "node": null,
+      "stop": null,
+      "platform": null,
+      "sequence": 13,
+      "arrival": 87100,
+      "departure": 87100,
+      "distance": 5.9
+    }
+  ],
+  "shape": [
+    [
+      14.4189,
+      50.0813,
+      5.1
+    ],
+    [
+      14.4176,
+      50.0811,
+      5.2
+    ]
+  ]
+}

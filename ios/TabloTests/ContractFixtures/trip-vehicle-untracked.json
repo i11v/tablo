@@ -1,0 +1,12 @@
+{
+  "tripId": "22_1234_261003",
+  "lat": 50.08,
+  "lon": 14.42,
+  "bearing": null,
+  "delaySeconds": null,
+  "lastStopSequence": null,
+  "nextStopSequence": null,
+  "distance": null,
+  "state": "before_track",
+  "updatedAt": "2026-10-03T09:10:45.000Z"
+}

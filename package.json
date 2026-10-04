@@ -13,6 +13,8 @@
     "build:index": "bun scripts/build-stop-index.ts",
     "build:web": "vite build packages/web",
     "verify:pwa": "bun scripts/verify-pwa.ts",
+    "contract:write": "bun scripts/contract.ts write",
+    "contract:check": "bun scripts/contract.ts check",
     "build": "bun run build:index && bun run build:web",
     "dev": "alchemy dev",
     "deploy": "alchemy deploy",

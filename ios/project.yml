@@ -52,6 +52,7 @@ targets:
     type: bundle.unit-test
     platform: iOS
     sources:
+      # includes ContractFixtures/*.json, copied into the test bundle as resources
       - path: TabloTests
     dependencies:
       - target: Tablo

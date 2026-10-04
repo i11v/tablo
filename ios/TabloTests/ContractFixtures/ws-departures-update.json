@@ -1,0 +1,41 @@
+{
+  "_tag": "DeparturesUpdate",
+  "boards": [
+    {
+      "key": "539",
+      "departures": [
+        {
+          "route": "22",
+          "kind": "tram",
+          "headsign": "Bílá Hora",
+          "scheduled": "2026-10-03T11:11:00+02:00",
+          "predicted": "2026-10-03T11:12:20+02:00",
+          "delaySeconds": 80,
+          "isCanceled": false,
+          "isAtStop": true,
+          "platform": "A",
+          "tripId": "22_1234_261003"
+        },
+        {
+          "route": "B",
+          "kind": "metro",
+          "headsign": "Zličín",
+          "scheduled": "2026-10-03T11:13:00+02:00",
+          "predicted": null,
+          "delaySeconds": null,
+          "isCanceled": true,
+          "isAtStop": false,
+          "platform": null,
+          "tripId": null
+        }
+      ]
+    },
+    {
+      "key": "1040:1,2",
+      "departures": []
+    }
+  ],
+  "generatedAt": "2026-10-03T09:10:45.141Z",
+  "degraded": true,
+  "reason": "upstream slow"
+}

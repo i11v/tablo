@@ -1,0 +1,158 @@
+{
+  "responses": {
+    "GET /api/health 200": {
+      "$": "object",
+      "$.ok": "boolean",
+      "$.version": "string"
+    },
+    "GET /api/trips/{tripId} 200": {
+      "$": "object",
+      "$.headsign": "string",
+      "$.shape": "array",
+      "$.shape[]": "array",
+      "$.shape[][0]": "number",
+      "$.shape[][1]": "number",
+      "$.shape[][2]": "number",
+      "$.stops": "array",
+      "$.stops[]": "object",
+      "$.stops[].arrival": "number",
+      "$.stops[].departure": "number",
+      "$.stops[].distance": "number",
+      "$.stops[].lat": "number",
+      "$.stops[].lon": "number",
+      "$.stops[].name": "string",
+      "$.stops[].node": "null | number",
+      "$.stops[].platform": "null | string",
+      "$.stops[].sequence": "number",
+      "$.stops[].stop": "null | number",
+      "$.tripId": "string"
+    },
+    "GET /api/trips/{tripId} 404": {
+      "$": "object",
+      "$._tag": "\"TripNotFound\"",
+      "$.tripId": "string"
+    },
+    "GET /api/trips/{tripId} 503": {
+      "$": "object",
+      "$._tag": "\"UpstreamUnavailable\"",
+      "$.reason": "string"
+    },
+    "GET /api/trips/{tripId}/vehicle 200": {
+      "$": "object",
+      "$.bearing": "null | number",
+      "$.delaySeconds": "null | number",
+      "$.distance": "null | number",
+      "$.lastStopSequence": "null | number",
+      "$.lat": "number",
+      "$.lon": "number",
+      "$.nextStopSequence": "null | number",
+      "$.state": "string",
+      "$.tripId": "string",
+      "$.updatedAt": "string"
+    },
+    "GET /api/trips/{tripId}/vehicle 404": {
+      "$": "object",
+      "$._tag": "\"TripNotFound\"",
+      "$.tripId": "string"
+    },
+    "GET /api/trips/{tripId}/vehicle 503": {
+      "$": "object",
+      "$._tag": "\"UpstreamUnavailable\"",
+      "$.reason": "string"
+    },
+    "GET /api/vehicles 200": {
+      "$": "object",
+      "$.generatedAt": "string",
+      "$.vehicles": "array",
+      "$.vehicles[]": "object",
+      "$.vehicles[].bearing": "null | number",
+      "$.vehicles[].delaySeconds": "null | number",
+      "$.vehicles[].kind": "\"bus\" | \"metro\" | \"other\" | \"train\" | \"tram\"",
+      "$.vehicles[].lat": "number",
+      "$.vehicles[].lon": "number",
+      "$.vehicles[].route": "string",
+      "$.vehicles[].tripId": "string"
+    },
+    "GET /api/vehicles 503": {
+      "$": "object",
+      "$._tag": "\"UpstreamUnavailable\"",
+      "$.reason": "string"
+    },
+    "GET /data/stop-index-{hash}.json": {
+      "$": "object",
+      "$.generatedAt": "string",
+      "$.stops": "array",
+      "$.stops[]": "object",
+      "$.stops[].disambig": "null | string",
+      "$.stops[].lat": "number",
+      "$.stops[].lon": "number",
+      "$.stops[].modes": "array",
+      "$.stops[].modes[]": "\"bus\" | \"metro\" | \"other\" | \"train\" | \"tram\"",
+      "$.stops[].name": "string",
+      "$.stops[].node": "number",
+      "$.stops[].norm": "string",
+      "$.stops[].platforms": "array",
+      "$.stops[].platforms[]": "object",
+      "$.stops[].platforms[].code": "string",
+      "$.stops[].platforms[].lat": "number",
+      "$.stops[].platforms[].lon": "number",
+      "$.stops[].platforms[].stop": "number",
+      "$.stops[].stops": "array | null",
+      "$.stops[].stops[]": "number",
+      "$.stops[].zone": "null | string",
+      "$.version": "1"
+    },
+    "GET /data/stops-manifest.json": {
+      "$": "object",
+      "$.count": "number",
+      "$.generatedAt": "string",
+      "$.path": "string"
+    },
+    "WS /api/ws server": {
+      "$": "<DeparturesUpdate> | <ServerError>",
+      "$<DeparturesUpdate>._tag": "\"DeparturesUpdate\"",
+      "$<DeparturesUpdate>.boards": "array",
+      "$<DeparturesUpdate>.boards[]": "object",
+      "$<DeparturesUpdate>.boards[].departures": "array",
+      "$<DeparturesUpdate>.boards[].departures[]": "object",
+      "$<DeparturesUpdate>.boards[].departures[].delaySeconds": "null | number",
+      "$<DeparturesUpdate>.boards[].departures[].headsign": "string",
+      "$<DeparturesUpdate>.boards[].departures[].isAtStop": "boolean",
+      "$<DeparturesUpdate>.boards[].departures[].isCanceled": "boolean",
+      "$<DeparturesUpdate>.boards[].departures[].kind": "\"bus\" | \"metro\" | \"other\" | \"train\" | \"tram\"",
+      "$<DeparturesUpdate>.boards[].departures[].platform": "null | string",
+      "$<DeparturesUpdate>.boards[].departures[].predicted": "null | string",
+      "$<DeparturesUpdate>.boards[].departures[].route": "string",
+      "$<DeparturesUpdate>.boards[].departures[].scheduled": "string",
+      "$<DeparturesUpdate>.boards[].departures[].tripId": "null | string",
+      "$<DeparturesUpdate>.boards[].key": "string",
+      "$<DeparturesUpdate>.degraded": "boolean",
+      "$<DeparturesUpdate>.generatedAt": "string",
+      "$<DeparturesUpdate>.reason": "null | string",
+      "$<ServerError>._tag": "\"ServerError\"",
+      "$<ServerError>.message": "string"
+    }
+  },
+  "requests": {
+    "GET /api/health": {},
+    "GET /api/trips/{tripId}": {
+      "$.path.tripId": "string"
+    },
+    "GET /api/trips/{tripId}/vehicle": {
+      "$.path.tripId": "string"
+    },
+    "GET /api/vehicles": {
+      "$.query.bbox": "string"
+    },
+    "WS /api/ws client": {
+      "$": "<Subscribe> | <Unsubscribe>",
+      "$<Subscribe>._tag": "\"Subscribe\"",
+      "$<Subscribe>.selectors": "array",
+      "$<Subscribe>.selectors[]": "object",
+      "$<Subscribe>.selectors[].node": "integer",
+      "$<Subscribe>.selectors[].stops": "array | null",
+      "$<Subscribe>.selectors[].stops[]": "integer",
+      "$<Unsubscribe>._tag": "\"Unsubscribe\""
+    }
+  }
+}

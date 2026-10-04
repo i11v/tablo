@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-03T03:00:00.000Z",
+  "stops": [
+    {
+      "name": "Národní třída",
+      "norm": "narodni trida",
+      "node": 539,
+      "stops": null,
+      "lat": 50.08069,
+      "lon": 14.41992,
+      "zone": "P",
+      "modes": [
+        "tram"
+      ],
+      "disambig": null,
+      "platforms": [
+        {
+          "code": "A",
+          "stop": 1,
+          "lat": 50.0813,
+          "lon": 14.4189
+        },
+        {
+          "code": "B",
+          "stop": 2,
+          "lat": 50.0811,
+          "lon": 14.4196
+        }
+      ]
+    },
+    {
+      "name": "Bečváry",
+      "norm": "becvary",
+      "node": 2154,
+      "stops": [
+        301
+      ],
+      "lat": 49.95565,
+      "lon": 15.07087,
+      "zone": null,
+      "modes": [],
+      "disambig": "5",
+      "platforms": []
+    }
+  ]
+}

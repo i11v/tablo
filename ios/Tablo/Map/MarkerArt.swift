@@ -58,10 +58,6 @@ enum MarkerArt {
         }
     }
 
-    static func user() -> MarkerImage {
-        centred(UserDot())
-    }
-
     /// The current stop on a journey: name tag over a tier-coloured ring.
     static func journeyStop(name: String, tier: Tier) -> MarkerImage {
         bottomAnchored(
@@ -185,19 +181,6 @@ private struct VehicleHead: View {
         }
         .fill(color)
         .frame(width: m.canvas, height: m.canvas)
-    }
-}
-
-private struct UserDot: View {
-    var body: some View {
-        ZStack {
-            Circle().fill(Palette.ink.opacity(0.14)).frame(width: 38, height: 38)
-            Circle()
-                .fill(Palette.ink)
-                .overlay(Circle().strokeBorder(Palette.bg, lineWidth: 2))
-                .frame(width: 16, height: 16)
-                .shadow(color: Palette.ink.opacity(0.7), radius: 5)
-        }
     }
 }
 

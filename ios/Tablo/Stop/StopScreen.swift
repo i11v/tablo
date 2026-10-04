@@ -154,7 +154,7 @@ private struct RecenterButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(PressableStyle())
-        .accessibilityLabel("Show my location")
+        .accessibilityLabel("Go to nearest stop")
     }
 }
 

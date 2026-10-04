@@ -15,8 +15,11 @@ enum MarkerArt {
     /// Room around each marker for rotation overflow and glow.
     private static let pad: CGFloat = 18
 
+    /// The appearance art is drawn in; the map re-renders its markers when it changes.
+    static var scheme: ColorScheme = .dark
+
     private static func render(_ view: some View) -> UIImage {
-        let renderer = ImageRenderer(content: view.padding(pad))
+        let renderer = ImageRenderer(content: view.padding(pad).environment(\.colorScheme, scheme))
         renderer.scale = 3
         renderer.isOpaque = false
         return renderer.uiImage ?? UIImage()
@@ -37,6 +40,7 @@ enum MarkerArt {
     private static var cache: [String: MarkerImage] = [:]
 
     private static func cached(_ key: String, _ make: () -> MarkerImage) -> MarkerImage {
+        let key = "\(scheme)|\(key)"
         if let hit = cache[key] { return hit }
         let art = make()
         if cache.count > 400 { cache.removeAll() }
@@ -66,7 +70,7 @@ enum MarkerArt {
                 ZStack {
                     Circle().fill(Palette.card)
                         .overlay(Circle().strokeBorder(tier.color, lineWidth: 3))
-                        .shadow(color: tier.color.opacity(0.6), radius: 7)
+                        .shadow(color: Palette.glow(tier.color, dark: 0.6, light: 0.3), radius: 7)
                     Circle().fill(tier.color).frame(width: 6, height: 6)
                 }
                 .frame(width: 20, height: 20)
@@ -88,7 +92,7 @@ enum MarkerArt {
     }
 }
 
-/// A rounded square with a tier-coloured border, set off from the map by a dark ring.
+/// A rounded square with a tier-coloured border, set off from the map by a halo ring.
 private struct Tile<Content: View>: View {
     let side: CGFloat
     let color: Color
@@ -97,15 +101,15 @@ private struct Tile<Content: View>: View {
 
     var body: some View {
         ZStack {
-            // box-shadow: 0 0 0 3px rgba(8,8,10,.75)
+            // box-shadow: 0 0 0 3px var(--color-halo)
             RoundedRectangle(cornerRadius: 10)
-                .fill(Palette.bg.opacity(0.75))
+                .fill(Palette.halo)
                 .frame(width: side + 6, height: side + 6)
             RoundedRectangle(cornerRadius: 7)
                 .fill(Palette.card)
                 .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(color, lineWidth: 2))
                 .frame(width: side, height: side)
-                .shadow(color: glow ? color.opacity(0.4) : .clear, radius: 6)
+                .shadow(color: glow ? Palette.glow(color, dark: 0.4, light: 0.25) : .clear, radius: 6)
             content
         }
     }
@@ -153,8 +157,8 @@ private struct VehicleBadge: View {
                 .fill(Palette.chip)
                 .overlay(Circle().strokeBorder(color, lineWidth: 2))
                 .frame(width: m.side, height: m.side)
-                .shadow(color: color.opacity(0.55), radius: m.haloBlur / 2)
-                .shadow(color: .black.opacity(0.6), radius: 3, y: 2)
+                .shadow(color: Palette.glow(color, dark: 0.55, light: 0.3), radius: m.haloBlur / 2)
+                .shadow(color: Palette.markerDrop, radius: 3, y: 2)
             Text(route)
                 .font(.hanken(fontSize, .heavy))
                 .tracking(-0.02 * fontSize)
@@ -194,8 +198,8 @@ private struct NameTag: View {
             .lineLimit(1)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(Color(hex: 0x0C0C0F, opacity: 0.88), in: RoundedRectangle(cornerRadius: 7))
-            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.white.opacity(0.1), lineWidth: 1))
+            .background(Palette.tag, in: RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Palette.wash(0.1), lineWidth: 1))
             .fixedSize()
     }
 }

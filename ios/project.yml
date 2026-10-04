@@ -32,7 +32,6 @@ targets:
           UIApplicationSupportsMultipleScenes: false
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        UIUserInterfaceStyle: Dark
         ITSAppUsesNonExemptEncryption: false
         NSLocationWhenInUseUsageDescription: tablo uses your location to show where you are and how long it takes you to walk to each stop.
         NSAppTransportSecurity:

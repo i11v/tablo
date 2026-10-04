@@ -244,7 +244,6 @@ final class StopModel {
     // MARK: - Location
 
     private func locationChanged() {
-        map.setUser(location.coordinate)
         updateNearest()
         placeByLocation()
         syncMap()
@@ -508,7 +507,8 @@ final class StopModel {
         switchStop(to: entry, userInitiated: true)
     }
 
-    private func switchStop(to entry: IndexStop, userInitiated: Bool) {
+    /// `sheet` overrides the sheet height the switch would otherwise pick.
+    private func switchStop(to entry: IndexStop, userInitiated: Bool, sheet: CGFloat? = nil) {
         if userInitiated {
             userPicked = true
             recents = Array(([entry.key] + recents.filter { $0 != entry.key }).prefix(8))
@@ -517,7 +517,9 @@ final class StopModel {
             query = ""
         }
         // size the sheet first: the map frames the stop against its final height
-        if let boardHeight, follow != nil {
+        if let sheet {
+            setSheet(sheet)
+        } else if let boardHeight, follow != nil {
             setSheet(boardHeight)
         } else {
             setSheet(sheetHeight > 520 ? Self.defaultSheet : sheetHeight)
@@ -586,8 +588,17 @@ final class StopModel {
         map.focusStop(index)
     }
 
+    /// The locate button: jump to the stop nearest you; already there (or no fix), frame it again.
+    /// Either way the sheet drops to its minimum so the map move is visible.
     func recenter() {
-        map.recenter(sheetHeight: sheetHeight)
+        if let here = location.coordinate, !entries.isEmpty,
+           let nearest = StopSearch.nearest(entries, to: here, limit: 1).first,
+           nearest.metres <= Self.nearestRadius, nearest.stop.key != stop.key {
+            switchStop(to: nearest.stop, userInitiated: true, sheet: Self.minSheet)
+        } else {
+            setSheet(Self.minSheet)
+            map.recenter(sheetHeight: sheetHeight)
+        }
     }
 
     // MARK: - Live data

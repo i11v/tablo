@@ -44,19 +44,14 @@ extension Glyph {
         }, fill: Path(ellipseIn: CGRect(x: 3.9, y: 0.5, width: 3, height: 3)))
     }
 
+    /// The locate button: the nearest-stop arrow at button size.
     static func recenter(color: Color = Palette.fabIcon) -> Glyph {
-        Glyph(viewBox: CGSize(width: 24, height: 24), size: CGSize(width: 19, height: 19), color: color, lineWidth: 1.7, stroke: Path { p in
-            p.addEllipse(in: CGRect(x: 7.5, y: 7.5, width: 9, height: 9))
-            for (a, b) in [((12.0, 2.0), (12.0, 5.0)), ((12, 19), (12, 22)), ((2, 12), (5, 12)), ((19, 12), (22, 12))] {
-                p.move(to: CGPoint(x: a.0, y: a.1))
-                p.addLine(to: CGPoint(x: b.0, y: b.1))
-            }
-        })
+        nearest(color: color, size: 18)
     }
 
     /// The filled location arrow marking the stop nearest you.
-    static func nearest(color: Color = Palette.make) -> Glyph {
-        Glyph(viewBox: CGSize(width: 24, height: 24), size: CGSize(width: 12, height: 12), color: color, lineWidth: 0, fill: Path { p in
+    static func nearest(color: Color = Palette.make, size: CGFloat = 12) -> Glyph {
+        Glyph(viewBox: CGSize(width: 24, height: 24), size: CGSize(width: size, height: size), color: color, lineWidth: 0, fill: Path { p in
             p.move(to: CGPoint(x: 12, y: 2))
             p.addLine(to: CGPoint(x: 20, y: 20))
             p.addLine(to: CGPoint(x: 12, y: 16))

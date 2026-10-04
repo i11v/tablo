@@ -4,7 +4,7 @@ import UIKit
 /// An annotation that carries its own pre-rendered artwork.
 final class Marker: MKPointAnnotation {
     enum Role {
-        case user, platform(String), vehicle(String), journeyStop, journeyVehicle, stop
+        case platform(String), vehicle(String), journeyStop, journeyVehicle, stop
     }
 
     let role: Role
@@ -203,9 +203,6 @@ final class StopMapController: NSObject, MKMapViewDelegate {
     private var platforms: [Platform] = []
     private var platformMarkers: [String: Marker] = [:]
     private var stopMarker: Marker?
-    private let userMarker: Marker
-    /// Your latest location fix (the dot may still be gliding toward it).
-    private var userFix: LngLat?
     private var vehicles: [String: Glide] = [:]
     private var vehicleTiers: [String: Tier] = [:]
 
@@ -234,7 +231,6 @@ final class StopMapController: NSObject, MKMapViewDelegate {
     init(activeModes: [VehicleKind], center: LngLat) {
         self.activeModes = activeModes
         self.center = center
-        userMarker = Marker(role: .user, at: center, art: MarkerArt.user(), zPriority: .init(rawValue: 100))
         super.init()
         configureMap()
         mapView.addOverlay(GroundScrim(), level: .aboveRoads)
@@ -263,30 +259,6 @@ final class StopMapController: NSObject, MKMapViewDelegate {
             guard let self else { return }
             setCamera(center: rectCenter(for: center, zoom: Self.homeZoom), zoom: Self.homeZoom, duration: 0)
             calibrateZoomRange()
-        }
-    }
-
-    // MARK: - You
-
-    /// The user dot: hidden until a fix, gliding over small moves.
-    func setUser(_ coord: LngLat?) {
-        userFix = coord
-        guard let coord else {
-            show(userMarker, false)
-            return
-        }
-        guard userMarker.isOnMap else {
-            userMarker.coordinate = coord.coordinate
-            show(userMarker, true)
-            return
-        }
-        let here = LngLat(userMarker.coordinate.longitude, userMarker.coordinate.latitude)
-        if Geo.haversineMetres(here, coord) > 300 {
-            userMarker.coordinate = coord.coordinate
-        } else {
-            UIView.animate(withDuration: 0.8, delay: 0, options: [.curveEaseInOut, .allowUserInteraction, .beginFromCurrentState]) {
-                self.userMarker.coordinate = coord.coordinate
-            }
         }
     }
 
@@ -519,12 +491,9 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         }
     }
 
-    /// The locate button: your position, centred in the map above the sheet.
-    /// Without a location fix it frames the followed journey or the stop.
+    /// Back home: frames the followed journey, or the stop.
     func recenter(sheetHeight: CGFloat) {
-        if let userFix {
-            fly(to: userFix, zoom: max(currentZoom, Self.homeZoom), offset: visibleCentreOffset, duration: 0.6)
-        } else if journey != nil {
+        if journey != nil {
             fitJourney(sheetHeight: sheetHeight)
         } else {
             fly(to: center, zoom: Self.homeZoom, duration: 0.6)

@@ -128,6 +128,12 @@ final class StopModel {
     @ObservationIgnored private var indexTask: Task<Void, Never>?
     @ObservationIgnored private var vehicleTask: Task<Void, Never>?
     @ObservationIgnored private var journeyTask: Task<Void, Never>?
+    @ObservationIgnored private var planTask: Task<Void, Never>?
+    @ObservationIgnored private var planRun = 0
+    /// Trips with no plan upstream (404): not asked for again.
+    @ObservationIgnored private var planless: Set<String> = []
+    /// Trips of the vehicles on the map right now.
+    @ObservationIgnored private var mapTrips: Set<String> = []
 
     private enum Keys {
         static let stop = "tablo.currentStop"
@@ -186,7 +192,7 @@ final class StopModel {
             location.stop()
             clock?.invalidate()
             clock = nil
-            vehicleTask?.cancel()
+            stopVehiclePolling()
             journeyTask?.cancel()
         }
     }
@@ -489,7 +495,7 @@ final class StopModel {
     func openSearch() {
         query = ""
         searchOpen = true
-        vehicleTask?.cancel()
+        stopVehiclePolling()
     }
 
     func closeSearch() {
@@ -561,7 +567,7 @@ final class StopModel {
         withAnimation(.easeOut(duration: 0.18)) { follow = Follow(departure: wire, trip: trip, vehicle: nil) }
         setSheet(h)
         map.setSelected(nil)
-        vehicleTask?.cancel()
+        stopVehiclePolling()
         if let j = journey { map.showJourney(j, id: tripId, sheetHeight: h) }
         startJourneyPolling()
     }
@@ -611,7 +617,7 @@ final class StopModel {
     /// Vehicles around the stop every 10 s while the board is up; none on failure
     /// (production before the endpoint ships answers 404/500).
     private func restartVehiclePolling() {
-        vehicleTask?.cancel()
+        stopVehiclePolling()
         guard active, follow == nil, !searchOpen else { return }
         let box = BBox.around(stop.coord)
         vehicleTask = Task { [weak self, api] in
@@ -631,12 +637,76 @@ final class StopModel {
         }
     }
 
+    private func stopVehiclePolling() {
+        vehicleTask?.cancel()
+        planTask?.cancel()
+        planTask = nil
+    }
+
     private func vehiclesLoaded(_ list: [LiveVehicle]) {
         map.setVehicles(
             list.map { MapVehicle(tripId: $0.tripId, route: $0.route, kind: $0.kind, coord: $0.coord) },
             glide: Self.vehiclePoll
         )
+        mapTrips = Set(list.map(\.tripId))
+        for v in list {
+            if let plan = tripPlans[v.tripId] { attachPath(v.tripId, plan) }
+        }
+        loadVehiclePlans(list)
         syncMap()
+    }
+
+    /// Fetch the trips of the vehicles on the map so they glide along their
+    /// lines — one at a time, a second apart, to leave the shared upstream
+    /// budget to the boards. Trips on the board first, then nearest the stop.
+    private func loadVehiclePlans(_ list: [LiveVehicle]) {
+        guard planTask == nil else { return }
+        let onBoard = Set(departures.compactMap(\.tripId))
+        let here = stop.coord
+        let wanted = list
+            .filter { tripPlans[$0.tripId] == nil && !planless.contains($0.tripId) }
+            .sorted { a, b in
+                let ka = onBoard.contains(a.tripId), kb = onBoard.contains(b.tripId)
+                if ka != kb { return ka }
+                return Geo.haversineMetres(a.coord, here) < Geo.haversineMetres(b.coord, here)
+            }
+            .map(\.tripId)
+        guard !wanted.isEmpty else { return }
+        planRun += 1
+        let run = planRun
+        planTask = Task { [weak self, api] in
+            for tripId in wanted {
+                guard !Task.isCancelled, let self else { return }
+                // gone from the map, or loaded meanwhile (a followed journey)
+                guard mapTrips.contains(tripId), tripPlans[tripId] == nil else { continue }
+                do {
+                    let trip = try await api.trip(tripId)
+                    guard !Task.isCancelled else { return }
+                    vehiclePlanLoaded(tripId, TripPlan(trip))
+                } catch APIError.notFound {
+                    planless.insert(tripId)
+                } catch {
+                    break // transient: the next poll tries again
+                }
+                try? await Task.sleep(for: .seconds(1))
+            }
+            if self?.planRun == run { self?.planTask = nil }
+        }
+    }
+
+    private func vehiclePlanLoaded(_ tripId: String, _ plan: TripPlan) {
+        if tripPlans.count >= 300 {
+            // keep what's on the map or followed; let the rest go
+            tripPlans = tripPlans.filter { mapTrips.contains($0.key) || $0.key == follow?.id }
+        }
+        tripPlans[tripId] = plan
+        attachPath(tripId, plan)
+    }
+
+    /// Only a real shape: a plan drawn stop to stop would cut corners too.
+    private func attachPath(_ tripId: String, _ plan: TripPlan) {
+        guard plan.trip.shape.count > 1 else { return }
+        map.setVehiclePath(tripId, plan.path)
     }
 
     /// Load the followed trip (cached by id), then poll its vehicle every 10 s.

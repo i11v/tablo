@@ -6,6 +6,8 @@ import UIKit
 struct MarkerImage {
     let image: UIImage
     let anchor: CGPoint
+    /// A direction wedge, same canvas as `image`, pointing up; rotated about the centre to the heading.
+    var head: UIImage?
 }
 
 @MainActor
@@ -44,13 +46,15 @@ enum MarkerArt {
 
     static func platform(_ p: Platform, dimmed: Bool) -> MarkerImage {
         cached("platform|\(p.short)|\(p.tier)|\(dimmed)") {
-            bottomAnchored(PlatformPin(label: p.short, color: p.tier.color, dimmed: dimmed))
+            centred(PlatformTile(label: p.short, color: p.tier.color, dimmed: dimmed))
         }
     }
 
     static func vehicle(route: String, tier: Tier, big: Bool) -> MarkerImage {
         cached("vehicle|\(route)|\(tier)|\(big)") {
-            centred(VehicleBadge(route: route, color: tier.color, big: big))
+            var art = centred(VehicleBadge(route: route, color: tier.color, big: big))
+            art.head = render(VehicleHead(color: tier.color, big: big))
+            return art
         }
     }
 
@@ -75,66 +79,69 @@ enum MarkerArt {
         )
     }
 
-    /// The current stop when none of its platforms can be placed: name tag over a bone pin.
+    /// The current stop when none of its platforms can be placed: name tag over a bone tile.
     static func stopPin(name: String) -> MarkerImage {
         bottomAnchored(
             VStack(spacing: 5) {
                 NameTag(name: name)
-                ZStack {
-                    PinShape()
-                        .fill(Palette.card)
-                        .overlay(PinShape().strokeBorder(Palette.ink, lineWidth: 2))
-                        .frame(width: 30, height: 30)
-                        .rotationEffect(.degrees(-45))
-                        .shadow(color: .black.opacity(0.5), radius: 4, y: 3)
-                    Circle().fill(Palette.ink).frame(width: 8, height: 8)
+                Tile(side: 26, color: Palette.ink) {
+                    RoundedRectangle(cornerRadius: 2).fill(Palette.ink).frame(width: 8, height: 8)
                 }
-                .frame(width: 30, height: 30)
             }
         )
     }
 }
 
-/// "50% 50% 50% 2px" — a disc with one sharp corner, rotated into a pin.
-private struct PinShape: InsettableShape {
-    var inset: CGFloat = 0
+/// A rounded square with a tier-coloured border, set off from the map by a dark ring.
+private struct Tile<Content: View>: View {
+    let side: CGFloat
+    let color: Color
+    var glow = false
+    @ViewBuilder let content: Content
 
-    func path(in rect: CGRect) -> Path {
-        let r = rect.insetBy(dx: inset, dy: inset)
-        let big = r.width / 2
-        return UnevenRoundedRectangle(
-            topLeadingRadius: big, bottomLeadingRadius: max(0, 2 - inset),
-            bottomTrailingRadius: big, topTrailingRadius: big
-        ).path(in: r)
-    }
-
-    func inset(by amount: CGFloat) -> PinShape {
-        PinShape(inset: inset + amount)
+    var body: some View {
+        ZStack {
+            // box-shadow: 0 0 0 3px rgba(8,8,10,.75)
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Palette.bg.opacity(0.75))
+                .frame(width: side + 6, height: side + 6)
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Palette.card)
+                .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(color, lineWidth: 2))
+                .frame(width: side, height: side)
+                .shadow(color: glow ? color.opacity(0.4) : .clear, radius: 6)
+            content
+        }
     }
 }
 
-private struct PlatformPin: View {
+private struct PlatformTile: View {
     let label: String
     let color: Color
     let dimmed: Bool
 
     var body: some View {
-        ZStack {
-            PinShape()
-                .fill(Palette.card)
-                .overlay(PinShape().strokeBorder(color, lineWidth: 2))
-                .frame(width: 30, height: 30)
-                .rotationEffect(.degrees(45))
-                .shadow(color: color.opacity(0.4), radius: 6)
-                .shadow(color: .black.opacity(0.5), radius: 4, y: 3)
+        Tile(side: 28, color: color, glow: true) {
             Text(label)
                 .font(.hanken(14, .heavy))
                 .foregroundStyle(color)
         }
-        .frame(width: 30, height: 30)
         .grayscale(dimmed ? 0.5 : 0)
         .opacity(dimmed ? 0.55 : 1)
     }
+}
+
+/// Vehicle geometry shared by the badge and its heading wedge, so both rasterise to one canvas.
+private struct VehicleMetrics {
+    let big: Bool
+    var side: CGFloat { big ? 30 : 24 }
+    var ring: CGFloat { side + 2 }
+    var halo: CGFloat { ring + (big ? 9 : 5) * 2 }
+    var wedgeHalfWidth: CGFloat { big ? 6 : 5 }
+    var wedgeHeight: CGFloat { big ? 8 : 7 }
+    /// The wedge's apex sits this far outside the ring.
+    var wedgeReach: CGFloat { wedgeHeight - 1 }
+    var canvas: CGFloat { max(halo, ring + wedgeReach * 2) }
 }
 
 private struct VehicleBadge: View {
@@ -143,17 +150,16 @@ private struct VehicleBadge: View {
     let big: Bool
 
     var body: some View {
-        let side: CGFloat = big ? 30 : 24
-        let halo = side + 2 + (big ? 9 : 5) * 2
+        let m = VehicleMetrics(big: big)
         let fontSize: CGFloat = route.count > 2 ? (big ? 12 : 10) : (big ? 14 : 12)
         ZStack {
             Circle()
-                .fill(RadialGradient(colors: [color.opacity(0.55), color.opacity(0)], center: .center, startRadius: 0, endRadius: halo / 2))
-                .frame(width: halo, height: halo)
-            RoundedRectangle(cornerRadius: big ? 9 : 8)
+                .fill(RadialGradient(colors: [color.opacity(0.55), color.opacity(0)], center: .center, startRadius: 0, endRadius: m.halo / 2))
+                .frame(width: m.halo, height: m.halo)
+            Circle()
                 .fill(Palette.vehicleFill)
-                .overlay(RoundedRectangle(cornerRadius: big ? 9 : 8).strokeBorder(color, lineWidth: 2))
-                .frame(width: side, height: side)
+                .overlay(Circle().strokeBorder(color, lineWidth: 2))
+                .frame(width: m.side, height: m.side)
                 .shadow(color: color.opacity(0.5), radius: 5)
                 .shadow(color: .black.opacity(0.6), radius: 3, y: 2)
             Text(route)
@@ -161,6 +167,28 @@ private struct VehicleBadge: View {
                 .tracking(-0.02 * fontSize)
                 .foregroundStyle(Palette.ink)
         }
+        .frame(width: m.canvas, height: m.canvas)
+    }
+}
+
+/// The direction wedge that orbits a vehicle's ring, drawn pointing up.
+private struct VehicleHead: View {
+    let color: Color
+    let big: Bool
+
+    var body: some View {
+        let m = VehicleMetrics(big: big)
+        let apex = (m.canvas - m.ring) / 2 - m.wedgeReach
+        Path { p in
+            let mid = m.canvas / 2
+            p.move(to: CGPoint(x: mid, y: apex))
+            p.addLine(to: CGPoint(x: mid + m.wedgeHalfWidth, y: apex + m.wedgeHeight))
+            p.addLine(to: CGPoint(x: mid - m.wedgeHalfWidth, y: apex + m.wedgeHeight))
+            p.closeSubpath()
+        }
+        .fill(color)
+        .shadow(color: color, radius: 1.5)
+        .frame(width: m.canvas, height: m.canvas)
     }
 }
 

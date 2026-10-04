@@ -13,6 +13,8 @@ final class Marker: MKPointAnnotation {
     var tappable: Bool
     var scale: CGFloat = 1
     var opacity: CGFloat = 1
+    /// Screen heading in degrees (0 = up, clockwise) for art with a `head`; nil hides it.
+    var heading: Double?
     fileprivate(set) var isOnMap = false
 
     init(role: Role, at coord: LngLat, art: MarkerImage, zPriority: MKAnnotationViewZPriority, tappable: Bool = false) {
@@ -90,6 +92,12 @@ private final class Glide {
         return Geo.lerp(from, to, progress(at: t))
     }
 
+    /// Which way it's heading: along its line when on it, else toward its fix.
+    func heading(at t: CFTimeInterval) -> Double? {
+        if onPath, let path { return pathHeading(path, atKm: km(at: t)) }
+        return screenHeading(from, to)
+    }
+
     /// `fix` on the path, when it's close enough to count.
     private func snap(_ fix: LngLat, fromKm: Double = -.infinity) -> Double? {
         guard let path, let s = Geo.snap(fix, onto: path, fromKm: fromKm), s.metres <= Self.offPathMetres else { return nil }
@@ -157,6 +165,23 @@ private final class Glide {
         fadeTo = target
         fadeStart = t
     }
+}
+
+/// Screen heading (degrees, 0 = up, clockwise) from `a` to `b` on the north-up map.
+private func screenHeading(_ a: LngLat, _ b: LngLat) -> Double? {
+    let p = MKMapPoint(a.coordinate), q = MKMapPoint(b.coordinate)
+    let dx = q.x - p.x, dy = q.y - p.y
+    guard dx != 0 || dy != 0 else { return nil }
+    return atan2(dx, -dy) * 180 / .pi
+}
+
+/// Heading of `path` at `km`, over a short span (looking back at the end of the line).
+private func pathHeading(_ path: [PathPoint], atKm km: Double) -> Double? {
+    let span = 0.01
+    let end = path.last?.km ?? km
+    let a = min(km, end - span), b = a + span
+    guard let p = Geo.point(on: path, atKm: a), let q = Geo.point(on: path, atKm: b) else { return nil }
+    return screenHeading(p, q)
 }
 
 /// Imperative map controller — a port of the prototype's `map-proto.js`.
@@ -569,12 +594,14 @@ final class StopMapController: NSObject, MKMapViewDelegate {
                     g.marker.opacity = opacity
                     mapView.view(for: g.marker)?.alpha = opacity
                 }
+                turn(g.marker, to: g.heading(at: t))
             }
             for id in gone {
                 if let g = vehicles.removeValue(forKey: id) { show(g.marker, false) }
             }
         } else if let vehicle = journeyVehicle {
             vehicle.coordinate = journeyVehiclePosition().coordinate
+            if let j = journey { turn(vehicle, to: pathHeading(j.path, atKm: displayedKm(at: t))) }
             frame += 1
             if frame % 6 == 0 { pushJourneySnapshot() }
         }
@@ -675,6 +702,38 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         if visible { mapView.addAnnotation(marker) } else { mapView.removeAnnotation(marker) }
     }
 
+    /// Point a marker's wedge along `heading`, keeping the last one while it stands still.
+    private func turn(_ m: Marker, to heading: Double?) {
+        guard let heading else { return }
+        if let old = m.heading, abs(old - heading) < 0.5 { return }
+        m.heading = heading
+        if let view = mapView.view(for: m) { orientHead(of: view, with: m) }
+    }
+
+    private static let headTag = 0x7AB1
+
+    private func orientHead(of view: MKAnnotationView, with m: Marker) {
+        var head = view.viewWithTag(Self.headTag) as? UIImageView
+        guard let image = m.art.head, let heading = m.heading else {
+            head?.isHidden = true
+            return
+        }
+        if head == nil {
+            let v = UIImageView()
+            v.tag = Self.headTag
+            view.addSubview(v)
+            head = v
+        }
+        guard let head else { return }
+        head.isHidden = false
+        if head.image !== image {
+            head.transform = .identity
+            head.image = image
+            head.frame = CGRect(origin: .zero, size: image.size)
+        }
+        head.transform = CGAffineTransform(rotationAngle: heading * .pi / 180)
+    }
+
     private func configure(_ view: MKAnnotationView, with m: Marker) {
         let size = m.art.image.size
         view.image = m.art.image
@@ -686,6 +745,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         view.isEnabled = m.tappable
         view.alpha = m.opacity
         view.transform = CGAffineTransform(scaleX: m.scale, y: m.scale)
+        orientHead(of: view, with: m)
     }
 
     nonisolated func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {

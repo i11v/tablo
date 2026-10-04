@@ -135,13 +135,13 @@ private struct PlatformTile: View {
 private struct VehicleMetrics {
     let big: Bool
     var side: CGFloat { big ? 30 : 24 }
-    var ring: CGFloat { side + 2 }
-    var halo: CGFloat { ring + (big ? 9 : 5) * 2 }
+    /// Halo blur (CSS px); SwiftUI's shadow radius is about half of it.
+    var haloBlur: CGFloat { big ? 14 : 9 }
     var wedgeHalfWidth: CGFloat { big ? 6 : 5 }
-    var wedgeHeight: CGFloat { big ? 8 : 7 }
-    /// The wedge's apex sits this far outside the ring.
-    var wedgeReach: CGFloat { wedgeHeight - 1 }
-    var canvas: CGFloat { max(halo, ring + wedgeReach * 2) }
+    var wedgeLength: CGFloat { big ? 8 : 7 }
+    /// The wedge's base sits this far inside the ring's outer edge.
+    var wedgeOverlap: CGFloat { 1 }
+    var canvas: CGFloat { side + (wedgeLength - wedgeOverlap) * 2 }
 }
 
 private struct VehicleBadge: View {
@@ -154,40 +154,36 @@ private struct VehicleBadge: View {
         let fontSize: CGFloat = route.count > 2 ? (big ? 12 : 10) : (big ? 14 : 12)
         ZStack {
             Circle()
-                .fill(RadialGradient(colors: [color.opacity(0.55), color.opacity(0)], center: .center, startRadius: 0, endRadius: m.halo / 2))
-                .frame(width: m.halo, height: m.halo)
-            Circle()
-                .fill(Palette.vehicleFill)
+                .fill(Palette.chip)
                 .overlay(Circle().strokeBorder(color, lineWidth: 2))
                 .frame(width: m.side, height: m.side)
-                .shadow(color: color.opacity(0.5), radius: 5)
+                .shadow(color: color.opacity(0.55), radius: m.haloBlur / 2)
                 .shadow(color: .black.opacity(0.6), radius: 3, y: 2)
             Text(route)
                 .font(.hanken(fontSize, .heavy))
                 .tracking(-0.02 * fontSize)
-                .foregroundStyle(Palette.ink)
+                .foregroundStyle(Palette.chipInk)
         }
         .frame(width: m.canvas, height: m.canvas)
     }
 }
 
-/// The direction wedge that orbits a vehicle's ring, drawn pointing up.
+/// The direction wedge on a vehicle's ring, drawn pointing up.
 private struct VehicleHead: View {
     let color: Color
     let big: Bool
 
     var body: some View {
         let m = VehicleMetrics(big: big)
-        let apex = (m.canvas - m.ring) / 2 - m.wedgeReach
+        let base = (m.canvas - m.side) / 2 + m.wedgeOverlap
         Path { p in
             let mid = m.canvas / 2
-            p.move(to: CGPoint(x: mid, y: apex))
-            p.addLine(to: CGPoint(x: mid + m.wedgeHalfWidth, y: apex + m.wedgeHeight))
-            p.addLine(to: CGPoint(x: mid - m.wedgeHalfWidth, y: apex + m.wedgeHeight))
+            p.move(to: CGPoint(x: mid, y: base - m.wedgeLength))
+            p.addLine(to: CGPoint(x: mid + m.wedgeHalfWidth, y: base))
+            p.addLine(to: CGPoint(x: mid - m.wedgeHalfWidth, y: base))
             p.closeSubpath()
         }
         .fill(color)
-        .shadow(color: color, radius: 1.5)
         .frame(width: m.canvas, height: m.canvas)
     }
 }

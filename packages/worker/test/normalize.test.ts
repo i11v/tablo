@@ -150,7 +150,7 @@ describe("toBoards", () => {
       predicted: "2026-06-06T12:05:30.000Z",
       delaySeconds: 90,
       isCanceled: false,
-      isAtStop: false,
+      atStop: false,
       platform: "A",
       tripId: "t1",
     })

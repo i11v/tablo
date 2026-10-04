@@ -42,7 +42,7 @@ export const Departure = Schema.Struct({
   predicted: Schema.NullOr(Schema.String), // carries realtime delay when present
   delaySeconds: Schema.NullOr(Schema.Number),
   isCanceled: Schema.Boolean,
-  isAtStop: Schema.Boolean,
+  atStop: Schema.Boolean,
   platform: Schema.NullOr(Schema.String),
   // GTFS trip id — the key for /api/trips/:tripId (journey) lookups.
   tripId: Schema.NullOr(Schema.String),

@@ -11,7 +11,7 @@ const dep = (over: Partial<Departure>): Departure => ({
   predicted: null,
   delaySeconds: null,
   isCanceled: false,
-  isAtStop: false,
+  atStop: false,
   platform: null,
   tripId: null,
   ...over,

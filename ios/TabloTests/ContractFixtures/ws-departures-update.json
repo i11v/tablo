@@ -12,7 +12,7 @@
           "predicted": "2026-10-03T11:12:20+02:00",
           "delaySeconds": 80,
           "isCanceled": false,
-          "isAtStop": true,
+          "atStop": true,
           "platform": "A",
           "tripId": "22_1234_261003"
         },
@@ -24,7 +24,7 @@
           "predicted": null,
           "delaySeconds": null,
           "isCanceled": true,
-          "isAtStop": false,
+          "atStop": false,
           "platform": null,
           "tripId": null
         }

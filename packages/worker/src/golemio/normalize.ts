@@ -58,7 +58,7 @@ const toDeparture = (d: PidDeparture): Departure | null => {
     predicted,
     delaySeconds,
     isCanceled: d.trip.is_canceled,
-    isAtStop: d.trip.is_at_stop,
+    atStop: d.trip.is_at_stop,
     platform: d.stop.platform_code,
     tripId: d.trip.id,
   }

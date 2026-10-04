@@ -29,7 +29,7 @@ export const departureVM = (dep: Departure, nowMs: number): DepartureVM | null =
     // reachability margin built on this number must never claim half a
     // minute the rider doesn't have. (Transit-board convention too.)
     inMinutes: Math.max(0, Math.floor(diff / 60_000)),
-    atStop: dep.isAtStop,
+    atStop: dep.atStop,
     delayMinutes: dep.delaySeconds === null ? 0 : Math.round(dep.delaySeconds / 60),
     sortKey: t,
   }

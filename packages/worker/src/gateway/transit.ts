@@ -1,9 +1,8 @@
-import type { BBox, LiveVehicles, Trip, TripVehicle } from "@app/contract"
-import { MAX_BBOX_SPAN } from "@app/contract"
+import type { BBox, LiveVehicle, LiveVehicles, Trip, TripVehicle } from "@app/contract"
 import { Clock, Effect, Layer } from "effect"
 import * as Context from "effect/Context"
 import { GolemioClient } from "../golemio/client.ts"
-import { toLiveVehicles, toTrip, toTripVehicle } from "../golemio/normalize.ts"
+import { toLiveVehicle, toTrip, toTripVehicle } from "../golemio/normalize.ts"
 import { type Found, makeOutcomeCache, type Outcome } from "./cache.ts"
 import { UpstreamGuard } from "./upstream.ts"
 
@@ -20,42 +19,13 @@ const TRIP = {
 // Positions move: as fresh as boards. Stale ones are only worth serving for a
 // minute — the payload's own timestamps tell the client how old they are.
 const TRIP_VEHICLE = { ttlMs: 5_000, maxStaleMs: 60_000, capacity: 256 }
-const VEHICLES = { ttlMs: 5_000, maxStaleMs: 60_000, capacity: 64 }
+// Every vehicle in PID, fetched once and filtered per map box, so any number of
+// boxes cost one upstream call per refresh.
+const ALL_VEHICLES = { ttlMs: 5_000, maxStaleMs: 60_000, capacity: 1 }
+const ALL = "all"
 
-/** Bboxes snap outward to this grid (degrees) so nearby clients share entries. */
-export const BBOX_GRID = 0.005
-const CELLS_PER_DEGREE = Math.round(1 / BBOX_GRID)
-const MAX_SPAN_CELLS = Math.round(MAX_BBOX_SPAN * CELLS_PER_DEGREE)
-
-/** Snap one axis outward to the grid, then clamp it (centred) to MAX_BBOX_SPAN. */
-const snapAxis = (min: number, max: number): readonly [number, number] => {
-  // The epsilon keeps values already on a grid line (50.075 → 10015 cells)
-  // from being pushed a whole cell out by float error.
-  let lo = Math.floor(min * CELLS_PER_DEGREE + 1e-9)
-  let hi = Math.ceil(max * CELLS_PER_DEGREE - 1e-9)
-  if (hi <= lo) hi = lo + 1
-  const excess = hi - lo - MAX_SPAN_CELLS
-  if (excess > 0) {
-    lo += Math.floor(excess / 2)
-    hi = lo + MAX_SPAN_CELLS
-  }
-  return [lo, hi]
-}
-
-/** Snapped box plus its canonical cache key. */
-export const snapBBox = (bbox: BBox): { readonly key: string; readonly bbox: BBox } => {
-  const [latLo, latHi] = snapAxis(bbox.minLat, bbox.maxLat)
-  const [lonLo, lonHi] = snapAxis(bbox.minLon, bbox.maxLon)
-  return {
-    key: `${latLo},${lonLo},${latHi},${lonHi}`,
-    bbox: {
-      minLat: latLo / CELLS_PER_DEGREE,
-      minLon: lonLo / CELLS_PER_DEGREE,
-      maxLat: latHi / CELLS_PER_DEGREE,
-      maxLon: lonHi / CELLS_PER_DEGREE,
-    },
-  }
-}
+const inBox = (v: LiveVehicle, b: BBox) =>
+  v.lat >= b.minLat && v.lat <= b.maxLat && v.lon >= b.minLon && v.lon <= b.maxLon
 
 const ok = <A>(value: A): Found<A> => ({ _tag: "ok", value })
 const notFound = { _tag: "notFound" } as const
@@ -78,7 +48,7 @@ export class TransitGateway extends Context.Service<TransitGateway, TransitApi>(
       const guard = yield* UpstreamGuard
       const trips = yield* makeOutcomeCache<Trip>(TRIP)
       const tripVehicles = yield* makeOutcomeCache<TripVehicle>(TRIP_VEHICLE)
-      const vehicles = yield* makeOutcomeCache<LiveVehicles>(VEHICLES)
+      const snapshot = yield* makeOutcomeCache<LiveVehicles>(ALL_VEHICLES)
 
       const getTrip = Effect.fn("TransitGateway.getTrip")((tripId: string) =>
         trips.get(
@@ -101,16 +71,18 @@ export class TransitGateway extends Context.Service<TransitGateway, TransitApi>(
         ),
       )
 
-      const getVehicles = Effect.fn("TransitGateway.getVehicles")((requested: BBox) => {
-        const { key, bbox } = snapBBox(requested)
-        return vehicles.get(
-          key,
+      const getVehicles = Effect.fn("TransitGateway.getVehicles")(function* (bbox: BBox) {
+        const all = yield* snapshot.get(
+          ALL,
           Effect.gen(function* () {
-            const data = yield* guard.run(client.fetchVehicles(bbox))
-            const fetchedAt = new Date(yield* Clock.currentTimeMillis).toISOString()
-            return ok(toLiveVehicles(data, fetchedAt))
+            const data = yield* guard.run(client.fetchAllVehicles())
+            const generatedAt = new Date(yield* Clock.currentTimeMillis).toISOString()
+            return ok({ vehicles: data.map(toLiveVehicle), generatedAt })
           }),
         )
+        return all._tag === "ok"
+          ? ok({ ...all.value, vehicles: all.value.vehicles.filter((v) => inBox(v, bbox)) })
+          : all
       })
 
       return { getTrip, getTripVehicle, getVehicles }

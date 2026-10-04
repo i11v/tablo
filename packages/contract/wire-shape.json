@@ -67,11 +67,16 @@
       "$.vehicles[]": "object",
       "$.vehicles[].bearing": "null | number",
       "$.vehicles[].delaySeconds": "null | number",
+      "$.vehicles[].distance": "null | number",
       "$.vehicles[].kind": "\"bus\" | \"metro\" | \"other\" | \"train\" | \"tram\"",
+      "$.vehicles[].lastStopSequence": "null | number",
       "$.vehicles[].lat": "number",
       "$.vehicles[].lon": "number",
+      "$.vehicles[].nextStopSequence": "null | number",
       "$.vehicles[].route": "string",
-      "$.vehicles[].tripId": "string"
+      "$.vehicles[].state": "string",
+      "$.vehicles[].tripId": "string",
+      "$.vehicles[].updatedAt": "string"
     },
     "GET /api/vehicles 503": {
       "$": "object",

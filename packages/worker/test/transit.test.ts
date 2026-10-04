@@ -1,7 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Effect, Fiber, Layer, Ref, Schema } from "effect"
 import { TestClock } from "effect/testing"
-import { MAX_BBOX_SPAN } from "@app/contract"
 import type { BBox } from "@app/contract"
 import {
   GolemioNotFoundError,
@@ -9,15 +8,24 @@ import {
   GolemioUpstreamError,
 } from "../src/golemio/errors.ts"
 import type { GolemioClient } from "../src/golemio/client.ts"
-import { PidPublicVehicles, PidTripPosition, PidTripResponse } from "../src/golemio/schema.ts"
+import { PidTripPosition, PidTripResponse, PidVehiclePosition } from "../src/golemio/schema.ts"
 import { DepartureGateway } from "../src/gateway/service.ts"
-import { snapBBox, TransitGateway } from "../src/gateway/transit.ts"
+import { TransitGateway } from "../src/gateway/transit.ts"
 import { fakeClient, guardLayer } from "./fakes.ts"
-import { publicVehiclesFixture, tripFixture, tripPositionFixture } from "./fixtures/transit.ts"
+import { tripFixture, tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
 
 const tripData = Schema.decodeUnknownSync(PidTripResponse)(tripFixture)
 const positionData = Schema.decodeUnknownSync(PidTripPosition)(tripPositionFixture)
-const vehiclesData = Schema.decodeUnknownSync(PidPublicVehicles)(publicVehiclesFixture)
+const vehiclesData = vehiclePositionsFixture.features
+  .slice(0, 4)
+  .map((f) => Schema.decodeUnknownSync(PidVehiclePosition)(f))
+
+const box = (minLat: number, minLon: number, maxLat: number, maxLon: number): BBox => ({
+  minLat,
+  minLon,
+  maxLat,
+  maxLon,
+})
 
 type Mode = "ok" | "notFound" | "fail" | "rateLimited"
 
@@ -54,9 +62,9 @@ const makeFake = Effect.gen(function* () {
       ),
     fetchTrip: (id) => respond(`trip:${id}`, tripData),
     fetchTripPosition: (id) => respond(`position:${id}`, positionData),
-    fetchVehicles: (b) =>
-      respond(`vehicles:${b.minLat},${b.minLon},${b.maxLat},${b.maxLon}`, vehiclesData).pipe(
-        Effect.catchTag("GolemioNotFoundError", () => Effect.succeed({ features: [] })),
+    fetchAllVehicles: () =>
+      respond("vehicles", vehiclesData).pipe(
+        Effect.catchTag("GolemioNotFoundError", () => Effect.succeed([])),
       ),
   })
   const calls = Ref.get(log).pipe(Effect.map((l) => l.length))
@@ -188,27 +196,47 @@ describe("TransitGateway", () => {
     }),
   )
 
-  it.effect("snaps nearby boxes onto one grid box and one upstream call", () =>
+  it.effect("serves every box from one city-wide snapshot, filtered", () =>
     Effect.gen(function* () {
       const fake = yield* makeFake
       yield* Effect.gen(function* () {
         const gw = yield* TransitGateway
-        const a = yield* gw.getVehicles({
-          minLat: 50.0771,
-          minLon: 14.4121,
-          maxLat: 50.0849,
-          maxLon: 14.4279,
+        const centre = yield* gw.getVehicles(box(50.07, 14.4, 50.1, 14.44))
+        const east = yield* gw.getVehicles(box(50.03, 14.55, 50.06, 14.58))
+        const all = yield* gw.getVehicles(box(49.8, 14, 50.6, 14.99))
+        expect(yield* Ref.get(fake.log)).toEqual(["vehicles"])
+        const ids = (o: typeof centre) =>
+          o._tag === "ok" ? o.value.vehicles.map((v) => v.tripId) : o
+        expect(ids(centre)).toEqual(["24_8789_260829", "991_11748_260202"])
+        expect(ids(east)).toEqual(["175_2073_260901"])
+        expect(ids(all)).toHaveLength(4)
+        expect(centre).toMatchObject({
+          _tag: "ok",
+          value: { generatedAt: new Date(0).toISOString() },
         })
-        const b = yield* gw.getVehicles({
-          minLat: 50.0772,
-          minLon: 14.4125,
-          maxLat: 50.0848,
-          maxLon: 14.428,
+      }).pipe(Effect.provide(gatewaysLayer(fake.layer)))
+    }),
+  )
+
+  it.effect("refreshes the snapshot after 5 s and serves it stale while upstream fails", () =>
+    Effect.gen(function* () {
+      const fake = yield* makeFake
+      yield* Effect.gen(function* () {
+        const gw = yield* TransitGateway
+        const centre = box(50.07, 14.4, 50.1, 14.44)
+        const first = yield* gw.getVehicles(centre)
+        yield* TestClock.adjust("4 seconds")
+        yield* gw.getVehicles(centre)
+        expect(yield* fake.calls).toBe(1)
+        yield* TestClock.adjust("2 seconds")
+        yield* Ref.set(fake.mode, "fail")
+        expect(yield* gw.getVehicles(centre)).toEqual(first)
+        expect(yield* fake.calls).toBe(2)
+        yield* TestClock.adjust("60 seconds")
+        expect(yield* gw.getVehicles(centre)).toEqual({
+          _tag: "unavailable",
+          reason: "GolemioUpstreamError",
         })
-        expect(yield* Ref.get(fake.log)).toEqual(["vehicles:50.075,14.41,50.085,14.43"])
-        expect(b).toEqual(a)
-        expect(a).toMatchObject({ _tag: "ok", value: { generatedAt: new Date(0).toISOString() } })
-        if (a._tag === "ok") expect(a.value.vehicles).toHaveLength(4)
       }).pipe(Effect.provide(gatewaysLayer(fake.layer)))
     }),
   )
@@ -257,41 +285,4 @@ describe("TransitGateway", () => {
       }).pipe(Effect.provide(gatewaysLayer(fake.layer)))
     }),
   )
-})
-
-describe("snapBBox", () => {
-  const box = (minLat: number, minLon: number, maxLat: number, maxLon: number): BBox => ({
-    minLat,
-    minLon,
-    maxLat,
-    maxLon,
-  })
-
-  it("snaps outward to the 0.005° grid", () => {
-    expect(snapBBox(box(50.0771, 14.4121, 50.0849, 14.4279))).toEqual({
-      key: "10015,2882,10017,2886",
-      bbox: box(50.075, 14.41, 50.085, 14.43),
-    })
-  })
-
-  it("leaves grid-aligned boxes alone", () => {
-    expect(snapBBox(box(50.075, 14.41, 50.085, 14.43)).bbox).toEqual(
-      box(50.075, 14.41, 50.085, 14.43),
-    )
-  })
-
-  it("gives a box inside one cell a whole cell", () => {
-    expect(snapBBox(box(50.0751, 14.4101, 50.0752, 14.4102)).bbox).toEqual(
-      box(50.075, 14.41, 50.08, 14.415),
-    )
-  })
-
-  it("clamps a snapped box back to MAX_BBOX_SPAN", () => {
-    // 0.05° unaligned → 11 grid cells once snapped outward → trimmed to 10
-    const { bbox } = snapBBox(box(50.0771, 14.4021, 50.1271, 14.4521))
-    expect(bbox.maxLat - bbox.minLat).toBeCloseTo(MAX_BBOX_SPAN, 9)
-    expect(bbox.maxLon - bbox.minLon).toBeCloseTo(MAX_BBOX_SPAN, 9)
-    expect(bbox.minLat).toBe(50.075)
-    expect(bbox.minLon).toBe(14.4)
-  })
 })

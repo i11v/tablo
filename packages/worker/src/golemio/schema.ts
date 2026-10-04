@@ -112,21 +112,26 @@ export const PidTripPosition = Schema.Struct({
 })
 export type PidTripPosition = typeof PidTripPosition.Type
 
-/* ---- GET /v2/public/vehiclepositions?boundingBox=… ---- */
+/* ---- GET /v2/vehiclepositions?limit=… (every tracked vehicle) ---- */
 
-export const PidPublicVehicles = Schema.Struct({
-  features: Schema.Array(
-    Schema.Struct({
-      geometry: PointGeometry,
-      properties: Schema.Struct({
-        // Nullable defensively: one untracked vehicle must not fail the whole decode.
-        gtfs_trip_id: Schema.NullOr(Schema.String),
-        gtfs_route_short_name: Schema.NullOr(Schema.String),
-        route_type: Schema.NullOr(Schema.String), // "tram", "metro", "bus", "train", "trolleybus", …
-        bearing: Schema.NullOr(Schema.Number),
-        delay: Schema.NullOr(Schema.Number),
+/** One vehicle of the city-wide list: a trip position plus its route. */
+export const PidVehiclePosition = Schema.Struct({
+  geometry: PointGeometry,
+  properties: Schema.Struct({
+    last_position: PidTripPosition.fields.properties.fields.last_position,
+    trip: Schema.Struct({
+      gtfs: Schema.Struct({
+        trip_id: Schema.String,
+        route_short_name: Schema.NullOr(Schema.String),
+        route_type: Schema.NullOr(Schema.Number), // GTFS: 0 tram, 1 metro, 2 train, 3 bus, 11 trolleybus
       }),
     }),
-  ),
+  }),
 })
-export type PidPublicVehicles = typeof PidPublicVehicles.Type
+export type PidVehiclePosition = typeof PidVehiclePosition.Type
+
+/** The list's envelope. Features are decoded one by one (see GolemioClient),
+ * so one malformed vehicle drops only itself, not the whole city. */
+export const PidVehiclePositions = Schema.Struct({
+  features: Schema.Array(Schema.Unknown),
+})

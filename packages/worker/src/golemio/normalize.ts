@@ -1,6 +1,6 @@
 import type {
   Departure,
-  LiveVehicles,
+  LiveVehicle,
   ShapePoint,
   StopBoard,
   StopSelector,
@@ -13,9 +13,9 @@ import { selectorKey } from "@app/contract"
 import type {
   PidBoardResponse,
   PidDeparture,
-  PidPublicVehicles,
   PidTripPosition,
   PidTripResponse,
+  PidVehiclePosition,
 } from "./schema.ts"
 
 export const routeTypeToKind = (type: number | null): VehicleKind => {
@@ -99,23 +99,6 @@ export const toBoards = (
 
 /* ---- trips & vehicles ---- */
 
-/** Public vehicle positions name route types instead of numbering them. */
-export const publicRouteTypeToKind = (type: string | null): VehicleKind => {
-  switch (type) {
-    case "tram":
-      return "tram"
-    case "metro":
-      return "metro"
-    case "train":
-      return "train"
-    case "bus":
-    case "trolleybus":
-      return "bus"
-    default:
-      return "other" // ferry, funicular, unknown
-  }
-}
-
 /** "HH:MM:SS" after service-day midnight → seconds. Hours may exceed 23. */
 export const gtfsTimeToSeconds = (time: string): number | null => {
   const m = /^(\d+):([0-5]\d):([0-5]\d)$/.exec(time.trim())
@@ -190,22 +173,12 @@ export const toTripVehicle = (data: PidTripPosition): TripVehicle => {
   }
 }
 
-export const toLiveVehicles = (data: PidPublicVehicles, generatedAt: string): LiveVehicles => ({
-  vehicles: data.features.flatMap((f) => {
-    const p = f.properties
-    if (p.gtfs_trip_id === null) return []
-    const [lon, lat] = f.geometry.coordinates
-    return [
-      {
-        tripId: p.gtfs_trip_id,
-        route: p.gtfs_route_short_name ?? "?",
-        kind: publicRouteTypeToKind(p.route_type),
-        lat,
-        lon,
-        bearing: finiteOrNull(p.bearing),
-        delaySeconds: finiteOrNull(p.delay),
-      },
-    ]
-  }),
-  generatedAt,
-})
+/** A vehicle of the city-wide list: its trip position plus what to draw it as. */
+export const toLiveVehicle = (data: PidVehiclePosition): LiveVehicle => {
+  const gtfs = data.properties.trip.gtfs
+  return {
+    ...toTripVehicle(data),
+    route: gtfs.route_short_name ?? "?",
+    kind: routeTypeToKind(gtfs.route_type),
+  }
+}

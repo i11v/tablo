@@ -1,13 +1,22 @@
-import type { BBox, StopSelector } from "@app/contract"
-import { Effect, Layer, Redacted, Schema } from "effect"
+import type { StopSelector } from "@app/contract"
+import { Effect, Layer, Option, Redacted, Schema } from "effect"
 import * as Context from "effect/Context"
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http"
 import { GolemioNotFoundError, GolemioRateLimitedError, GolemioUpstreamError } from "./errors.ts"
-import { PidBoardResponse, PidPublicVehicles, PidTripPosition, PidTripResponse } from "./schema.ts"
+import {
+  PidBoardResponse,
+  PidTripPosition,
+  PidTripResponse,
+  PidVehiclePosition,
+  PidVehiclePositions,
+} from "./schema.ts"
 
 const API = "https://api.golemio.cz"
 const MINUTES_AFTER = 90
 const PER_STOP_LIMIT = 20
+// Golemio's cap on one page; PID tracks ~2–3k vehicles at peak, so one page is all of them.
+const ALL_VEHICLES_LIMIT = 10_000
+const decodeVehicle = Schema.decodeUnknownOption(PidVehiclePosition)
 
 type FetchError = GolemioRateLimitedError | GolemioUpstreamError | Schema.SchemaError
 
@@ -25,8 +34,8 @@ export class GolemioClient extends Context.Service<
     readonly fetchTripPosition: (
       tripId: string,
     ) => Effect.Effect<PidTripPosition, FetchError | GolemioNotFoundError>
-    /** Every tracked vehicle inside a bounding box. */
-    readonly fetchVehicles: (bbox: BBox) => Effect.Effect<PidPublicVehicles, FetchError>
+    /** Every tracked vehicle in PID, each with its last report's time; malformed ones dropped. */
+    readonly fetchAllVehicles: () => Effect.Effect<ReadonlyArray<PidVehiclePosition>, FetchError>
   }
 >()("@app/GolemioClient") {
   static readonly layer = (token: Redacted.Redacted<string>) =>
@@ -112,23 +121,19 @@ export class GolemioClient extends Context.Service<
           getJson(`/v2/vehiclepositions/${encodeURIComponent(tripId)}`, {}, PidTripPosition),
         )
 
-        const fetchVehicles = Effect.fn("GolemioClient.fetchVehicles")((bbox: BBox) =>
+        const fetchAllVehicles = Effect.fn("GolemioClient.fetchAllVehicles")(() =>
           getJson(
-            "/v2/public/vehiclepositions",
-            // "lat,lon,lat,lon", documented as top-left → bottom-right corner.
-            // (Verified live: lat-first is required; Golemio normalizes the
-            // corner order itself, and an empty box answers 200 + no features.)
-            { boundingBox: [bbox.maxLat, bbox.minLon, bbox.minLat, bbox.maxLon].join(",") },
-            PidPublicVehicles,
+            "/v2/vehiclepositions",
+            { limit: `${ALL_VEHICLES_LIMIT}` },
+            PidVehiclePositions,
           ).pipe(
-            // like boards: nothing in the box is an empty collection, not "not found"
-            Effect.catchTag("GolemioNotFoundError", () =>
-              Effect.succeed<PidPublicVehicles>({ features: [] }),
-            ),
+            Effect.map(({ features }) => features.flatMap((f) => Option.toArray(decodeVehicle(f)))),
+            // like boards: nothing tracked is an empty collection, not "not found"
+            Effect.catchTag("GolemioNotFoundError", () => Effect.succeed([])),
           ),
         )
 
-        return { fetchBoards, fetchTrip, fetchTripPosition, fetchVehicles }
+        return { fetchBoards, fetchTrip, fetchTripPosition, fetchAllVehicles }
       }),
     )
 }

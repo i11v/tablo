@@ -187,4 +187,13 @@ final class GeoTests: XCTestCase {
         let later = try XCTUnwrap(Geo.project(LngLat(0.4, 0.01), onto: path, fromKm: 1))
         XCTAssertGreaterThanOrEqual(later, 1)
     }
+
+    func testSnapReportsDistanceFromPath() throws {
+        // 0.001° of latitude off the first leg ≈ 111 m
+        let s = try XCTUnwrap(Geo.snap(LngLat(0.4, 0.001), onto: path))
+        XCTAssertEqual(s.km, 0.4, accuracy: 0.01)
+        XCTAssertEqual(s.metres, 111, accuracy: 2)
+        let on = try XCTUnwrap(Geo.snap(LngLat(0.4, 0), onto: path))
+        XCTAssertEqual(on.metres, 0, accuracy: 0.01)
+    }
 }

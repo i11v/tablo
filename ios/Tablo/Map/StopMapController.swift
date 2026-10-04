@@ -38,7 +38,9 @@ final class TabloMapView: MKMapView {
 }
 
 /// A live vehicle easing from where it's drawn toward its latest fix, fading
-/// in when it appears and out when it leaves the feed.
+/// in when it appears and out when it leaves the feed. Once its trip's path is
+/// known it glides along it by km, so it follows its line instead of cutting
+/// straight across blocks; fixes too far off the path (a diversion) glide straight.
 private final class Glide {
     let marker: Marker
     var route: String
@@ -51,8 +53,19 @@ private final class Glide {
     var fadeTo: CGFloat = 1
     var fadeStart: CFTimeInterval
     var leaving = false
+    /// The trip's path; `onPath` while the latest fix lies on it.
+    private(set) var path: [PathPoint]?
+    private var onPath = false
+    private var kmFrom = 0.0
+    private var kmTo = 0.0
 
     static let fade: CFTimeInterval = 0.5
+    /// A jump too long to glide: fade in at the new place instead.
+    static let jumpMetres = 800.0
+    /// Farther than this from its path, a fix counts as off it.
+    static let offPathMetres = 60.0
+    /// How far behind the drawn km a fix may project (GPS jitter, a glide that overshot a stop).
+    static let backtrackKm = 0.15
 
     init(_ v: MapVehicle, marker: Marker, at t: CFTimeInterval) {
         self.marker = marker
@@ -64,9 +77,74 @@ private final class Glide {
         fadeStart = t
     }
 
+    private func progress(at t: CFTimeInterval) -> Double {
+        duration > 0 ? max(0, min(1, (t - start) / duration)) : 1
+    }
+
+    private func km(at t: CFTimeInterval) -> Double {
+        kmFrom + (kmTo - kmFrom) * progress(at: t)
+    }
+
     func position(at t: CFTimeInterval) -> LngLat {
-        guard duration > 0 else { return to }
-        return Geo.lerp(from, to, max(0, min(1, (t - start) / duration)))
+        if onPath, let path, let p = Geo.point(on: path, atKm: km(at: t)) { return p }
+        return Geo.lerp(from, to, progress(at: t))
+    }
+
+    /// `fix` on the path, when it's close enough to count.
+    private func snap(_ fix: LngLat, fromKm: Double = -.infinity) -> Double? {
+        guard let path, let s = Geo.snap(fix, onto: path, fromKm: fromKm), s.metres <= Self.offPathMetres else { return nil }
+        return s.km
+    }
+
+    /// Head for a new fix over `glide` seconds.
+    func retarget(to fix: LngLat, glide: TimeInterval, at t: CFTimeInterval) {
+        let here = position(at: t)
+        if leaving || Geo.haversineMetres(here, fix) > Self.jumpMetres {
+            // back from leaving, or a jump too long to glide: fade in at the new place
+            from = fix
+            to = fix
+            duration = 0
+            leaving = false
+            fadeFrom = 0
+            fadeTo = 1
+            fadeStart = t
+            if let k = snap(fix) {
+                onPath = true
+                kmFrom = k
+                kmTo = k
+            } else {
+                onPath = false
+            }
+            return
+        }
+        let shown = onPath ? km(at: t) : nil
+        if let k = snap(fix, fromKm: (shown ?? -.infinity) - Self.backtrackKm) {
+            let fromKm = shown ?? min(snap(here) ?? k, k)
+            kmFrom = fromKm
+            // vehicles don't reverse: hold through jitter rather than slide back
+            kmTo = max(fromKm, k)
+            to = fix
+            onPath = true
+        } else {
+            from = here
+            to = fix
+            onPath = false
+        }
+        start = t
+        duration = glide
+    }
+
+    /// The trip's path arrived: carry on toward the latest fix along it.
+    func attach(_ path: [PathPoint], at t: CFTimeInterval) {
+        guard self.path == nil, path.count > 1 else { return }
+        let here = position(at: t)
+        self.path = path
+        guard let target = snap(to) else { return }
+        kmFrom = min(snap(here) ?? target, target)
+        kmTo = target
+        onPath = true
+        duration = max(0, start + duration - t)
+        start = t
     }
 
     func opacity(at t: CFTimeInterval) -> CGFloat {
@@ -270,22 +348,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         for v in list {
             seen.insert(v.tripId)
             if let g = vehicles[v.tripId] {
-                let here = g.position(at: t)
-                if g.leaving || Geo.haversineMetres(here, v.coord) > 800 {
-                    // back from leaving, or a jump too long to glide: fade in at the new place
-                    g.from = v.coord
-                    g.to = v.coord
-                    g.duration = 0
-                    g.leaving = false
-                    g.fadeFrom = 0
-                    g.fadeTo = 1
-                    g.fadeStart = t
-                } else {
-                    g.from = here
-                    g.to = v.coord
-                    g.start = t
-                    g.duration = glide
-                }
+                g.retarget(to: v.coord, glide: glide, at: t)
                 if g.route != v.route {
                     g.route = v.route
                     restyle(g)
@@ -307,6 +370,12 @@ final class StopMapController: NSObject, MKMapViewDelegate {
             g.fade(to: 0, at: t)
         }
         applyVisibility()
+    }
+
+    /// The path of a vehicle's trip: from now on it glides along its line.
+    func setVehiclePath(_ tripId: String, _ path: [PathPoint]) {
+        guard let g = vehicles[tripId], g.path == nil else { return }
+        g.attach(path, at: CACurrentMediaTime())
     }
 
     /// Tiers of the vehicles whose trips are on the board (others stay neutral and can't be tapped).

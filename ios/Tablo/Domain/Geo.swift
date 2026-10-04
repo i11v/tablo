@@ -66,7 +66,13 @@ enum Geo {
     /// km along `path` of the point on it nearest `coord`, searching only from `fromKm` on
     /// (so a stop on a looping route lands on the right pass).
     static func project(_ coord: LngLat, onto path: [PathPoint], fromKm: Double = -.infinity) -> Double? {
-        guard path.count > 1 else { return path.first?.km }
+        snap(coord, onto: path, fromKm: fromKm)?.km
+    }
+
+    /// The point on `path` nearest `coord` (from `fromKm` on): its km, and how far
+    /// `coord` lies from it in metres.
+    static func snap(_ coord: LngLat, onto path: [PathPoint], fromKm: Double = -.infinity) -> (km: Double, metres: Double)? {
+        guard path.count > 1 else { return path.first.map { ($0.km, haversineMetres(coord, $0.coord)) } }
         let cosLat = cos(coord.lat * .pi / 180)
         var best: (d: Double, km: Double)?
         for i in 0 ..< path.count - 1 where path[i + 1].km >= fromKm {
@@ -81,7 +87,8 @@ enum Geo {
             let km = max(fromKm, a.km + (b.km - a.km) * t)
             if d < (best?.d ?? .infinity) { best = (d, km) }
         }
-        return best?.km
+        // degrees of latitude → metres
+        return best.map { ($0.km, $0.d.squareRoot() * 111_320) }
     }
 
     /// A polyline through `coords` with cumulative great-circle km.

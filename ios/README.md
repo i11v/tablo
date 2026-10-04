@@ -34,7 +34,8 @@ xcodebuild -project Tablo.xcodeproj -scheme Tablo -destination 'platform=iOS Sim
 xcodebuild -project Tablo.xcodeproj -scheme Tablo -destination 'platform=iOS Simulator,name=iPhone 17' test
 ```
 
-iOS 18+, iPhone, portrait, dark only.
+iOS 18+, iPhone, portrait. Follows the system appearance: the dark LED board
+at night, warm paper (`tokens/light.css`) in daylight.
 
 In the simulator, give it a Prague location and permission:
 
@@ -99,7 +100,7 @@ xcodebuild -project Tablo.xcodeproj -scheme Tablo -destination 'platform=iOS,nam
 
 ## Differences from the web prototype
 
-- **Map.** Apple Maps (dark, muted, with a warm scrim) stands in for
+- **Map.** Apple Maps (muted, with a warm scrim, following light/dark) stands in for
   MapLibre + OpenFreeMap. Zoom levels keep MapLibre's 512px-tile scale, so
   the prototype's zoom numbers carry over. Apple's Legal label sits above the sheet.
 - **Every stop is home.** The prototype framed searched stops off-centre with

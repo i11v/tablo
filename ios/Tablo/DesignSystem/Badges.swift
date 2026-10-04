@@ -34,7 +34,7 @@ struct RouteChip: View {
             .minimumScaleFactor(0.7)
             .frame(width: size.frame.width, height: size.frame.height)
             .background(Palette.chip, in: RoundedRectangle(cornerRadius: 7))
-            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.white.opacity(0.06), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Palette.wash(0.06), lineWidth: 1))
             .accessibilityLabel("Line \(route)")
     }
 }
@@ -78,7 +78,7 @@ struct Countdown: View {
             Text(text)
                 .font(.doto(size, .bold))
                 .tracking(size * 0.04)
-                .shadow(color: glow ? tier.color.opacity(0.47) : .clear, radius: 7)
+                .shadow(color: glow ? Palette.glow(tier.color, dark: 0.47, light: 0.22) : .clear, radius: 7)
             if showUnit {
                 Text("min").font(.hanken(size * 0.34, .bold))
             }

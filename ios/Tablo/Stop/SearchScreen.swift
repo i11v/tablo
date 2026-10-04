@@ -92,7 +92,7 @@ private struct ResultRow: View {
             }
             .padding(.vertical, 11)
             .padding(.horizontal, 8)
-            .overlay(alignment: .bottom) { Rectangle().fill(.white.opacity(0.05)).frame(height: 1) }
+            .overlay(alignment: .bottom) { Rectangle().fill(Palette.wash(0.05)).frame(height: 1) }
         }
         .buttonStyle(RowPressStyle(cornerRadius: 8))
         .padding(.horizontal, -8)

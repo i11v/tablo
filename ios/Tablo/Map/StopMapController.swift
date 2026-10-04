@@ -1,4 +1,5 @@
 import MapKit
+import SwiftUI
 import UIKit
 
 /// An annotation that carries its own pre-rendered artwork.
@@ -221,6 +222,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
     private var kmStart: CFTimeInterval = 0
     private var kmDuration: CFTimeInterval = 0
 
+    private let groundScrim = GroundScrim()
     private let journeyOverlay = JourneyOverlay()
     private var journeyRenderer: JourneyRenderer?
     private var displayLink: CADisplayLink?
@@ -233,8 +235,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         self.center = center
         super.init()
         configureMap()
-        mapView.addOverlay(GroundScrim(), level: .aboveRoads)
-        mapView.addOverlay(journeyOverlay, level: .aboveLabels)
+        addOverlays()
 
         let link = CADisplayLink(target: DisplayLinkProxy(self), selector: #selector(DisplayLinkProxy.tick))
         link.add(to: .main, forMode: .common)
@@ -243,8 +244,10 @@ final class StopMapController: NSObject, MKMapViewDelegate {
 
     private func configureMap() {
         mapView.delegate = self
-        mapView.overrideUserInterfaceStyle = .dark
-        mapView.backgroundColor = UIColor(hex: 0x0B0B0E)
+        mapView.backgroundColor = UIColor { $0.userInterfaceStyle == .dark ? UIColor(hex: 0x0B0B0E) : UIColor(hex: 0xF2F0EA) }
+        mapView.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { [weak self] (_: TabloMapView, _: UITraitCollection) in
+            self?.appearanceChanged()
+        }
         let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
         config.pointOfInterestFilter = .excludingAll
         config.showsTraffic = false
@@ -257,9 +260,48 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         mapView.register(MKAnnotationView.self, forAnnotationViewWithReuseIdentifier: "marker")
         mapView.onFirstLayout = { [weak self] in
             guard let self else { return }
+            appearanceChanged()
             setCamera(center: rectCenter(for: center, zoom: Self.homeZoom), zoom: Self.homeZoom, duration: 0)
             calibrateZoomRange()
         }
+    }
+
+    // MARK: - Appearance
+
+    private var isDark: Bool { MarkerArt.scheme == .dark }
+
+    private func addOverlays() {
+        mapView.addOverlay(groundScrim, level: .aboveRoads)
+        mapView.addOverlay(journeyOverlay, level: .aboveLabels)
+    }
+
+    /// Light ↔ dark: re-rasterise every marker and redraw the overlays in the new palette.
+    private func appearanceChanged() {
+        let scheme: ColorScheme
+        switch mapView.traitCollection.userInterfaceStyle {
+        case .dark: scheme = .dark
+        case .light: scheme = .light
+        default: return
+        }
+        guard scheme != MarkerArt.scheme else { return }
+        MarkerArt.scheme = scheme
+
+        if let stopMarker {
+            stopMarker.art = MarkerArt.stopPin(name: stopName)
+            if let view = mapView.view(for: stopMarker) { configure(view, with: stopMarker) }
+        }
+        restylePlatforms(animated: false)
+        vehicles.values.forEach(restyle)
+        if let j = journey {
+            journeyMine?.art = MarkerArt.journeyStop(name: j.stops[j.mine].name, tier: journeyTier)
+            journeyVehicle?.art = MarkerArt.vehicle(route: j.route, tier: journeyTier, big: true)
+            for m in [journeyMine, journeyVehicle].compactMap({ $0 }) {
+                if let view = mapView.view(for: m) { configure(view, with: m) }
+            }
+        }
+        // renderers are fixed to one palette: re-adding the overlays asks for fresh ones
+        mapView.removeOverlays([groundScrim, journeyOverlay])
+        addOverlays()
     }
 
     // MARK: - Stop mode
@@ -740,9 +782,9 @@ final class StopMapController: NSObject, MKMapViewDelegate {
 
     nonisolated func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         MainActor.assumeIsolated {
-            if overlay is GroundScrim { return GroundScrimRenderer(overlay: overlay) }
+            if overlay is GroundScrim { return GroundScrimRenderer(overlay: overlay, dark: isDark) }
             guard overlay is JourneyOverlay else { return MKOverlayRenderer(overlay: overlay) }
-            let renderer = JourneyRenderer(overlay: overlay)
+            let renderer = JourneyRenderer(overlay: overlay, dark: isDark)
             journeyRenderer = renderer
             pushJourneySnapshot()
             return renderer

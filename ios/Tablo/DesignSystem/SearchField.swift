@@ -29,7 +29,7 @@ struct SearchField: View {
         }
         .padding(.horizontal, 13)
         .padding(.vertical, 10)
-        .background(Palette.searchGround, in: RoundedRectangle(cornerRadius: 11))
+        .background(Palette.searchField, in: RoundedRectangle(cornerRadius: 11))
         .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.searchEdge, lineWidth: 1))
     }
 }

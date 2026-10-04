@@ -25,7 +25,6 @@ struct StopScreen: View {
         }
         .animation(.easeOut(duration: 0.15), value: model.searchOpen)
         .background(Palette.bg)
-        .preferredColorScheme(.dark)
         .onAppear { model.setActive(true) }
         .onChange(of: scenePhase) { _, phase in
             // pause the socket, location and polling in the background; .inactive is a passing state
@@ -80,13 +79,13 @@ private struct StopMapView: UIViewRepresentable {
     func updateUIView(_ uiView: TabloMapView, context: Context) {}
 }
 
-/// Translucent dark chrome shared by the floating map controls.
+/// Translucent chrome shared by the floating map controls.
 struct GlassBackground<S: InsettableShape>: View {
     let shape: S
 
     var body: some View {
         shape.fill(Palette.glass)
-            .overlay(shape.strokeBorder(.white.opacity(0.09), lineWidth: 1))
+            .overlay(shape.strokeBorder(Palette.glassEdge, lineWidth: 1))
     }
 }
 
@@ -99,7 +98,7 @@ private struct TopBar: View {
             Button(action: model.openSearch) {
                 HStack(spacing: 9) {
                     Glyph.search()
-                    Rectangle().fill(.white.opacity(0.09)).frame(width: 1, height: 16)
+                    Rectangle().fill(Palette.glassEdge).frame(width: 1, height: 16)
                     if model.isNearest {
                         Glyph.nearest().padding(.trailing, -3)
                     }
@@ -122,10 +121,10 @@ private struct TopBar: View {
                 ForEach(VehicleKind.filterable, id: \.self) { kind in
                     let on = model.modes.contains(kind)
                     Button { model.toggleMode(kind) } label: {
-                        VehicleIcon(kind: kind, size: 15, color: on ? Palette.ink : Palette.toggleOff)
+                        VehicleIcon(kind: kind, size: 15, color: on ? Palette.toggleOnInk : Palette.toggleOff)
                             .padding(.vertical, 6)
                             .padding(.horizontal, 8)
-                            .background(on ? Color.white.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 8))
+                            .background(on ? Palette.toggleOnFill : .clear, in: RoundedRectangle(cornerRadius: 8))
                             .contentShape(RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
@@ -174,7 +173,7 @@ struct RowPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(
-                Color.white.opacity(configuration.isPressed ? 0.05 : 0),
+                Palette.wash(configuration.isPressed ? 0.05 : 0),
                 in: RoundedRectangle(cornerRadius: cornerRadius)
             )
             .contentShape(Rectangle())

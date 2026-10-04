@@ -23,7 +23,7 @@ struct StopSheet: View {
         .background(Palette.card)
         .clipShape(UnevenRoundedRectangle(topLeadingRadius: 22, topTrailingRadius: 22))
         .overlay(alignment: .top) { TopEdge(radius: 22).stroke(Palette.edge, lineWidth: 1) }
-        .shadow(color: .black.opacity(0.6), radius: 16, y: -6)
+        .shadow(color: Palette.sheetShadow, radius: 16, y: -6)
     }
 
     private var grip: some View {
@@ -98,7 +98,7 @@ private struct Hairline: View {
     var opacity: Double
 
     var body: some View {
-        Rectangle().fill(.white.opacity(opacity)).frame(height: 1)
+        Rectangle().fill(Palette.wash(opacity)).frame(height: 1)
     }
 }
 
@@ -228,7 +228,7 @@ private struct BoardPanel: View {
                             .background(tab.isOn ? Palette.paper : Palette.ctl, in: RoundedRectangle(cornerRadius: 9))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 9)
-                                    .strokeBorder(tab.isOn ? Palette.paper : .white.opacity(0.08), lineWidth: 1)
+                                    .strokeBorder(tab.isOn ? Palette.paper : Palette.wash(0.08), lineWidth: 1)
                             )
                     }
                     .buttonStyle(.plain)
@@ -276,7 +276,7 @@ private struct LeadRow: View {
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(row.tier.color)
                     .frame(width: 3)
-                    .shadow(color: row.tier.glows ? row.tier.color : .clear, radius: 4.5)
+                    .shadow(color: row.tier.glows ? Palette.glow(row.tier.color, dark: 1, light: 0.4) : .clear, radius: 4.5)
             }
             .padding(.top, 11)
             .padding(.bottom, 12)
@@ -334,7 +334,7 @@ private struct JourneyPanel: View {
                             Glyph.back()
                                 .frame(width: 36, height: 36)
                                 .background(Palette.ctl, in: RoundedRectangle(cornerRadius: 11))
-                                .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(.white.opacity(0.08), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.wash(0.08), lineWidth: 1))
                                 .contentShape(RoundedRectangle(cornerRadius: 11))
                         }
                         .buttonStyle(PressableStyle())
@@ -469,7 +469,7 @@ private struct StopRow: View {
             .frame(minHeight: row.isMine ? 54 : 38)
             .background(alignment: .leading) { Rail(top: row.railTop, bottom: row.railBottom) }
             .padding(.horizontal, 8)
-            .background(row.isMine ? Color.white.opacity(0.045) : .clear, in: RoundedRectangle(cornerRadius: 9))
+            .background(row.isMine ? Palette.wash(0.045) : .clear, in: RoundedRectangle(cornerRadius: 9))
         }
         .buttonStyle(RowPressStyle(cornerRadius: 9))
         .padding(.horizontal, -8)
@@ -479,14 +479,14 @@ private struct StopRow: View {
         let c = tier.color
         if row.isMine {
             ZStack {
-                Circle().fill(c).frame(width: 20, height: 20).shadow(color: tier.glows ? c : .clear, radius: 6)
+                Circle().fill(c).frame(width: 20, height: 20).shadow(color: tier.glows ? Palette.glow(c, dark: 1, light: 0.4) : .clear, radius: 6)
                 Circle().fill(Palette.card).frame(width: 16, height: 16)
                 Circle().fill(c).frame(width: 10, height: 10)
             }
         } else {
             Circle()
-                .fill(row.isPast ? Palette.railPast : Palette.card)
-                .overlay(Circle().strokeBorder(row.isPast ? Palette.grip : Palette.pillInk, lineWidth: 2))
+                .fill(row.isPast ? Palette.dotPastFill : Palette.card)
+                .overlay(Circle().strokeBorder(row.isPast ? Palette.dotPastEdge : Palette.pillInk, lineWidth: 2))
                 .frame(width: 10, height: 10)
         }
     }
@@ -511,7 +511,7 @@ private struct VehicleRow: View {
                 .frame(width: 22, height: 22)
                 .background(Palette.vehicleFill, in: RoundedRectangle(cornerRadius: 7))
                 .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(c, lineWidth: 2))
-                .shadow(color: tier.glows ? c : .clear, radius: 5)
+                .shadow(color: tier.glows ? Palette.glow(c, dark: 1, light: 0.4) : .clear, radius: 5)
                 .frame(width: RailGrid.railWidth)
             Text(row.text)
                 .font(.hanken(12.5, .medium))

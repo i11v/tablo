@@ -45,7 +45,7 @@ extension Glyph {
     }
 
     /// The locate button: the nearest-stop arrow at button size.
-    static func recenter(color: Color = Palette.fabIcon) -> Glyph {
+    static func recenter(color: Color = Palette.ctlInk) -> Glyph {
         nearest(color: color, size: 18)
     }
 
@@ -60,16 +60,17 @@ extension Glyph {
         })
     }
 
-    /// A stop sign on its pole — the search result pictogram.
-    static func stopSign(color: Color = Palette.icon) -> Glyph {
-        Glyph(viewBox: CGSize(width: 24, height: 24), size: CGSize(width: 22, height: 22), color: color, lineWidth: 1.6, stroke: Path { p in
-            p.addRoundedRect(in: CGRect(x: 5, y: 2.5, width: 14, height: 11), cornerSize: CGSize(width: 3.5, height: 3.5))
-            p.move(to: CGPoint(x: 12, y: 13.5)); p.addLine(to: CGPoint(x: 12, y: 21.5))
-            p.move(to: CGPoint(x: 9, y: 21.5)); p.addLine(to: CGPoint(x: 15, y: 21.5))
+    /// The hairline tram front inside a StopGlyph tile.
+    static func tramFront(color: Color = Palette.icon, size: CGFloat = 16) -> Glyph {
+        Glyph(viewBox: CGSize(width: 16, height: 16), size: CGSize(width: size, height: size), color: color, lineWidth: 1.6, stroke: Path { p in
+            p.addRoundedRect(in: CGRect(x: 4, y: 2.5, width: 8, height: 9), cornerSize: CGSize(width: 2, height: 2))
+            p.move(to: CGPoint(x: 5, y: 13)); p.addLine(to: CGPoint(x: 4, y: 14.5))
+            p.move(to: CGPoint(x: 11, y: 13)); p.addLine(to: CGPoint(x: 12, y: 14.5))
+            p.move(to: CGPoint(x: 4.5, y: 9)); p.addLine(to: CGPoint(x: 11.5, y: 9))
         })
     }
 
-    static func back(color: Color = Palette.ink) -> Glyph {
+    static func back(color: Color = Palette.ctlInk) -> Glyph {
         Glyph(viewBox: CGSize(width: 16, height: 16), size: CGSize(width: 16, height: 16), color: color, lineWidth: 1.8, stroke: Path { p in
             p.move(to: CGPoint(x: 10, y: 3))
             p.addLine(to: CGPoint(x: 5, y: 8))
@@ -81,14 +82,13 @@ extension Glyph {
 /// "N min walk" with the walking figure.
 struct WalkTime: View {
     var minutes: Int
-    var label = "min walk"
 
     var body: some View {
         HStack(spacing: 5) {
             Glyph.walk()
-            Text("\(minutes) \(label)")
+            Text("\(minutes) min walk")
         }
-        .font(.hanken(12.5, .medium))
+        .font(.hanken(12, .medium))
         .foregroundStyle(Palette.meta)
         .lineLimit(1)
         .fixedSize()

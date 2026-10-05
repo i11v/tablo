@@ -102,7 +102,6 @@ struct Departure: Identifiable, Hashable {
 struct Platform: Identifiable, Hashable {
     let key: String
     let short: String
-    let tier: Tier
     let coord: LngLat
     /// Set for platforms that belong to a single mode (the metro entrance).
     let mode: VehicleKind?
@@ -155,6 +154,9 @@ struct Journey: Hashable {
     let vehicleKm: Double
 
     var route: String { departure.route }
+
+    /// The letter on your stop's map plate: the platform, "M" for metro, empty for a pip.
+    var markLabel: String { departure.kind == .metro ? "M" : departure.platform ?? "" }
 
     /// The vehicle has left your stop.
     var hasDeparted: Bool { atStop ? seg > mine : seg >= mine }

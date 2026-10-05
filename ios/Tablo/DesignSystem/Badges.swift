@@ -34,7 +34,7 @@ struct RouteChip: View {
             .minimumScaleFactor(0.7)
             .frame(width: size.frame.width, height: size.frame.height)
             .background(Palette.chip, in: RoundedRectangle(cornerRadius: 7))
-            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Palette.wash(0.06), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Palette.stroke, lineWidth: 1))
             .accessibilityLabel("Line \(route)")
     }
 }

@@ -18,49 +18,52 @@ struct SearchScreen: View {
                 .font(.hanken(11, .bold))
                 .tracking(11 * 0.14)
                 .foregroundStyle(Palette.meta)
-                .padding(.top, 20)
-                .padding(.bottom, 6)
+                .padding(.horizontal, 2)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
 
             ScrollView {
-                LazyVStack(spacing: 0) {
+                LazyVStack(spacing: 10) {
                     ForEach(results) { result in
                         ResultRow(result: result) { model.pickStop(result.stop) }
                     }
                     if model.indexState == .failed {
                         VStack(spacing: 10) {
                             Text("Couldn\u{2019}t load the stop list.")
-                                .font(.hanken(13.5))
-                                .foregroundStyle(Palette.meta)
+                                .font(.hanken(12))
+                                .foregroundStyle(Palette.faint)
                             Button("Retry", action: model.retryIndex)
                                 .font(.hanken(13, .bold))
                                 .foregroundStyle(Palette.ink)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 30)
+                        .padding(.vertical, 20)
                     } else if let message = model.searchMessage(resultCount: results.count) {
                         Text(message)
-                            .font(.hanken(13.5))
-                            .foregroundStyle(Palette.meta)
+                            .font(.hanken(12))
+                            .foregroundStyle(Palette.faint)
                             .multilineTextAlignment(.center)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 30)
+                            .padding(.vertical, 20)
                             .padding(.horizontal, 8)
                     }
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 14)
                 .padding(.bottom, 24)
             }
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
-            .padding(.horizontal, -16)
+            .padding(.horizontal, -14)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 14)
         .padding(.top, 10)
-        .background(Palette.searchGround.ignoresSafeArea())
+        .background(Ground().ignoresSafeArea())
         .onAppear { focused = true }
     }
 }
 
+/// One stop in the results (StopResult): the stop tile, name, its platforms
+/// (or zone), and your walk. The stop you're already viewing wears a meta border.
 private struct ResultRow: View {
     let result: SearchResult
     let action: () -> Void
@@ -68,42 +71,41 @@ private struct ResultRow: View {
     var body: some View {
         let stop = result.stop
         Button(action: action) {
-            HStack(spacing: 12) {
-                Glyph.stopSign()
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        title
-                            .lineLimit(1)
-                        if result.isCurrent {
-                            Circle().fill(Palette.ink).frame(width: 7, height: 7)
-                        }
-                    }
+            HStack(spacing: 11) {
+                StopGlyph()
+                VStack(alignment: .leading, spacing: 3) {
+                    title
+                        .lineLimit(1)
                     if !result.detail.isEmpty {
                         Text(result.detail)
-                            .font(.hanken(12, .medium))
+                            .font(.hanken(12, .semibold))
                             .foregroundStyle(Palette.meta)
                             .lineLimit(1)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if let walk = result.walk {
-                    WalkTime(minutes: walk, label: "min")
+                    WalkTime(minutes: walk)
                 }
             }
+            .padding(.horizontal, 14)
             .padding(.vertical, 11)
-            .padding(.horizontal, 8)
-            .overlay(alignment: .bottom) { Rectangle().fill(Palette.wash(0.05)).frame(height: 1) }
+            .background(Palette.card, in: RoundedRectangle(cornerRadius: 13))
+            .overlay(
+                RoundedRectangle(cornerRadius: 13)
+                    .strokeBorder(result.isCurrent ? Palette.meta : Palette.edge, lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 13))
         }
-        .buttonStyle(RowPressStyle(cornerRadius: 8))
-        .padding(.horizontal, -8)
+        .buttonStyle(PressableStyle())
         .accessibilityLabel(accessibility(stop))
     }
 
     /// The name, with the disambiguator ("· 5") in meta when names collide.
     private var title: Text {
-        let name = Text(result.stop.name).font(.hanken(15.5, .bold)).foregroundStyle(Palette.ink)
+        let name = Text(result.stop.name).font(.hanken(16, .bold)).foregroundStyle(Palette.ink)
         guard let disambig = result.stop.disambig else { return name }
-        return Text("\(name)\(Text(" · \(disambig)").font(.hanken(15.5, .medium)).foregroundStyle(Palette.meta))")
+        return Text("\(name)\(Text(" · \(disambig)").font(.hanken(16, .medium)).foregroundStyle(Palette.meta))")
     }
 
     private func accessibility(_ stop: IndexStop) -> String {

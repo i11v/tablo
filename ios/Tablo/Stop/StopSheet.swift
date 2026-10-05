@@ -21,18 +21,18 @@ struct StopSheet: View {
         .frame(maxWidth: .infinity)
         .frame(height: model.sheetHeight, alignment: .top)
         .background(Palette.card)
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 22, topTrailingRadius: 22))
-        .overlay(alignment: .top) { TopEdge(radius: 22).stroke(Palette.edge, lineWidth: 1) }
-        .shadow(color: Palette.sheetShadow, radius: 16, y: -6)
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 13, topTrailingRadius: 13))
+        .overlay(alignment: .top) { TopEdge(radius: 13).stroke(Palette.edge, lineWidth: 1) }
+        .shadow(color: Palette.overlayShadow, radius: 30, y: 24)
     }
 
     private var grip: some View {
         Capsule()
-            .fill(Palette.grip)
-            .frame(width: 38, height: 5)
+            .fill(Palette.strokeStrong)
+            .frame(width: 36, height: 4)
             .frame(maxWidth: .infinity)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
             .contentShape(Rectangle())
             .sheetDrag(model, minimumDistance: 0)
             .accessibilityLabel("Resize sheet")
@@ -95,24 +95,25 @@ private func metaText(_ row: BoardRow) -> Text {
 }
 
 private struct Hairline: View {
-    var opacity: Double
+    var color = Palette.stroke
 
     var body: some View {
-        Rectangle().fill(Palette.wash(opacity)).frame(height: 1)
+        Rectangle().fill(color).frame(height: 1)
     }
 }
 
-/// A quiet, centred meta line standing in for rows that aren't there (loading, empty, unavailable).
+/// A quiet, centred caption standing in for rows that aren't there (loading, empty, unavailable).
 private struct QuietLine: View {
     let text: String
 
     var body: some View {
         Text(text)
-            .font(.hanken(13, .medium))
+            .font(.hanken(12, .medium))
             .foregroundStyle(Palette.meta)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .padding(.top, 18)
+            .padding(.bottom, 6)
     }
 }
 
@@ -160,24 +161,34 @@ private struct BoardPanel: View {
                 let tabs = model.platformTabs
                 if !tabs.isEmpty { tabStrip(tabs) }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 15)
             .padding(.top, 2)
             .contentShape(Rectangle())
             .sheetDrag(model)
-            .overlay(alignment: .bottom) { Hairline(opacity: 0.06).opacity(scrolled ? 1 : 0) }
+            .overlay(alignment: .bottom) { Hairline().opacity(scrolled ? 1 : 0) }
             .animation(.easeOut(duration: 0.12), value: scrolled)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if let lead = board.lead { LeadRow(row: lead) { model.openJourney(lead.departure) } }
                     ForEach(board.rest) { row in
-                        SecondaryRow(row: row) { model.openJourney(row.departure) }
+                        SecondaryRow(row: row, last: row.id == board.rest.last?.id) { model.openJourney(row.departure) }
                     }
                     if let message, board.lead == nil {
                         QuietLine(text: message)
                     }
+                    let note = model.filterNote
+                    if !note.isEmpty {
+                        Text(note)
+                            .font(.hanken(12, .medium))
+                            .foregroundStyle(Palette.faint)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 10)
+                            .padding(.bottom, 4)
+                    }
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 15)
                 .padding(.bottom, 22 + bottomInset)
             }
             .scrollIndicators(.hidden)
@@ -190,55 +201,31 @@ private struct BoardPanel: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(model.currentStop.name)
-                    .font(.hanken(19, .heavy))
-                    .tracking(0.19)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                if !model.pinLabel.isEmpty {
-                    Text(model.pinLabel)
-                        .font(.hanken(12, .bold))
-                        .foregroundStyle(Palette.paperInk)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(Palette.paper, in: RoundedRectangle(cornerRadius: 6))
-                        .fixedSize()
-                }
-            }
+        HStack(alignment: .center, spacing: 12) {
+            Text(model.currentStop.name)
+                .font(.hanken(16, .heavy))
+                .tracking(0.16)
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
             Spacer(minLength: 0)
             if let walk = model.walk {
                 WalkTime(minutes: walk)
             }
         }
-        .padding(.bottom, 9)
+        .padding(.bottom, 10)
     }
 
     private func tabStrip(_ tabs: [PlatformTab]) -> some View {
         ScrollView(.horizontal) {
             HStack(spacing: 7) {
                 ForEach(tabs) { tab in
-                    Button { model.tapTab(tab) } label: {
-                        Text(tab.label)
-                            .font(.hanken(12.5, .bold))
-                            .foregroundStyle(tab.isOn ? Palette.paperInk : Palette.pillInk)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(tab.isOn ? Palette.paper : Palette.ctl, in: RoundedRectangle(cornerRadius: 9))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 9)
-                                    .strokeBorder(tab.isOn ? Palette.paper : Palette.wash(0.08), lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .animation(.easeOut(duration: 0.12), value: tab.isOn)
+                    PlatformChip(label: tab.label, active: tab.isOn) { model.tapTab(tab) }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 15)
         }
         .scrollIndicators(.hidden)
-        .padding(.horizontal, -16)
+        .padding(.horizontal, -15)
         .padding(.bottom, 11)
     }
 }
@@ -276,19 +263,23 @@ private struct LeadRow: View {
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(row.tier.color)
                     .frame(width: 3)
-                    .shadow(color: row.tier.glows ? Palette.glow(row.tier.color, dark: 1, light: 0.4) : .clear, radius: 4.5)
+                    .shadow(color: row.tier.glows ? Palette.glow(row.tier.color, dark: 1, light: 0.35) : .clear, radius: 4.5)
             }
             .padding(.top, 11)
             .padding(.bottom, 12)
-            .overlay(alignment: .bottom) { Hairline(opacity: 0.07) }
+            // tappable rows bleed 8pt into the sheet padding so the press fill has air
+            .padding(.horizontal, 8)
+            .overlay(alignment: .bottom) { Hairline() }
         }
         .buttonStyle(RowPressStyle())
+        .padding(.horizontal, -8)
         .disabled(!row.canFollow)
     }
 }
 
 private struct SecondaryRow: View {
     let row: BoardRow
+    var last = false
     let action: () -> Void
 
     var body: some View {
@@ -310,9 +301,11 @@ private struct SecondaryRow: View {
                 Countdown(tier: row.tier, minutes: d.inMinutes, atStop: d.atStop, size: 21)
             }
             .padding(.vertical, 9)
-            .overlay(alignment: .bottom) { Hairline(opacity: 0.05) }
+            .padding(.horizontal, 8)
+            .overlay(alignment: .bottom) { Hairline(color: Palette.strokeSoft).opacity(last ? 0 : 1) }
         }
         .buttonStyle(RowPressStyle())
+        .padding(.horizontal, -8)
         .disabled(!row.canFollow)
     }
 }
@@ -328,32 +321,25 @@ private struct JourneyPanel: View {
             let journey = model.journey
             let tier = journey?.tier ?? Tier.reach(inMinutes: d.inMinutes, walk: model.walk)
             VStack(spacing: 0) {
+                // JourneyHeader: back · pictogram · route · TOWARDS + headsign · countdown, then verdict + summary
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 10) {
-                        Button(action: model.closeJourney) {
-                            Glyph.back()
-                                .frame(width: 36, height: 36)
-                                .background(Palette.ctl, in: RoundedRectangle(cornerRadius: 11))
-                                .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.wash(0.08), lineWidth: 1))
-                                .contentShape(RoundedRectangle(cornerRadius: 11))
-                        }
-                        .buttonStyle(PressableStyle())
-                        .accessibilityLabel("Back to departures")
+                        IconButton(label: "Back to departures", action: model.closeJourney)
                         VehicleIcon(kind: d.kind, size: 22)
                         RouteChip(route: d.route, size: .lg)
-                        VStack(alignment: .leading, spacing: 0) {
+                        VStack(alignment: .leading, spacing: 4) {
                             Text("TOWARDS")
                                 .font(.hanken(11, .bold))
-                                .tracking(1.32)
+                                .tracking(11 * 0.14)
                                 .foregroundStyle(Palette.meta)
                             Text(d.headsign)
-                                .font(.hanken(17, .heavy))
+                                .font(.hanken(17, .bold))
                                 .foregroundStyle(Palette.ink)
                                 .lineLimit(1)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         // gone from your stop: nothing left to count down to
-                        Countdown(tier: tier, minutes: d.inMinutes, atStop: journey.map { $0.atStop && $0.seg == $0.mine } ?? d.atStop, size: 34)
+                        Countdown(tier: tier, minutes: d.inMinutes, atStop: journey.map { $0.atStop && $0.seg == $0.mine } ?? d.atStop, size: 38)
                             .opacity(journey?.hasDeparted == true ? 0 : 1)
                     }
                     HStack(spacing: 8) {
@@ -363,23 +349,23 @@ private struct JourneyPanel: View {
                         if let journey {
                             let summary = model.journeySummary(journey)
                             Text("\(summary.text)\(Text(summary.delay).foregroundStyle(summary.delayColor))")
-                                .font(.hanken(12.5, .medium))
+                                .font(.hanken(12, .medium))
                                 .foregroundStyle(Palette.meta)
                                 .lineLimit(1)
                         } else {
                             Text(model.journeyMessage ?? "")
-                                .font(.hanken(12.5, .medium))
+                                .font(.hanken(12, .medium))
                                 .foregroundStyle(Palette.meta)
                                 .lineLimit(1)
                         }
                     }
                     .padding(.top, 10)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 10)
+                .padding(.horizontal, 15)
+                .padding(.bottom, 12)
                 .contentShape(Rectangle())
                 .sheetDrag(model)
-                Hairline(opacity: 0.06)
+                Hairline()
 
                 if let journey {
                     ScrollViewReader { proxy in
@@ -396,9 +382,9 @@ private struct JourneyPanel: View {
                                     }
                                 }
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.top, 6)
-                            .padding(.bottom, 26 + bottomInset)
+                            .padding(.horizontal, 15)
+                            .padding(.top, 10)
+                            .padding(.bottom, 30 + bottomInset)
                         }
                         .scrollIndicators(.hidden)
                         .onAppear {
@@ -416,13 +402,14 @@ private struct JourneyPanel: View {
     }
 }
 
-/// The time · rail · name grid shared by journey rows.
+/// The time · rail · name grid shared by RouteTimeline rows.
 private enum RailGrid {
-    static let timeWidth: CGFloat = 46
-    static let railWidth: CGFloat = 26
+    static let timeWidth: CGFloat = 44
+    static let railWidth: CGFloat = 28
     static let gap: CGFloat = 10
 }
 
+/// The 2pt rail through a row: `edge` behind the vehicle, `meta` ahead.
 private struct Rail: View {
     let top: Color
     let bottom: Color
@@ -433,7 +420,7 @@ private struct Rail: View {
             Rectangle().fill(bottom)
         }
         .frame(width: 2)
-        .padding(.leading, RailGrid.timeWidth + RailGrid.gap + 12)
+        .padding(.leading, RailGrid.timeWidth + RailGrid.gap + RailGrid.railWidth / 2 - 1)
     }
 }
 
@@ -443,83 +430,82 @@ private struct StopRow: View {
     let action: () -> Void
 
     var body: some View {
-        let c = tier.color
         Button(action: action) {
             HStack(spacing: RailGrid.gap) {
                 Text(row.time)
-                    .font(.hanken(13.5, row.isMine ? .heavy : .semibold))
+                    .font(.hanken(12, row.isMine ? .bold : row.isPast ? .medium : .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(row.isPast ? Palette.timePast : row.isMine ? c : Palette.pillInk)
+                    .foregroundStyle(row.isMine ? Palette.ink : row.isPast ? Palette.meta : Palette.inkDim)
                     .frame(width: RailGrid.timeWidth, alignment: .trailing)
                 dot.frame(width: RailGrid.railWidth)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(row.name)
-                        .font(.hanken(row.isMine ? 16 : 14.5, row.isMine ? .heavy : .semibold))
-                        .foregroundStyle(row.isPast ? Palette.namePast : row.isMine ? Palette.ink : Palette.inkDim)
+                        .font(.hanken(row.isMine ? 16 : 15, row.isMine ? .bold : row.isPast ? .medium : .semibold))
+                        .foregroundStyle(row.isMine ? Palette.ink : row.isPast ? Palette.meta : Palette.inkDim)
                         .lineLimit(1)
                     if !row.note.isEmpty {
                         Text(row.note)
                             .font(.hanken(12, .medium))
                             .foregroundStyle(Palette.meta)
+                            .lineLimit(1)
                     }
                 }
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(minHeight: row.isMine ? 54 : 38)
+            .frame(minHeight: row.isMine ? 54 : 36)
             .background(alignment: .leading) { Rail(top: row.railTop, bottom: row.railBottom) }
             .padding(.horizontal, 8)
-            .background(row.isMine ? Palette.wash(0.045) : .clear, in: RoundedRectangle(cornerRadius: 9))
+            .background(row.isMine ? Palette.strokeSoft : .clear, in: RoundedRectangle(cornerRadius: 7))
         }
-        .buttonStyle(RowPressStyle(cornerRadius: 9))
+        .buttonStyle(RowPressStyle())
         .padding(.horizontal, -8)
     }
 
     @ViewBuilder private var dot: some View {
         let c = tier.color
         if row.isMine {
-            ZStack {
-                Circle().fill(c).frame(width: 20, height: 20).shadow(color: tier.glows ? Palette.glow(c, dark: 1, light: 0.4) : .clear, radius: 6)
-                Circle().fill(Palette.card).frame(width: 16, height: 16)
-                Circle().fill(c).frame(width: 10, height: 10)
-            }
+            // tier dot, a card ring, then a soft tier halo
+            Circle()
+                .fill(c)
+                .frame(width: 12, height: 12)
+                .padding(3)
+                .background(Circle().fill(Palette.card))
+                .padding(3)
+                .background(Circle().fill(c.opacity(0.28)))
+                .shadow(color: tier.glows ? c.opacity(0.5) : .clear, radius: 5)
         } else {
             Circle()
-                .fill(row.isPast ? Palette.dotPastFill : Palette.card)
-                .overlay(Circle().strokeBorder(row.isPast ? Palette.dotPastEdge : Palette.pillInk, lineWidth: 2))
+                .fill(Palette.card)
+                .overlay(Circle().strokeBorder(row.isPast ? Palette.edge : Palette.ctlInk, lineWidth: 2))
                 .frame(width: 10, height: 10)
         }
     }
 }
 
+/// "NOW": the vehicle riding the rail, heading down the line, "Between A and B".
 private struct VehicleRow: View {
     let row: JourneyRow
     let route: String
     let tier: Tier
 
     var body: some View {
-        let c = tier.color
         HStack(spacing: RailGrid.gap) {
             Text("NOW")
                 .font(.hanken(11, .bold))
-                .tracking(1.1)
+                .tracking(11 * 0.14)
                 .foregroundStyle(Palette.ink)
                 .frame(width: RailGrid.timeWidth, alignment: .trailing)
-            Text(route)
-                .font(.hanken(10, .heavy))
-                .foregroundStyle(Palette.ink)
-                .frame(width: 22, height: 22)
-                .background(Palette.vehicleFill, in: RoundedRectangle(cornerRadius: 7))
-                .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(c, lineWidth: 2))
-                .shadow(color: tier.glows ? Palette.glow(c, dark: 1, light: 0.4) : .clear, radius: 5)
-                .frame(width: RailGrid.railWidth)
+            VehicleMarker(route: route, tier: tier, heading: 180)
+                .frame(width: RailGrid.railWidth, height: 24)
             Text(row.text)
-                .font(.hanken(12.5, .medium))
-                .foregroundStyle(Palette.icon)
+                .font(.hanken(12, .medium))
+                .foregroundStyle(Palette.meta)
+                .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(minHeight: 34)
-        .background(alignment: .leading) { Rail(top: Palette.railPast, bottom: Palette.railAhead) }
+        .frame(minHeight: 40)
+        .background(alignment: .leading) { Rail(top: Palette.edge, bottom: Palette.meta) }
         .accessibilityElement(children: .combine)
     }
 }

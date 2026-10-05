@@ -2,8 +2,7 @@ import SwiftUI
 import UIKit
 
 /// tablo colour tokens — a port of `tokens/theme.css` (dark, the LED board)
-/// and `tokens/light.css` (warm paper, for daylight), plus the handful of
-/// one-off greys the stop prototype uses inline. Every token follows the
+/// and `tokens/light.css` (warm paper, for daylight). Every token follows the
 /// system appearance.
 enum Palette {
     // surfaces (dark: warm near-black stack · light: warm paper, never stark white)
@@ -36,40 +35,24 @@ enum Palette {
     static let early = dynamic(0x5FAE7A, 0x2C7A4D)
     static let icon = dynamic(0xA09A8F, 0x77716A)
 
-    // prototype one-offs
-    static let pillInk = dynamic(0xB7B5AD, 0x45434A)       // inactive tab text, upcoming stop time
-    static let toggleOff = dynamic(0x6D6D75, 0x6B6870)     // mode toggle, off
-    static let toggleOnFill = dynamic(.white.withAlphaComponent(0.14), UIColor(hex: 0x19181B))
-    static let toggleOnInk = dynamic(0xECEAE3, 0xF6F4EE)
-    static let fabIcon = dynamic(0xCFCDC6, 0x77716A)
-    static let grip = dynamic(UIColor(hex: 0x3A3A42), UIColor(hex: 0x19181B, alpha: 0.16))
-    static let glass = dynamic(UIColor(hex: 0x0C0C0F, alpha: 0.82), UIColor(white: 1, alpha: 0.94))
-    static let glassEdge = dynamic(.white.withAlphaComponent(0.09), UIColor(hex: 0xD4D0C6))
-    static let searchGround = dynamic(0x0C0C0F, 0xF2F0EA)
-    static let searchField = dynamic(0x0C0C0F, 0xFFFFFF)
-    static let searchEdge = dynamic(0x2E2E36, 0xD4D0C6)
-    static let searchMuted = dynamic(0x8A8A92, 0x6B6870)
-    static let vehicleFill = dynamic(0x141418, 0xE8E5DE)
-    static let sheetShadow = dynamic(UIColor(white: 0, alpha: 0.6), UIColor(hex: 0x19181B, alpha: 0.16))
+    // strokes + control ink (themeable)
+    static let strokeSoft = dynamic(.white.withAlphaComponent(0.05), UIColor(hex: 0x19181B, alpha: 0.06))   // secondary row divider
+    static let stroke = dynamic(.white.withAlphaComponent(0.07), UIColor(hex: 0x19181B, alpha: 0.08))       // lead row divider, chip stroke
+    static let strokeStrong = dynamic(.white.withAlphaComponent(0.12), UIColor(hex: 0x19181B, alpha: 0.16)) // control stroke, sheet grip
+    static let ctlInk = dynamic(0xB7B5AD, 0x45434A)     // idle pill text, icon-button glyph
+    static let field = dynamic(0x0C0C0F, 0xFFFFFF)      // text field + floating map controls
+    static let fieldEdge = dynamic(0x2E2E36, 0xD4D0C6)
+    static let fieldInk = dynamic(0x8A8A92, 0x6B6870)   // search glyph, trailing action
 
     // map markers
     static let halo = dynamic(UIColor(hex: 0x08080A, alpha: 0.75), UIColor(hex: 0xFBFAF6, alpha: 0.9))
     static let markerDrop = dynamic(UIColor(white: 0, alpha: 0.6), UIColor(hex: 0x3C301E, alpha: 0.22))
-    static let tag = dynamic(UIColor(hex: 0x0C0C0F, alpha: 0.88), UIColor(white: 1, alpha: 0.94))
 
-    // journey rail
-    static let railPast = dynamic(0x2C2C33, 0xDFDBD2)
-    static let railAhead = dynamic(0x8A887F, 0x6B6870)
-    static let timePast = dynamic(0x4A4A52, 0x8A8790)
-    static let namePast = dynamic(0x55555C, 0x8A8790)
-    static let dotPastFill = dynamic(0x2A2A30, 0xE8E5DE)
-    static let dotPastEdge = dynamic(0x3A3A42, 0xDFDBD2)
+    /// `--shadow-overlay`: the one place depth is allowed (sheets, overlays).
+    static let overlayShadow = dynamic(UIColor(white: 0, alpha: 0.8), UIColor(hex: 0x3C301E, alpha: 0.3))
 
-    /// A hairline / wash: bone-white over the dark board, warm ink over paper
-    /// (a touch stronger, as in `light.css`'s strokes).
-    static func wash(_ opacity: Double) -> Color {
-        dynamic(.white.withAlphaComponent(opacity), UIColor(hex: 0x19181B, alpha: opacity * 1.2))
-    }
+    /// `--ground`'s glow colour: the top of the radial "screen is on" gradient.
+    static let groundGlow = dynamic(0x101014, 0xFBFAF6)
 
     /// A glow in `color`'s hue: an LED bloom on the dark board, only a faint
     /// tint on paper (a bloom reads as a smudge on light).

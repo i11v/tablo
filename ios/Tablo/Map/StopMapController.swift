@@ -341,7 +341,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         restylePlatforms(animated: false)
         vehicles.values.forEach(restyle)
         if let j = journey {
-            journeyMine?.art = MarkerArt.journeyStop(name: j.stops[j.mine].name, tier: journeyTier)
+            journeyMine?.art = MarkerArt.journeyStop(name: j.stops[j.mine].name, label: j.markLabel)
             journeyVehicle?.art = MarkerArt.vehicle(route: j.route, tier: journeyTier, big: true)
             for m in [journeyMine, journeyVehicle].compactMap({ $0 }) {
                 if let view = mapView.view(for: m) { configure(view, with: m) }
@@ -522,7 +522,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
 
         let mine = Marker(
             role: .journeyStop, at: j.stops[j.mine].coord,
-            art: MarkerArt.journeyStop(name: j.stops[j.mine].name, tier: j.tier), zPriority: .init(rawValue: 500)
+            art: MarkerArt.journeyStop(name: j.stops[j.mine].name, label: j.markLabel), zPriority: .init(rawValue: 500)
         )
         let vehicle = Marker(
             role: .journeyVehicle, at: journeyVehiclePosition(),
@@ -551,10 +551,6 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         }
         if j.tier != journeyTier {
             journeyTier = j.tier
-            if let journeyMine {
-                journeyMine.art = MarkerArt.journeyStop(name: j.stops[j.mine].name, tier: j.tier)
-                if let view = mapView.view(for: journeyMine) { configure(view, with: journeyMine) }
-            }
             if let journeyVehicle {
                 journeyVehicle.art = MarkerArt.vehicle(route: j.route, tier: j.tier, big: true)
                 if let view = mapView.view(for: journeyVehicle) { configure(view, with: journeyVehicle) }

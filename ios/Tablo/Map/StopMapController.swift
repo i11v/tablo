@@ -648,10 +648,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
                     continue
                 }
                 guard g.marker.isOnMap else { continue }
-                let p = g.position(at: t, now: now)
-                if g.marker.coordinate.latitude != p.lat || g.marker.coordinate.longitude != p.lng {
-                    g.marker.coordinate = p.coordinate
-                }
+                place(g.marker, at: g.position(at: t, now: now))
                 if g.marker.opacity != opacity {
                     g.marker.opacity = opacity
                     mapView.view(for: g.marker)?.alpha = opacity
@@ -662,11 +659,29 @@ final class StopMapController: NSObject, MKMapViewDelegate {
                 if let g = vehicles.removeValue(forKey: id) { show(g.marker, false) }
             }
         } else if let vehicle = journeyVehicle {
-            vehicle.coordinate = journeyVehiclePosition().coordinate
+            place(vehicle, at: journeyVehiclePosition())
             if let j = journey { turn(vehicle, to: pathHeading(j.path, atKm: displayedKm(at: t))) }
             frame += 1
             if frame % 6 == 0 { pushJourneySnapshot() }
         }
+    }
+
+    /// Move a marker to `p` without pixel snapping. MapKit puts annotation views
+    /// on whole pixels, x and y apart, so a vehicle creeping along a diagonal
+    /// line (zoomed out, a pixel every few frames) staircases around it; the
+    /// view's transform carries the sub-pixel rest MapKit rounded off.
+    private func place(_ m: Marker, at p: LngLat) {
+        if m.coordinate.latitude != p.lat || m.coordinate.longitude != p.lng {
+            m.coordinate = p.coordinate
+        }
+        guard let view = mapView.view(for: m), let container = view.superview else { return }
+        let exact = mapView.convert(p.coordinate, toPointTo: container)
+        var dx = exact.x + view.centerOffset.x - view.center.x
+        var dy = exact.y + view.centerOffset.y - view.center.y
+        // more than a pixel off: MapKit is mid-layout (a zoom, a pan) — leave it be
+        if abs(dx) > 1 || abs(dy) > 1 { dx = 0; dy = 0 }
+        let transform = CGAffineTransform(scaleX: m.scale, y: m.scale).concatenating(CGAffineTransform(translationX: dx, y: dy))
+        if view.transform != transform { view.transform = transform }
     }
 
     // MARK: - Camera

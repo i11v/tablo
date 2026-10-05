@@ -44,6 +44,8 @@ final class TabloMapView: MKMapView {
 /// in when it appears and out when it leaves the feed. Once its trip's path is
 /// known it glides along it by km, so it follows its line instead of cutting
 /// straight across blocks; fixes too far off the path (a diversion) glide straight.
+/// With timed reports and the trip's timetable it follows a `VehicleTrack`
+/// instead: moving on between reports, halting where they show it stopped.
 private final class Glide {
     let marker: Marker
     var route: String
@@ -58,6 +60,10 @@ private final class Glide {
     var leaving = false
     /// The trip's path; `onPath` while the latest fix lies on it.
     private(set) var path: [PathPoint]?
+    private var plan: TripPlan?
+    /// The latest timed report, and the track it's followed on while one exists.
+    private var report: VehicleReport?
+    private var track: VehicleTrack?
     private var onPath = false
     private var kmFrom = 0.0
     private var kmTo = 0.0
@@ -76,6 +82,7 @@ private final class Glide {
         kind = v.kind
         from = v.coord
         to = v.coord
+        report = v.report
         start = t
         fadeStart = t
     }
@@ -88,13 +95,15 @@ private final class Glide {
         kmFrom + (kmTo - kmFrom) * progress(at: t)
     }
 
-    func position(at t: CFTimeInterval) -> LngLat {
+    func position(at t: CFTimeInterval, now: Date) -> LngLat {
+        if let track, let path, let p = Geo.point(on: path, atKm: track.km(at: now)) { return p }
         if onPath, let path, let p = Geo.point(on: path, atKm: km(at: t)) { return p }
         return Geo.lerp(from, to, progress(at: t))
     }
 
     /// Which way it's heading: along its line when on it, else toward its fix.
-    func heading(at t: CFTimeInterval) -> Double? {
+    func heading(at t: CFTimeInterval, now: Date) -> Double? {
+        if let track, let path { return pathHeading(path, atKm: track.km(at: now)) }
         if onPath, let path { return pathHeading(path, atKm: km(at: t)) }
         return screenHeading(from, to)
     }
@@ -105,18 +114,24 @@ private final class Glide {
         return s.km
     }
 
-    /// Head for a new fix over `glide` seconds.
-    func retarget(to fix: LngLat, glide: TimeInterval, at t: CFTimeInterval) {
-        let here = position(at: t)
+    /// Take the latest fix: on its track when it can be followed there, else
+    /// head for it over `glide` seconds.
+    func retarget(to v: MapVehicle, glide: TimeInterval, at t: CFTimeInterval, now: Date) {
+        let here = position(at: t, now: now)
+        if follow(v, from: here, at: t, now: now) { return }
+        if track != nil {
+            // lost its track (off it, or no report times): glide on from where it's drawn
+            track = nil
+            onPath = false
+            from = here
+        }
+        let fix = v.coord
         if leaving || Geo.haversineMetres(here, fix) > Self.jumpMetres {
             // back from leaving, or a jump too long to glide: fade in at the new place
             from = fix
             to = fix
             duration = 0
-            leaving = false
-            fadeFrom = 0
-            fadeTo = 1
-            fadeStart = t
+            fadeIn(at: t)
             if let k = snap(fix) {
                 onPath = true
                 kmFrom = k
@@ -143,11 +158,44 @@ private final class Glide {
         duration = glide
     }
 
-    /// The trip's path arrived: carry on toward the latest fix along it.
-    func attach(_ path: [PathPoint], at t: CFTimeInterval) {
-        guard self.path == nil, path.count > 1 else { return }
-        let here = position(at: t)
-        self.path = path
+    /// Follow `v`'s report on the trip's track, easing from `here`; false when
+    /// it can't be (no plan yet, no report time, or off its track).
+    private func follow(_ v: MapVehicle, from here: LngLat, at t: CFTimeInterval, now: Date) -> Bool {
+        report = v.report
+        to = v.coord
+        guard let plan, let report = v.report else { return false }
+        if !leaving, var current = track, current.update(report, plan: plan, now: now) {
+            track = current
+        } else {
+            track = VehicleTrack(plan: plan, report: report, shownKm: leaving ? nil : Geo.project(here, onto: plan.path), now: now)
+        }
+        guard track != nil else { return false }
+        if leaving || Geo.haversineMetres(here, position(at: t, now: now)) > Self.jumpMetres {
+            // back from leaving, or too far to ease: fade in where the track has it
+            track = VehicleTrack(plan: plan, report: report, now: now)
+            fadeIn(at: t)
+        }
+        return true
+    }
+
+    private func fadeIn(at t: CFTimeInterval) {
+        leaving = false
+        fadeFrom = 0
+        fadeTo = 1
+        fadeStart = t
+    }
+
+    /// The trip's plan arrived: follow its track when the reports allow, else
+    /// carry on toward the latest fix along its path.
+    func attach(_ plan: TripPlan, at t: CFTimeInterval, now: Date) {
+        guard self.plan == nil, plan.path.count > 1 else { return }
+        let here = position(at: t, now: now)
+        self.plan = plan
+        path = plan.path
+        if let report, let track = VehicleTrack(plan: plan, report: report, shownKm: Geo.project(here, onto: plan.path), now: now) {
+            self.track = track
+            return
+        }
         guard let target = snap(to) else { return }
         kmFrom = min(snap(here) ?? target, target)
         kmTo = target
@@ -383,11 +431,12 @@ final class StopMapController: NSObject, MKMapViewDelegate {
     /// Live vehicles around the stop; each glides to its new fix over `glide` seconds.
     func setVehicles(_ list: [MapVehicle], glide: TimeInterval) {
         let t = CACurrentMediaTime()
+        let now = Date()
         var seen = Set<String>()
         for v in list {
             seen.insert(v.tripId)
             if let g = vehicles[v.tripId] {
-                g.retarget(to: v.coord, glide: glide, at: t)
+                g.retarget(to: v, glide: glide, at: t, now: now)
                 if g.route != v.route {
                     g.route = v.route
                     restyle(g)
@@ -411,10 +460,11 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         applyVisibility()
     }
 
-    /// The path of a vehicle's trip: from now on it glides along its line.
-    func setVehiclePath(_ tripId: String, _ path: [PathPoint]) {
+    /// The plan of a vehicle's trip: from now on it follows its line (and its
+    /// timetable, when its reports are timed).
+    func setVehiclePlan(_ tripId: String, _ plan: TripPlan) {
         guard let g = vehicles[tripId], g.path == nil else { return }
-        g.attach(path, at: CACurrentMediaTime())
+        g.attach(plan, at: CACurrentMediaTime(), now: Date())
     }
 
     /// Tiers of the vehicles whose trips are on the board (others stay neutral and can't be tapped).
@@ -588,6 +638,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
 
     fileprivate func tick() {
         let t = CACurrentMediaTime()
+        let now = Date()
         if journey == nil {
             var gone: [String] = []
             for (id, g) in vehicles {
@@ -597,25 +648,40 @@ final class StopMapController: NSObject, MKMapViewDelegate {
                     continue
                 }
                 guard g.marker.isOnMap else { continue }
-                let p = g.position(at: t)
-                if g.marker.coordinate.latitude != p.lat || g.marker.coordinate.longitude != p.lng {
-                    g.marker.coordinate = p.coordinate
-                }
+                place(g.marker, at: g.position(at: t, now: now))
                 if g.marker.opacity != opacity {
                     g.marker.opacity = opacity
                     mapView.view(for: g.marker)?.alpha = opacity
                 }
-                turn(g.marker, to: g.heading(at: t))
+                turn(g.marker, to: g.heading(at: t, now: now))
             }
             for id in gone {
                 if let g = vehicles.removeValue(forKey: id) { show(g.marker, false) }
             }
         } else if let vehicle = journeyVehicle {
-            vehicle.coordinate = journeyVehiclePosition().coordinate
+            place(vehicle, at: journeyVehiclePosition())
             if let j = journey { turn(vehicle, to: pathHeading(j.path, atKm: displayedKm(at: t))) }
             frame += 1
             if frame % 6 == 0 { pushJourneySnapshot() }
         }
+    }
+
+    /// Move a marker to `p` without pixel snapping. MapKit puts annotation views
+    /// on whole pixels, x and y apart, so a vehicle creeping along a diagonal
+    /// line (zoomed out, a pixel every few frames) staircases around it; the
+    /// view's transform carries the sub-pixel rest MapKit rounded off.
+    private func place(_ m: Marker, at p: LngLat) {
+        if m.coordinate.latitude != p.lat || m.coordinate.longitude != p.lng {
+            m.coordinate = p.coordinate
+        }
+        guard let view = mapView.view(for: m), let container = view.superview else { return }
+        let exact = mapView.convert(p.coordinate, toPointTo: container)
+        var dx = exact.x + view.centerOffset.x - view.center.x
+        var dy = exact.y + view.centerOffset.y - view.center.y
+        // more than a pixel off: MapKit is mid-layout (a zoom, a pan) — leave it be
+        if abs(dx) > 1 || abs(dy) > 1 { dx = 0; dy = 0 }
+        let transform = CGAffineTransform(scaleX: m.scale, y: m.scale).concatenating(CGAffineTransform(translationX: dx, y: dy))
+        if view.transform != transform { view.transform = transform }
     }
 
     // MARK: - Camera

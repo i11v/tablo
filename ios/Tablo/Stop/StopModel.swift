@@ -67,6 +67,8 @@ struct Follow {
     var departure: WireDeparture
     var trip: TripLoad
     var vehicle: TripVehicle?
+    /// The vehicle followed between its reports, once the trip is ready.
+    var track: VehicleTrack?
 
     var id: String { departure.tripId ?? "" }
 }
@@ -378,7 +380,10 @@ final class StopModel {
 
     var journey: Journey? {
         guard let follow, case let .ready(plan) = follow.trip else { return nil }
-        return JourneyBuilder.build(plan: plan, departure: follow.departure, vehicle: follow.vehicle, stop: stop, walk: walk, now: now)
+        return JourneyBuilder.build(
+            plan: plan, departure: follow.departure, vehicle: follow.vehicle, trackKm: follow.track?.km(at: now),
+            stop: stop, walk: walk, now: now
+        )
     }
 
     var journeyMessage: String? {
@@ -656,7 +661,7 @@ final class StopModel {
 
     private func vehiclesLoaded(_ list: [LiveVehicle]) {
         map.setVehicles(
-            list.map { MapVehicle(tripId: $0.tripId, route: $0.route, kind: $0.kind, coord: $0.coord) },
+            list.map { MapVehicle(tripId: $0.tripId, route: $0.route, kind: $0.kind, coord: $0.coord, report: $0.report) },
             glide: Self.vehiclePoll
         )
         mapTrips = Set(list.map(\.tripId))
@@ -717,7 +722,7 @@ final class StopModel {
     /// Only a real shape: a plan drawn stop to stop would cut corners too.
     private func attachPath(_ tripId: String, _ plan: TripPlan) {
         guard plan.trip.shape.count > 1 else { return }
-        map.setVehiclePath(tripId, plan.path)
+        map.setVehiclePlan(tripId, plan)
     }
 
     /// Load the followed trip (cached by id), then poll its vehicle every 10 s.
@@ -755,6 +760,7 @@ final class StopModel {
         tripPlans[tripId] = plan
         guard follow?.id == tripId else { return }
         follow?.trip = .ready(plan)
+        updateFollowTrack()
         if let j = journey { map.showJourney(j, id: tripId, sheetHeight: sheetHeight) }
     }
 
@@ -766,7 +772,22 @@ final class StopModel {
     private func vehicleLoaded(_ tripId: String, _ vehicle: TripVehicle?) {
         guard follow?.id == tripId else { return }
         follow?.vehicle = vehicle
+        updateFollowTrack()
         if let j = journey { map.updateJourney(j) }
+    }
+
+    /// Carry the followed vehicle's track over to its latest report (or start one).
+    private func updateFollowTrack() {
+        guard case let .ready(plan)? = follow?.trip, let report = follow?.vehicle?.report else {
+            follow?.track = nil
+            return
+        }
+        let now = Date()
+        if var track = follow?.track, track.update(report, plan: plan, now: now) {
+            follow?.track = track
+        } else {
+            follow?.track = VehicleTrack(plan: plan, report: report, now: now)
+        }
     }
 
     // MARK: - Sheet

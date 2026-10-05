@@ -337,6 +337,11 @@ struct TripVehicle: Decodable, Hashable {
 
     var coord: LngLat { LngLat(lon, lat) }
 
+    /// The position as a timed report; nil without a report time.
+    var report: VehicleReport? {
+        updatedAt.map { VehicleReport(coord: coord, distance: distance, state: state, at: $0) }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case tripId, lat, lon, bearing, delaySeconds, lastStopSequence, nextStopSequence, distance, state, updatedAt
     }
@@ -395,12 +400,30 @@ struct LiveVehicle: Decodable, Hashable {
     let lon: Double
     let bearing: Double?
     let delaySeconds: Double?
+    // Since the city-wide snapshot (all optional: older servers don't send them).
+    let lastStopSequence: Int?
+    let nextStopSequence: Int?
+    /// km along the shape.
+    let distance: Double?
+    let state: String?
+    /// When the vehicle reported this position.
+    let updatedAt: Date?
 
     var coord: LngLat { LngLat(lon, lat) }
 
-    private enum CodingKeys: String, CodingKey { case tripId, route, kind, lat, lon, bearing, delaySeconds }
+    /// The position as a timed report; nil from servers that don't say when it was made.
+    var report: VehicleReport? {
+        updatedAt.map { VehicleReport(coord: coord, distance: distance, state: state ?? "on_track", at: $0) }
+    }
 
-    init(tripId: String, route: String, kind: VehicleKind, lat: Double, lon: Double, bearing: Double? = nil, delaySeconds: Double? = nil) {
+    private enum CodingKeys: String, CodingKey {
+        case tripId, route, kind, lat, lon, bearing, delaySeconds, lastStopSequence, nextStopSequence, distance, state, updatedAt
+    }
+
+    init(
+        tripId: String, route: String, kind: VehicleKind, lat: Double, lon: Double, bearing: Double? = nil, delaySeconds: Double? = nil,
+        lastStopSequence: Int? = nil, nextStopSequence: Int? = nil, distance: Double? = nil, state: String? = nil, updatedAt: Date? = nil
+    ) {
         self.tripId = tripId
         self.route = route
         self.kind = kind
@@ -408,6 +431,11 @@ struct LiveVehicle: Decodable, Hashable {
         self.lon = lon
         self.bearing = bearing
         self.delaySeconds = delaySeconds
+        self.lastStopSequence = lastStopSequence
+        self.nextStopSequence = nextStopSequence
+        self.distance = distance
+        self.state = state
+        self.updatedAt = updatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -419,6 +447,11 @@ struct LiveVehicle: Decodable, Hashable {
         lon = try c.decode(Double.self, forKey: .lon)
         bearing = try c.decodeIfPresent(Double.self, forKey: .bearing)
         delaySeconds = try c.decodeIfPresent(Double.self, forKey: .delaySeconds)
+        lastStopSequence = try c.decodeLenientIntIfPresent(forKey: .lastStopSequence)
+        nextStopSequence = try c.decodeLenientIntIfPresent(forKey: .nextStopSequence)
+        distance = try c.decodeIfPresent(Double.self, forKey: .distance)
+        state = try c.decodeIfPresent(String.self, forKey: .state)
+        updatedAt = try c.decodeIfPresent(String.self, forKey: .updatedAt).flatMap(ISODate.parse)
     }
 }
 

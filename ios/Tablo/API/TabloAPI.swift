@@ -29,7 +29,7 @@ enum APIConfig {
     }
 }
 
-/// A box the vehicles endpoint accepts: `minLat,minLon,maxLat,maxLon`, each side ≤ 0.05°.
+/// A box the vehicles endpoint accepts: `minLat,minLon,maxLat,maxLon`, each side ≤ 1° (0.05° on older servers).
 struct BBox: Equatable {
     let minLat: Double
     let minLon: Double

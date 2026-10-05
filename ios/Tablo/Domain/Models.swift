@@ -116,6 +116,8 @@ struct MapVehicle: Hashable {
     let route: String
     let kind: VehicleKind
     let coord: LngLat
+    /// The position as a timed report, when the server says when it was made.
+    var report: VehicleReport? = nil
 }
 
 /// A point on a trip's path with its distance along it.

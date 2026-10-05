@@ -153,6 +153,19 @@ final class WireTests: XCTestCase {
         """#)
         XCTAssertEqual(list.vehicles.map(\.tripId), ["9_1", "58_1"])
         XCTAssertEqual(list.vehicles[1].kind, .other)
+        // an older server sends no report time: no report to follow
+        XCTAssertNil(list.vehicles[0].report)
+    }
+
+    func testLiveVehicleReport() throws {
+        let v = try decode(LiveVehicle.self, #"""
+        {"tripId":"9_1","route":"9","kind":"tram","lat":50.08,"lon":14.42,"bearing":90,"delaySeconds":30,
+         "lastStopSequence":12,"nextStopSequence":13,"distance":5.831,"state":"at_stop","updatedAt":"2026-10-03T11:10:31+02:00"}
+        """#)
+        XCTAssertEqual(
+            v.report,
+            VehicleReport(coord: LngLat(14.42, 50.08), distance: 5.831, state: "at_stop", at: try XCTUnwrap(ISODate.parse("2026-10-03T11:10:31+02:00")))
+        )
     }
 
     func testErrorBody() throws {

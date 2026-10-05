@@ -162,8 +162,15 @@ final class ContractTests: XCTestCase {
         XCTAssertEqual(
             list.vehicles,
             [
-                LiveVehicle(tripId: "9_1", route: "9", kind: .tram, lat: 50.08, lon: 14.42, bearing: 90, delaySeconds: 30),
-                LiveVehicle(tripId: "136_1", route: "136", kind: .bus, lat: 50.1, lon: 14.4),
+                LiveVehicle(
+                    tripId: "9_1", route: "9", kind: .tram, lat: 50.08, lon: 14.42, bearing: 90, delaySeconds: 30,
+                    lastStopSequence: 12, nextStopSequence: 13, distance: 5.831, state: "at_stop",
+                    updatedAt: ISODate.parse("2026-10-03T11:10:31+02:00")
+                ),
+                LiveVehicle(
+                    tripId: "136_1", route: "136", kind: .bus, lat: 50.1, lon: 14.4,
+                    state: "on_track", updatedAt: ISODate.parse("2026-10-03T11:09:58+02:00")
+                ),
             ]
         )
     }

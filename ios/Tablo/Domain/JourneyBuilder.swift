@@ -140,7 +140,29 @@ enum JourneyBuilder {
         return TripPosition(seg: s, frac: clamp(timeFrac(s)), atStop: false)
     }
 
-    static func build(plan: TripPlan, departure: WireDeparture, vehicle: TripVehicle?, stop: IndexStop, walk: Int?, now: Date) -> Journey? {
+    /// Within this of a stop's km, a tracked vehicle is at that stop.
+    static let atStopKm = 0.02
+
+    /// The vehicle's segment from where its track has it along the path.
+    static func position(stopKm: [Double], mine: Int, departureAtStop: Bool, km: Double) -> TripPosition {
+        let n = stopKm.count
+        guard n > 1 else { return TripPosition(seg: 0, frac: 0, atStop: true) }
+        if let i = stopKm.indices.last(where: { abs(stopKm[$0] - km) <= atStopKm }) {
+            if departureAtStop, abs(i - mine) <= 1 { return TripPosition(seg: mine, frac: 0, atStop: true) }
+            return TripPosition(seg: i, frac: 0, atStop: true)
+        }
+        if km >= stopKm[n - 1] { return TripPosition(seg: n - 1, frac: 0, atStop: true) }
+        let s = min(n - 2, stopKm.lastIndex { $0 <= km } ?? 0)
+        if departureAtStop, s == mine || s + 1 == mine { return TripPosition(seg: mine, frac: 0, atStop: true) }
+        let span = stopKm[s + 1] - stopKm[s]
+        return TripPosition(seg: s, frac: span > 0 ? max(0, min(1, (km - stopKm[s]) / span)) : 0, atStop: false)
+    }
+
+    /// `trackKm`: where the vehicle's track has it now, when it's followed between reports.
+    static func build(
+        plan: TripPlan, departure: WireDeparture, vehicle: TripVehicle?, trackKm: Double? = nil,
+        stop: IndexStop, walk: Int?, now: Date
+    ) -> Journey? {
         let tripStops = plan.trip.stops
         guard tripStops.count > 1, plan.path.count > 1,
               let mine = mineIndex(tripStops, node: stop.node, scope: stop.stops, platform: departure.platform, near: stop.coord)
@@ -155,13 +177,20 @@ enum JourneyBuilder {
             if plan.usesShapeKm, let d = v.distance { return d }
             return Geo.project(v.coord, onto: plan.path)
         }
-        let at = position(
+        let at = trackKm.map {
+            position(stopKm: plan.stopKm, mine: mine, departureAtStop: departure.isAtStop, km: $0)
+        } ?? position(
             stops: tripStops, stopKm: plan.stopKm, predicted: predicted, mine: mine,
             departureAtStop: departure.isAtStop, vehicle: vehicle, vehicleKm: liveKm, now: now
         )
-        let km = at.atStop || at.seg >= tripStops.count - 1
-            ? plan.stopKm[at.seg]
-            : plan.stopKm[at.seg] + at.frac * (plan.stopKm[at.seg + 1] - plan.stopKm[at.seg])
+        let km: Double
+        if let trackKm, !(departure.isAtStop && at.atStop && at.seg == mine) {
+            km = trackKm // smooth: not snapped to the stop it's within a few metres of
+        } else if at.atStop || at.seg >= tripStops.count - 1 {
+            km = plan.stopKm[at.seg]
+        } else {
+            km = plan.stopKm[at.seg] + at.frac * (plan.stopKm[at.seg + 1] - plan.stopKm[at.seg])
+        }
 
         let stops = tripStops.indices.map { i in
             let passed = at.atStop ? i < at.seg : i <= at.seg

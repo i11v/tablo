@@ -557,7 +557,10 @@ final class StopModel {
     func selectPlatform(_ key: String) {
         activePlatform = key
         map.setSelected(key == Self.allPlatforms ? nil : key)
-        if key != Self.allPlatforms, sheetHeight < 460 { setSheet(460) }
+        guard key != Self.allPlatforms else { return }
+        // size the sheet first: the map centres the platform above its final height
+        if sheetHeight < 460 { setSheet(460) }
+        map.focusPlatform(key)
     }
 
     func tapTab(_ tab: PlatformTab) {

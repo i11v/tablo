@@ -408,6 +408,12 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         restylePlatforms(animated: true)
     }
 
+    /// Centre a platform in the map left visible above the sheet.
+    func focusPlatform(_ key: String) {
+        guard journey == nil, let p = platforms.first(where: { $0.key == key }) else { return }
+        fly(to: p.coord, zoom: max(currentZoom, Self.homeZoom), offset: visibleCentreOffset, duration: 0.6)
+    }
+
     private func restylePlatforms(animated: Bool) {
         for p in platforms {
             guard let m = platformMarkers[p.key] else { continue }

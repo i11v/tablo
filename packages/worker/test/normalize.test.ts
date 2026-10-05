@@ -1,24 +1,23 @@
 import { describe, expect, it } from "vitest"
 import { Schema } from "effect"
-import { LiveVehicles, Trip, TripVehicle } from "@app/contract"
+import { LiveVehicle, Trip, TripVehicle } from "@app/contract"
 import {
   PidBoardResponse,
-  PidPublicVehicles,
   PidTripPosition,
   PidTripResponse,
+  PidVehiclePosition,
 } from "../src/golemio/schema.ts"
 import {
   gtfsTimeToSeconds,
   parseAswStopId,
-  publicRouteTypeToKind,
   routeTypeToKind,
   toBoards,
-  toLiveVehicles,
+  toLiveVehicle,
   toTrip,
   toTripVehicle,
 } from "../src/golemio/normalize.ts"
 import { fixture } from "./fixtures/departureboards.ts"
-import { publicVehiclesFixture, tripFixture, tripPositionFixture } from "./fixtures/transit.ts"
+import { tripFixture, tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
 
 describe("PidBoardResponse", () => {
   it("decodes the fixture, ignoring unknown fields", () => {
@@ -193,18 +192,6 @@ describe("parseAswStopId", () => {
   })
 })
 
-describe("publicRouteTypeToKind", () => {
-  it("maps Golemio's named route types", () => {
-    expect(publicRouteTypeToKind("tram")).toBe("tram")
-    expect(publicRouteTypeToKind("metro")).toBe("metro")
-    expect(publicRouteTypeToKind("train")).toBe("train")
-    expect(publicRouteTypeToKind("bus")).toBe("bus")
-    expect(publicRouteTypeToKind("trolleybus")).toBe("bus")
-    expect(publicRouteTypeToKind("ferry")).toBe("other")
-    expect(publicRouteTypeToKind(null)).toBe("other")
-  })
-})
-
 describe("toTrip", () => {
   const data = Schema.decodeUnknownSync(PidTripResponse)(tripFixture)
 
@@ -320,35 +307,40 @@ describe("toTripVehicle", () => {
   })
 })
 
-describe("toLiveVehicles", () => {
-  const data = Schema.decodeUnknownSync(PidPublicVehicles)(publicVehiclesFixture)
+describe("toLiveVehicle", () => {
+  const [tram, metro, , , trolleybus] = vehiclePositionsFixture.features
+    .slice(0, 5) // the 6th is the malformed one
+    .map((f) => Schema.decodeUnknownSync(PidVehiclePosition)(f))
 
-  it("maps features to vehicles, dropping ones without a trip", () => {
-    const result = toLiveVehicles(data, "2026-10-03T09:04:00.000Z")
-    expect(result.generatedAt).toBe("2026-10-03T09:04:00.000Z")
-    expect(result.vehicles.map((v) => v.tripId)).toEqual([
-      "23_9755_260926",
-      "992_1421_260829",
-      "9_29806_261003",
-      "58_101_261003",
-    ])
-    expect(result.vehicles[0]).toEqual({
-      tripId: "23_9755_260926",
-      route: "23",
+  it("carries the trip position, its report time and what to draw it as", () => {
+    const vehicle = toLiveVehicle(tram)
+    expect(vehicle).toEqual({
+      tripId: "24_8789_260829",
+      route: "24",
       kind: "tram",
-      lat: 50.08107,
-      lon: 14.41971,
-      bearing: 174,
-      delaySeconds: 242,
+      lat: 50.09144,
+      lon: 14.43988,
+      bearing: 247,
+      delaySeconds: -16,
+      lastStopSequence: 19,
+      nextStopSequence: 20,
+      distance: 7.421801,
+      state: "at_stop",
+      updatedAt: "2026-10-04T23:41:44+02:00",
     })
-    expect(result.vehicles[1].kind).toBe("metro")
-    expect(result.vehicles[1].route).toBe("B")
-    expect(result.vehicles[3]).toMatchObject({
+    expect(() => Schema.decodeUnknownSync(LiveVehicle)(vehicle)).not.toThrow()
+    expect(toLiveVehicle(metro)).toMatchObject({ route: "A", kind: "metro", state: "on_track" })
+  })
+
+  it("tolerates a vehicle with no route name, bearing, delay, stops or distance", () => {
+    expect(toLiveVehicle(trolleybus)).toMatchObject({
       route: "?",
       kind: "bus",
       bearing: null,
       delaySeconds: null,
+      lastStopSequence: null,
+      nextStopSequence: null,
+      distance: null,
     })
-    expect(() => Schema.decodeUnknownSync(LiveVehicles)(result)).not.toThrow()
   })
 })

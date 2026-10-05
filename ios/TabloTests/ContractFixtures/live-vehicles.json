@@ -2,21 +2,31 @@
   "vehicles": [
     {
       "tripId": "9_1",
-      "route": "9",
-      "kind": "tram",
       "lat": 50.08,
       "lon": 14.42,
       "bearing": 90,
-      "delaySeconds": 30
+      "delaySeconds": 30,
+      "lastStopSequence": 12,
+      "nextStopSequence": 13,
+      "distance": 5.831,
+      "state": "at_stop",
+      "updatedAt": "2026-10-03T11:10:31+02:00",
+      "route": "9",
+      "kind": "tram"
     },
     {
       "tripId": "136_1",
-      "route": "136",
-      "kind": "bus",
       "lat": 50.1,
       "lon": 14.4,
       "bearing": null,
-      "delaySeconds": null
+      "delaySeconds": null,
+      "lastStopSequence": null,
+      "nextStopSequence": null,
+      "distance": null,
+      "state": "on_track",
+      "updatedAt": "2026-10-03T11:09:58+02:00",
+      "route": "136",
+      "kind": "bus"
     }
   ],
   "generatedAt": "2026-10-03T09:10:45.000Z"

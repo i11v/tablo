@@ -12,7 +12,7 @@ export const fakeClient = (impl: Partial<ClientShape>): Layer.Layer<GolemioClien
     fetchBoards: () => Effect.die("unexpected fetchBoards"),
     fetchTrip: () => Effect.die("unexpected fetchTrip"),
     fetchTripPosition: () => Effect.die("unexpected fetchTripPosition"),
-    fetchVehicles: () => Effect.die("unexpected fetchVehicles"),
+    fetchAllVehicles: () => Effect.die("unexpected fetchAllVehicles"),
     ...impl,
   })
 

@@ -3,7 +3,7 @@ import { Effect, Layer, Redacted } from "effect"
 import { HttpClient, HttpClientResponse } from "effect/http"
 import { GolemioClient } from "../src/golemio/client.ts"
 import { fixture } from "./fixtures/departureboards.ts"
-import { publicVehiclesFixture, tripFixture, tripPositionFixture } from "./fixtures/transit.ts"
+import { tripFixture, tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
 
 const capture: { url: URL | null; token: string | undefined } = { url: null, token: undefined }
 
@@ -105,31 +105,27 @@ describe("GolemioClient", () => {
     }).pipe(Effect.provide(layerWith(404, { error_message: "Not Found", error_status: 404 }))),
   )
 
-  it.effect("fetchVehicles sends the box top-left → bottom-right, lat first", () =>
+  it.effect("fetchAllVehicles asks for one full page and drops malformed vehicles", () =>
     Effect.gen(function* () {
       const client = yield* GolemioClient
-      const data = yield* client.fetchVehicles({
-        minLat: 50.075,
-        minLon: 14.41,
-        maxLat: 50.085,
-        maxLon: 14.43,
-      })
-      expect(data.features).toHaveLength(5)
-      expect(capture.url!.pathname).toBe("/v2/public/vehiclepositions")
-      expect(capture.url!.searchParams.get("boundingBox")).toBe("50.085,14.41,50.075,14.43")
-    }).pipe(Effect.provide(layerWith(200, publicVehiclesFixture))),
+      const data = yield* client.fetchAllVehicles()
+      expect(capture.url!.pathname).toBe("/v2/vehiclepositions")
+      expect(capture.url!.searchParams.get("limit")).toBe("10000")
+      // 6 features, the last without a trip id
+      expect(data.map((v) => v.properties.trip.gtfs.trip_id)).toEqual([
+        "24_8789_260829",
+        "991_11748_260202",
+        "175_2073_260901",
+        "1002_5860_251214",
+        "58_100_260901",
+      ])
+    }).pipe(Effect.provide(layerWith(200, vehiclePositionsFixture))),
   )
 
-  it.effect("fetchVehicles treats 404 as an empty collection", () =>
+  it.effect("fetchAllVehicles treats 404 as an empty collection", () =>
     Effect.gen(function* () {
       const client = yield* GolemioClient
-      const data = yield* client.fetchVehicles({
-        minLat: 50,
-        minLon: 14,
-        maxLat: 50.01,
-        maxLon: 14.01,
-      })
-      expect(data.features).toEqual([])
+      expect(yield* client.fetchAllVehicles()).toEqual([])
     }).pipe(Effect.provide(layerWith(404, { error_message: "Not Found", error_status: 404 }))),
   )
 })

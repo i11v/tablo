@@ -272,92 +272,336 @@ export const tripPositionFixture = {
   type: "Feature",
 }
 
-/** GET /v2/public/vehiclepositions?boundingBox=50.085,14.412,50.077,14.428 —
- * 3 of the 13 real features, plus two SYNTHETIC ones appended to cover edge
- * cases: a trolleybus with no route name / bearing / delay, and a vehicle
+/** GET /v2/vehiclepositions?limit=10000 — 4 of the 443 real features (a tram
+ * and a metro inside 50.07,14.40 → 50.10,14.44; a bus and a train outside),
+ * plus two SYNTHETIC ones appended to cover edge cases: a trolleybus with no
+ * route name / bearing / delay / stops / distance, and a malformed vehicle
  * with no trip id. */
-export const publicVehiclesFixture = {
+export const vehiclePositionsFixture = {
   type: "FeatureCollection",
   features: [
     {
       geometry: {
-        coordinates: [14.41971, 50.08107],
         type: "Point",
+        coordinates: [14.43988, 50.09144],
       },
       properties: {
-        gtfs_trip_id: "23_9755_260926",
-        route_type: "tram",
-        gtfs_route_short_name: "23",
-        bearing: 174,
-        delay: 242,
-        state_position: "on_track",
-        vehicle_id: "service-0-6312",
+        last_position: {
+          bearing: 247,
+          delay: {
+            actual: -16,
+            last_stop_arrival: -16,
+            last_stop_departure: null,
+          },
+          is_canceled: null,
+          last_stop: {
+            arrival_time: "2026-10-04T23:42:00+02:00",
+            departure_time: "2026-10-04T23:42:00+02:00",
+            id: "U689Z1P",
+            sequence: 19,
+          },
+          next_stop: {
+            arrival_time: "2026-10-04T23:44:00+02:00",
+            departure_time: "2026-10-04T23:44:00+02:00",
+            id: "U32Z1P",
+            sequence: 20,
+          },
+          origin_timestamp: "2026-10-04T23:41:44+02:00",
+          shape_dist_traveled: "7.421801",
+          speed: null,
+          state_position: "at_stop",
+          tracking: true,
+        },
+        trip: {
+          agency_name: {
+            real: "DP PRAHA",
+            scheduled: "DP PRAHA",
+          },
+          cis: {
+            line_id: null,
+            trip_number: null,
+          },
+          gtfs: {
+            route_id: "L24",
+            route_short_name: "24",
+            route_type: 0,
+            trip_headsign: "Spořilov",
+            trip_id: "24_8789_260829",
+            trip_short_name: null,
+          },
+          origin_route_name: "24",
+          sequence_id: 5,
+          start_timestamp: "2026-10-04T23:22:00+02:00",
+          vehicle_registration_number: 9244,
+          vehicle_type: {
+            description_cs: "tramvaj",
+            description_en: "tram",
+            id: 2,
+          },
+          wheelchair_accessible: true,
+        },
       },
       type: "Feature",
     },
     {
       geometry: {
-        coordinates: [14.422264, 50.082784],
         type: "Point",
+        coordinates: [14.407196, 50.095915],
       },
       properties: {
-        gtfs_trip_id: "992_1421_260829",
-        route_type: "metro",
-        gtfs_route_short_name: "B",
-        bearing: 52,
-        delay: -7,
-        state_position: "on_track",
-        vehicle_id: "metro-B-3-3",
+        last_position: {
+          bearing: 320,
+          delay: {
+            actual: -15,
+            last_stop_arrival: 0,
+            last_stop_departure: 0,
+          },
+          is_canceled: null,
+          last_stop: {
+            arrival_time: "2026-10-04T23:41:10+02:00",
+            departure_time: "2026-10-04T23:41:30+02:00",
+            id: "U360Z102P",
+            sequence: 10,
+          },
+          next_stop: {
+            arrival_time: "2026-10-04T23:42:45+02:00",
+            departure_time: "2026-10-04T23:43:05+02:00",
+            id: "U163Z102P",
+            sequence: 11,
+          },
+          origin_timestamp: "2026-10-04T23:42:02+02:00",
+          shape_dist_traveled: "9.881",
+          speed: null,
+          state_position: "on_track",
+          tracking: true,
+        },
+        trip: {
+          agency_name: {
+            real: "DP PRAHA",
+            scheduled: "DP PRAHA",
+          },
+          cis: {
+            line_id: null,
+            trip_number: null,
+          },
+          gtfs: {
+            route_id: "L991",
+            route_short_name: "A",
+            route_type: 1,
+            trip_headsign: "Nemocnice Motol",
+            trip_id: "991_11748_260202",
+            trip_short_name: null,
+          },
+          origin_route_name: "991",
+          sequence_id: 16,
+          start_timestamp: "2026-10-04T23:23:35+02:00",
+          vehicle_registration_number: null,
+          vehicle_type: {
+            description_cs: "metro",
+            description_en: "metro",
+            id: 1,
+          },
+          wheelchair_accessible: true,
+        },
       },
       type: "Feature",
     },
     {
       geometry: {
-        coordinates: [14.41406, 50.08141],
         type: "Point",
+        coordinates: [14.56723, 50.04451],
       },
       properties: {
-        gtfs_trip_id: "9_29806_261003",
-        route_type: "tram",
-        gtfs_route_short_name: "9",
-        bearing: 88,
-        delay: 64,
-        state_position: "at_stop",
-        vehicle_id: "service-0-9445",
+        last_position: {
+          bearing: 2,
+          delay: {
+            actual: 43,
+            last_stop_arrival: 9,
+            last_stop_departure: 32,
+          },
+          is_canceled: null,
+          last_stop: {
+            arrival_time: "2026-10-04T23:41:00+02:00",
+            departure_time: "2026-10-04T23:41:00+02:00",
+            id: "U1001Z2P",
+            sequence: 6,
+          },
+          next_stop: {
+            arrival_time: "2026-10-04T23:42:00+02:00",
+            departure_time: "2026-10-04T23:42:00+02:00",
+            id: "U2982Z2P",
+            sequence: 7,
+          },
+          origin_timestamp: "2026-10-04T23:41:43+02:00",
+          shape_dist_traveled: "3.990276",
+          speed: null,
+          state_position: "on_track",
+          tracking: true,
+        },
+        trip: {
+          agency_name: {
+            real: "DP PRAHA",
+            scheduled: "DP PRAHA",
+          },
+          cis: {
+            line_id: null,
+            trip_number: null,
+          },
+          gtfs: {
+            route_id: "L175",
+            route_short_name: "175",
+            route_type: 3,
+            trip_headsign: "Florenc",
+            trip_id: "175_2073_260901",
+            trip_short_name: null,
+          },
+          origin_route_name: "175",
+          sequence_id: 3,
+          start_timestamp: "2026-10-04T23:34:00+02:00",
+          vehicle_registration_number: 3953,
+          vehicle_type: {
+            description_cs: "autobus",
+            description_en: "bus",
+            id: 3,
+          },
+          wheelchair_accessible: true,
+        },
       },
       type: "Feature",
     },
     {
       geometry: {
-        coordinates: [14.4201, 50.0802],
         type: "Point",
+        coordinates: [14.6754866, 50.1306953],
       },
       properties: {
-        gtfs_trip_id: "58_101_261003",
-        route_type: "trolleybus",
-        gtfs_route_short_name: null,
-        bearing: null,
-        delay: null,
-        state_position: "on_track",
-        vehicle_id: "synthetic-1",
+        last_position: {
+          bearing: 262,
+          delay: {
+            actual: 25,
+            last_stop_arrival: 60,
+            last_stop_departure: 60,
+          },
+          is_canceled: false,
+          last_stop: {
+            arrival_time: "2026-10-04T23:39:30+02:00",
+            departure_time: "2026-10-04T23:40:00+02:00",
+            id: "U2281Z301",
+            sequence: 11,
+          },
+          next_stop: {
+            arrival_time: "2026-10-04T23:42:00+02:00",
+            departure_time: "2026-10-04T23:42:30+02:00",
+            id: "U1093Z301",
+            sequence: 12,
+          },
+          origin_timestamp: "2026-10-04T23:41:43+02:00",
+          shape_dist_traveled: "29.999",
+          speed: null,
+          state_position: "on_track",
+          tracking: true,
+        },
+        trip: {
+          agency_name: {
+            real: null,
+            scheduled: "ČESKÉ DRÁHY",
+          },
+          cis: {
+            line_id: "none",
+            trip_number: 5860,
+          },
+          gtfs: {
+            route_id: "L1002",
+            route_short_name: "S2",
+            route_type: 2,
+            trip_headsign: "Praha hl.n.",
+            trip_id: "1002_5860_251214",
+            trip_short_name: "Os 5860",
+          },
+          origin_route_name: null,
+          sequence_id: null,
+          start_timestamp: "2026-10-04T23:07:00+02:00",
+          vehicle_registration_number: null,
+          vehicle_type: null,
+          wheelchair_accessible: true,
+        },
       },
       type: "Feature",
     },
     {
       geometry: {
-        coordinates: [14.4211, 50.0812],
         type: "Point",
+        coordinates: [14.42, 50.08],
       },
       properties: {
-        gtfs_trip_id: null,
-        route_type: "ferry",
-        gtfs_route_short_name: "P1",
-        bearing: 10,
-        delay: 0,
-        state_position: "off_track",
-        vehicle_id: "synthetic-2",
+        last_position: {
+          bearing: null,
+          delay: null,
+          is_canceled: null,
+          last_stop: null,
+          next_stop: null,
+          origin_timestamp: "2026-10-04T23:41:43+02:00",
+          shape_dist_traveled: null,
+          speed: null,
+          state_position: "on_track",
+          tracking: true,
+        },
+        trip: {
+          agency_name: {
+            real: "DP PRAHA",
+            scheduled: "DP PRAHA",
+          },
+          cis: {
+            line_id: null,
+            trip_number: null,
+          },
+          gtfs: {
+            route_id: "L58",
+            route_short_name: null,
+            route_type: 11,
+            trip_headsign: "Florenc",
+            trip_id: "58_100_260901",
+            trip_short_name: null,
+          },
+          origin_route_name: "175",
+          sequence_id: 3,
+          start_timestamp: "2026-10-04T23:34:00+02:00",
+          vehicle_registration_number: 3953,
+          vehicle_type: {
+            description_cs: "autobus",
+            description_en: "bus",
+            id: 3,
+          },
+          wheelchair_accessible: true,
+        },
       },
       type: "Feature",
+    },
+    {
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [14.42, 50.08],
+      },
+      properties: {
+        last_position: {
+          bearing: null,
+          delay: null,
+          is_canceled: null,
+          last_stop: null,
+          next_stop: null,
+          origin_timestamp: "2026-10-04T23:41:43+02:00",
+          shape_dist_traveled: null,
+          speed: null,
+          state_position: "on_track",
+          tracking: true,
+        },
+        trip: {
+          gtfs: {
+            route_type: 3,
+          },
+        },
+      },
     },
   ],
 }

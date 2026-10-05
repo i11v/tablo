@@ -4,16 +4,18 @@ import { HttpRouter } from "effect/http"
 import { LiveVehicles, Trip, TripVehicle, type BBox } from "@app/contract"
 import { apiLayer } from "../src/api.ts"
 import type { Outcome, TransitApi } from "../src/gateway/transit.ts"
-import { toLiveVehicles, toTrip, toTripVehicle } from "../src/golemio/normalize.ts"
-import { PidPublicVehicles, PidTripPosition, PidTripResponse } from "../src/golemio/schema.ts"
-import { publicVehiclesFixture, tripFixture, tripPositionFixture } from "./fixtures/transit.ts"
+import { toLiveVehicle, toTrip, toTripVehicle } from "../src/golemio/normalize.ts"
+import { PidTripPosition, PidTripResponse, PidVehiclePosition } from "../src/golemio/schema.ts"
+import { tripFixture, tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
 
 const trip = toTrip(Schema.decodeUnknownSync(PidTripResponse)(tripFixture))
 const vehicle = toTripVehicle(Schema.decodeUnknownSync(PidTripPosition)(tripPositionFixture))
-const vehicles = toLiveVehicles(
-  Schema.decodeUnknownSync(PidPublicVehicles)(publicVehiclesFixture),
-  "2026-10-03T09:04:00.000Z",
-)
+const vehicles = {
+  vehicles: vehiclePositionsFixture.features
+    .slice(0, 4)
+    .map((f) => toLiveVehicle(Schema.decodeUnknownSync(PidVehiclePosition)(f))),
+  generatedAt: "2026-10-03T09:04:00.000Z",
+}
 
 const ok = <A>(value: A): Outcome<A> => ({ _tag: "ok", value })
 
@@ -111,7 +113,7 @@ describe("transit API", () => {
       "/api/vehicles",
       "/api/vehicles?bbox=nonsense",
       "/api/vehicles?bbox=50.085,14.412,50.077,14.428", // min > max
-      "/api/vehicles?bbox=50.0,14.0,50.2,14.2", // too large
+      "/api/vehicles?bbox=49.5,14.0,50.6,14.2", // too large
       "/api/trips/" + encodeURIComponent("bad id!"),
     ]) {
       expect({ path, status: (await get(path)).status }).toEqual({ path, status: 400 })

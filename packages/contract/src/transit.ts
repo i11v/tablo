@@ -59,15 +59,15 @@ export const TripVehicle = Schema.Struct({
 })
 export type TripVehicle = typeof TripVehicle.Type
 
-/** A vehicle on the map around a stop. */
+/**
+ * A vehicle on the map: its trip's live position plus what to draw it as.
+ * `updatedAt` is when the vehicle last reported — every 30–90 s, so clients
+ * project it forward rather than treating the fix as "now".
+ */
 export const LiveVehicle = Schema.Struct({
-  tripId: Schema.String,
+  ...TripVehicle.fields,
   route: Schema.String,
   kind: VehicleKind,
-  lat: Schema.Number,
-  lon: Schema.Number,
-  bearing: Schema.NullOr(Schema.Number),
-  delaySeconds: Schema.NullOr(Schema.Number),
 })
 export type LiveVehicle = typeof LiveVehicle.Type
 
@@ -77,12 +77,13 @@ export const LiveVehicles = Schema.Struct({
 })
 export type LiveVehicles = typeof LiveVehicles.Type
 
-/** Largest bbox side the vehicles endpoint serves, in degrees (~5 km). */
-export const MAX_BBOX_SPAN = 0.05
+/** Largest bbox side the vehicles endpoint serves, in degrees (~110 × 70 km: all of PID). */
+export const MAX_BBOX_SPAN = 1
 
 /**
- * "minLat,minLon,maxLat,maxLon" in WGS-84 degrees. Bounded in size: every
- * distinct box costs an upstream call, so the gateway also snaps it to a grid.
+ * "minLat,minLon,maxLat,maxLon" in WGS-84 degrees. The gateway filters one
+ * city-wide snapshot by it, so a box costs no upstream call; the bound only
+ * keeps a response to the region a map can show.
  */
 export const BBox = Schema.String.pipe(
   Schema.decodeTo(

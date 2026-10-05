@@ -2,7 +2,8 @@ import MapKit
 import UIKit
 
 /// A world-sized overlay the journey route is drawn into: the travelled part
-/// dotted, the part ahead an ink line on a ground-coloured casing, stops as rings.
+/// dotted in meta, the part ahead an ink line on a ground-coloured casing, stops
+/// as rings (`JOURNEY_ROUTE` in the design system).
 final class JourneyOverlay: NSObject, MKOverlay {
     let coordinate = CLLocationCoordinate2D(latitude: 50.08, longitude: 14.42)
     let boundingMapRect = MKMapRect.world
@@ -61,11 +62,11 @@ final class JourneyRenderer: MKOverlayRenderer {
     }
 
     private static let darkColors = Colors(
-        past: UIColor(hex: 0x5C5A54), casing: UIColor(hex: 0x08080A, alpha: 0.55), ahead: UIColor(hex: 0xECEAE3),
-        pastFill: UIColor(hex: 0x2A2A30), aheadFill: UIColor(hex: 0x0F0F12)
+        past: UIColor(hex: 0x76767E), casing: UIColor(hex: 0x08080A), ahead: UIColor(hex: 0xECEAE3),
+        pastFill: UIColor(hex: 0x1B1B20), aheadFill: UIColor(hex: 0x0F0F12)
     )
     private static let lightColors = Colors(
-        past: UIColor(hex: 0x6B6870), casing: UIColor(hex: 0xF2F0EA, alpha: 0.55), ahead: UIColor(hex: 0x19181B),
+        past: UIColor(hex: 0x6B6870), casing: UIColor(hex: 0xF2F0EA), ahead: UIColor(hex: 0x19181B),
         pastFill: UIColor(hex: 0xE8E5DE), aheadFill: UIColor(hex: 0xFBFAF6)
     )
 
@@ -120,18 +121,18 @@ final class JourneyRenderer: MKOverlayRenderer {
         }
 
         stroke(travelled, colors.past, width: 3, dash: [1, 6])
-        stroke(upcoming, colors.casing, width: 8)
+        stroke(upcoming, colors.casing, width: 7)
         stroke(upcoming, colors.ahead, width: 3.5)
 
         ctx.setLineDash(phase: 0, lengths: [])
         for (i, p) in pts.enumerated() where i != s.mine {
             let isPast = i <= s.seg && !(s.atStop && i == s.seg)
-            let r = (i == s.focus ? 6.5 : 4.2) / zoomScale
+            let r = (i == s.focus ? 6.5 : 4) / zoomScale
             let circle = CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)
             ctx.setFillColor((isPast ? colors.pastFill : colors.aheadFill).cgColor)
             ctx.fillEllipse(in: circle)
             ctx.setStrokeColor((isPast ? colors.past : colors.ahead).cgColor)
-            ctx.setLineWidth(2 / zoomScale)
+            ctx.setLineWidth((i == s.focus ? 2.5 : 2) / zoomScale)
             ctx.strokeEllipse(in: circle)
         }
     }

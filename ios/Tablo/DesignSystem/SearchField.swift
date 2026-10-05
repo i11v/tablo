@@ -11,8 +11,8 @@ struct SearchField: View {
 
     var body: some View {
         HStack(spacing: 9) {
-            Glyph.search(color: Palette.searchMuted)
-            TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Palette.meta))
+            Glyph.search(color: Palette.fieldInk)
+            TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Palette.fieldInk))
                 .font(.hanken(16, .medium))
                 .foregroundStyle(Palette.ink)
                 .tint(Palette.make)
@@ -23,13 +23,13 @@ struct SearchField: View {
             if let trailingLabel {
                 Button(trailingLabel, action: onTrailing)
                     .font(.hanken(13, .semibold))
-                    .foregroundStyle(Palette.searchMuted)
+                    .foregroundStyle(Palette.fieldInk)
                     .fixedSize()
             }
         }
         .padding(.horizontal, 13)
         .padding(.vertical, 10)
-        .background(Palette.searchField, in: RoundedRectangle(cornerRadius: 11))
-        .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.searchEdge, lineWidth: 1))
+        .background(Palette.field, in: RoundedRectangle(cornerRadius: 11))
+        .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.fieldEdge, lineWidth: 1))
     }
 }

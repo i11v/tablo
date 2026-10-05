@@ -282,8 +282,16 @@ final class StopModel {
         Board.departures(feed.boards[stop.key] ?? [], now: now)
     }
 
-    var pinLabel: String {
-        isAllPlatforms ? "" : Board.platformLabel(activePlatform)
+    /// Under a filtered board: "nást. A only · Bílá Hora · Zvonařka".
+    var filterNote: String {
+        guard !isAllPlatforms else { return "" }
+        let (lead, rest) = board
+        var dests: [String] = []
+        for row in [lead].compactMap({ $0 }) + rest where !dests.contains(row.departure.headsign) && dests.count < 3 {
+            dests.append(row.departure.headsign)
+        }
+        guard !dests.isEmpty else { return "" }
+        return (["\(Board.platformLabel(activePlatform)) only"] + dests).joined(separator: " · ")
     }
 
     private var modeFiltered: [Departure] {
@@ -343,10 +351,8 @@ final class StopModel {
     }
 
     /// Pins for the current stop's platforms that have coordinates; metro
-    /// platforms merge into one "M" pin at their mean. Coloured by each
-    /// platform's lead departure.
+    /// platforms merge into one "M" pin at their mean.
     private func platformPins(_ deps: [Departure]) -> [Platform] {
-        let shown = deps.filter { $0.kind.isShown(in: modes) }
         // metro platforms: seen with metro departures, or in ASW's metro stop-id range (101–199)
         let metro = Set(deps.filter { $0.kind == .metro }.compactMap(\.platform))
             .union(stop.platforms.filter { (101 ... 199).contains($0.stop) }.map(\.code))
@@ -360,11 +366,9 @@ final class StopModel {
         }
         return order.compactMap { key in
             guard let coord = Geo.mean(coords[key] ?? []) else { return nil }
-            let lead = Board.lead(shown.filter { Board.platformKey($0) == key }, walk: walk)
             return Platform(
                 key: key,
                 short: key == "Metro" ? "M" : key,
-                tier: lead.map { Tier.reach(inMinutes: $0.inMinutes, walk: walk) } ?? .neutral,
                 coord: coord,
                 mode: key == "Metro" ? .metro : nil
             )
@@ -415,8 +419,8 @@ final class StopModel {
             rows.append(JourneyRow(
                 id: "stop-\(i)", kind: .stop(index: i), name: s.name, time: JourneyBuilder.clock(s.time), note: note,
                 isMine: isMine, isPast: isPast,
-                railTop: first ? .clear : i <= j.seg ? Palette.railPast : Palette.railAhead,
-                railBottom: last ? .clear : isPast ? Palette.railPast : Palette.railAhead
+                railTop: first ? .clear : i <= j.seg ? Palette.edge : Palette.meta,
+                railBottom: last ? .clear : isPast ? Palette.edge : Palette.meta
             ))
             // the vehicle's row: between two stops, or standing at one (your stop says so itself)
             if i == j.seg, !(j.atStop && i == j.mine) {

@@ -79,65 +79,38 @@ private struct StopMapView: UIViewRepresentable {
     func updateUIView(_ uiView: TabloMapView, context: Context) {}
 }
 
-/// Translucent chrome shared by the floating map controls.
-struct GlassBackground<S: InsettableShape>: View {
-    let shape: S
-
-    var body: some View {
-        shape.fill(Palette.glass)
-            .overlay(shape.strokeBorder(Palette.glassEdge, lineWidth: 1))
-    }
-}
-
 private struct TopBar: View {
     let model: StopModel
 
     var body: some View {
         let following = model.follow != nil
         HStack(spacing: 8) {
+            // the read-only SearchField: carries the current stop, tap opens the real search
             Button(action: model.openSearch) {
                 HStack(spacing: 9) {
-                    Glyph.search()
-                    Rectangle().fill(Palette.glassEdge).frame(width: 1, height: 16)
+                    Glyph.search(color: Palette.fieldInk)
                     if model.isNearest {
                         Glyph.nearest().padding(.trailing, -3)
                     }
                     Text(model.currentStop.name)
-                        .font(.hanken(14, .bold))
+                        .font(.hanken(16, .semibold))
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
-                .padding(.leading, 12)
-                .padding(.trailing, 14)
-                .frame(maxWidth: .infinity, minHeight: 38, maxHeight: 38, alignment: .leading)
-                .background(GlassBackground(shape: RoundedRectangle(cornerRadius: 12)))
-                .contentShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, 13)
+                .frame(maxWidth: .infinity, minHeight: 42, maxHeight: 42, alignment: .leading)
+                .background(Palette.field, in: RoundedRectangle(cornerRadius: 11))
+                .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(Palette.fieldEdge, lineWidth: 1))
+                .contentShape(RoundedRectangle(cornerRadius: 11))
             }
             .buttonStyle(PressableStyle())
             .accessibilityLabel("Search stops, current stop \(model.currentStop.name)")
 
-            HStack(spacing: 3) {
-                ForEach(VehicleKind.filterable, id: \.self) { kind in
-                    let on = model.modes.contains(kind)
-                    Button { model.toggleMode(kind) } label: {
-                        VehicleIcon(kind: kind, size: 15, color: on ? Palette.toggleOnInk : Palette.toggleOff)
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 8)
-                            .background(on ? Palette.toggleOnFill : .clear, in: RoundedRectangle(cornerRadius: 8))
-                            .contentShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                    .buttonStyle(.plain)
-                    .animation(.easeOut(duration: 0.12), value: on)
-                    .accessibilityLabel("\(kind.rawValue) \(on ? "shown" : "hidden")")
-                }
-            }
-            .padding(4)
-            .background(GlassBackground(shape: RoundedRectangle(cornerRadius: 12)))
-            .fixedSize()
-            .opacity(following ? 0 : 1)
-            .allowsHitTesting(!following)
-            .animation(.easeInOut(duration: 0.15), value: following)
+            ModeFilter(value: model.modes, onToggle: model.toggleMode)
+                .opacity(following ? 0 : 1)
+                .allowsHitTesting(!following)
+                .animation(.easeInOut(duration: 0.15), value: following)
         }
     }
 }
@@ -146,14 +119,7 @@ private struct RecenterButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            Glyph.recenter()
-                .frame(width: 42, height: 42)
-                .background(GlassBackground(shape: Circle()))
-                .contentShape(Circle())
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityLabel("Go to nearest stop")
+        MapControl(label: "Go to nearest stop", action: action) { Glyph.recenter() }
     }
 }
 
@@ -166,14 +132,14 @@ struct PressableStyle: ButtonStyle {
     }
 }
 
-/// A soft row highlight standing in for the prototype's hover states.
+/// The design's hover fill on tappable rows: stroke-soft, rounded-chip.
 struct RowPressStyle: ButtonStyle {
-    var cornerRadius: CGFloat = 6
+    var cornerRadius: CGFloat = 7
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(
-                Palette.wash(configuration.isPressed ? 0.05 : 0),
+                configuration.isPressed ? Palette.strokeSoft : .clear,
                 in: RoundedRectangle(cornerRadius: cornerRadius)
             )
             .contentShape(Rectangle())

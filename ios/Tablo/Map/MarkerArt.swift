@@ -48,9 +48,11 @@ enum MarkerArt {
         return art
     }
 
+    /// A platform plate: neutral at rest, never tier-coloured — reachability
+    /// belongs to the vehicle, not the platform.
     static func platform(_ p: Platform, dimmed: Bool) -> MarkerImage {
-        cached("platform|\(p.short)|\(p.tier)|\(dimmed)") {
-            centred(PlatformTile(label: p.short, color: p.tier.color, dimmed: dimmed))
+        cached("platform|\(p.short)|\(dimmed)") {
+            centred(PlatformPlate(label: p.short).grayscale(dimmed ? 0.5 : 0).opacity(dimmed ? 0.55 : 1))
         }
     }
 
@@ -62,129 +64,63 @@ enum MarkerArt {
         }
     }
 
-    /// The current stop on a journey: name tag over a tier-coloured ring.
-    static func journeyStop(name: String, tier: Tier) -> MarkerImage {
-        bottomAnchored(
-            VStack(spacing: 5) {
-                NameTag(name: name)
-                ZStack {
-                    Circle().fill(Palette.card)
-                        .overlay(Circle().strokeBorder(tier.color, lineWidth: 3))
-                        .shadow(color: Palette.glow(tier.color, dark: 0.6, light: 0.3), radius: 7)
-                    Circle().fill(tier.color).frame(width: 6, height: 6)
-                }
-                .frame(width: 20, height: 20)
-            },
-            lift: 12
-        )
+    /// Your stop on a journey: the selected plate (platform letter, or a pip
+    /// when there's none) under its name tag. Anchored at the plate centre.
+    static func journeyStop(name: String, label: String) -> MarkerImage {
+        named(name, PlatformPlate(label: label, selected: true))
     }
 
-    /// The current stop when none of its platforms can be placed: name tag over a bone tile.
+    /// The current stop when none of its platforms can be placed: a pip plate under its name.
     static func stopPin(name: String) -> MarkerImage {
-        bottomAnchored(
-            VStack(spacing: 5) {
+        named(name, PlatformPlate(label: ""))
+    }
+
+    private static func named(_ name: String, _ plate: PlatformPlate) -> MarkerImage {
+        // the tag floats 7pt above the plate; a selected plate is scaled up beneath it
+        let gap = 7 + (plate.selected ? PlatformPlate.side * (PlatformPlate.selectedScale - 1) / 2 : 0)
+        return bottomAnchored(
+            VStack(spacing: gap) {
                 NameTag(name: name)
-                Tile(side: 26, color: Palette.ink) {
-                    RoundedRectangle(cornerRadius: 2).fill(Palette.ink).frame(width: 8, height: 8)
-                }
-            }
+                plate
+            },
+            lift: PlatformPlate.side / 2
         )
     }
 }
 
-/// A rounded square with a tier-coloured border, set off from the map by a halo ring.
-private struct Tile<Content: View>: View {
-    let side: CGFloat
-    let color: Color
-    var glow = false
-    @ViewBuilder let content: Content
+/// A square plate with the platform letter — static by design, no point or
+/// tail, so it never reads as a heading (square = place, circle = vehicle).
+/// No label = a whole-stop marker with a small square pip. Neutral at rest;
+/// selected turns the stroke to ink.
+private struct PlatformPlate: View {
+    static let side: CGFloat = 28
+    static let selectedScale: CGFloat = 1.18
+
+    let label: String
+    var selected = false
 
     var body: some View {
+        let c = selected ? Palette.ink : Palette.neutral
         ZStack {
-            // box-shadow: 0 0 0 3px var(--color-halo)
+            if label.isEmpty {
+                RoundedRectangle(cornerRadius: 2).fill(c).frame(width: 8, height: 8)
+            } else {
+                Text(label)
+                    .font(.hanken(14, .heavy))
+                    .foregroundStyle(Palette.ink)
+            }
+        }
+        .frame(width: Self.side, height: Self.side)
+        .background(Palette.card, in: RoundedRectangle(cornerRadius: 7))
+        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(c, lineWidth: 2))
+        // box-shadow: 0 0 0 3px var(--color-halo), var(--marker-drop)
+        .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(Palette.halo)
-                .frame(width: side + 6, height: side + 6)
-            RoundedRectangle(cornerRadius: 7)
-                .fill(Palette.card)
-                .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(color, lineWidth: 2))
-                .frame(width: side, height: side)
-                .shadow(color: glow ? Palette.glow(color, dark: 0.4, light: 0.25) : .clear, radius: 6)
-            content
-        }
-    }
-}
-
-private struct PlatformTile: View {
-    let label: String
-    let color: Color
-    let dimmed: Bool
-
-    var body: some View {
-        Tile(side: 28, color: color, glow: true) {
-            Text(label)
-                .font(.hanken(14, .heavy))
-                .foregroundStyle(color)
-        }
-        .grayscale(dimmed ? 0.5 : 0)
-        .opacity(dimmed ? 0.55 : 1)
-    }
-}
-
-/// Vehicle geometry shared by the badge and its heading wedge, so both rasterise to one canvas.
-private struct VehicleMetrics {
-    let big: Bool
-    var side: CGFloat { big ? 30 : 24 }
-    /// Halo blur (CSS px); SwiftUI's shadow radius is about half of it.
-    var haloBlur: CGFloat { big ? 14 : 9 }
-    var wedgeHalfWidth: CGFloat { big ? 6 : 5 }
-    var wedgeLength: CGFloat { big ? 8 : 7 }
-    /// The wedge's base sits this far inside the ring's outer edge.
-    var wedgeOverlap: CGFloat { 1 }
-    var canvas: CGFloat { side + (wedgeLength - wedgeOverlap) * 2 }
-}
-
-private struct VehicleBadge: View {
-    let route: String
-    let color: Color
-    let big: Bool
-
-    var body: some View {
-        let m = VehicleMetrics(big: big)
-        let fontSize: CGFloat = route.count > 2 ? (big ? 12 : 10) : (big ? 14 : 12)
-        ZStack {
-            Circle()
-                .fill(Palette.chip)
-                .overlay(Circle().strokeBorder(color, lineWidth: 2))
-                .frame(width: m.side, height: m.side)
-                .shadow(color: Palette.glow(color, dark: 0.55, light: 0.3), radius: m.haloBlur / 2)
+                .padding(-3)
                 .shadow(color: Palette.markerDrop, radius: 3, y: 2)
-            Text(route)
-                .font(.hanken(fontSize, .heavy))
-                .tracking(-0.02 * fontSize)
-                .foregroundStyle(Palette.chipInk)
-        }
-        .frame(width: m.canvas, height: m.canvas)
-    }
-}
-
-/// The direction wedge on a vehicle's ring, drawn pointing up.
-private struct VehicleHead: View {
-    let color: Color
-    let big: Bool
-
-    var body: some View {
-        let m = VehicleMetrics(big: big)
-        let base = (m.canvas - m.side) / 2 + m.wedgeOverlap
-        Path { p in
-            let mid = m.canvas / 2
-            p.move(to: CGPoint(x: mid, y: base - m.wedgeLength))
-            p.addLine(to: CGPoint(x: mid + m.wedgeHalfWidth, y: base))
-            p.addLine(to: CGPoint(x: mid - m.wedgeHalfWidth, y: base))
-            p.closeSubpath()
-        }
-        .fill(color)
-        .frame(width: m.canvas, height: m.canvas)
+        )
+        .scaleEffect(selected ? Self.selectedScale : 1)
     }
 }
 
@@ -193,13 +129,14 @@ private struct NameTag: View {
 
     var body: some View {
         Text(name)
-            .font(.hanken(11.5, .bold))
+            .font(.hanken(12, .bold))
             .foregroundStyle(Palette.ink)
             .lineLimit(1)
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 6)
             .padding(.vertical, 3)
-            .background(Palette.tag, in: RoundedRectangle(cornerRadius: 7))
-            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Palette.wash(0.1), lineWidth: 1))
+            .background(Palette.card, in: RoundedRectangle(cornerRadius: 5))
+            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Palette.edge, lineWidth: 1))
+            .shadow(color: Palette.markerDrop, radius: 3, y: 2)
             .fixedSize()
     }
 }

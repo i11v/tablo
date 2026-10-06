@@ -69,6 +69,10 @@ interface SearchHooks extends SearchBaseHooks {
 /** Up to this many stops surface in the empty-query nearby/recents list. */
 const NEARBY_LIMIT = 10
 
+/** Up to this many distinct stops surface for a text query. Counted per stop
+ * (not per platform row) so a multi-platform match can't crowd the list. */
+const RESULT_LIMIT = 12
+
 /** The closest stops to the user, nearest-first. */
 const nearestStops = (
   index: ReadonlyArray<StopIndexEntry>,
@@ -97,7 +101,7 @@ const useEntries = (
       const recents = loadRecents()
       return recents.flatMap((n) => index.filter((e) => String(e.node) === n))
     }
-    const ranked = rank(searchStops(index, query), loadRecents(), origin)
+    const ranked = rank(searchStops(index, query, RESULT_LIMIT), loadRecents(), origin)
     const seen = new Set<number>()
     const out: Array<StopIndexEntry> = []
     for (const c of ranked) {

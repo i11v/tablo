@@ -20,6 +20,8 @@ export class ClientSession extends Cloudflare.DurableObject<ClientSession>()(
     // Outer init: resolve the gateway namespace once.
     const gateway = yield* GolemioGateway
 
+    // Returning the inner init Effect is Alchemy's two-phase DO pattern.
+    // @effect-diagnostics-next-line returnEffectInGen:off
     return Effect.gen(function* () {
       const state = yield* Cloudflare.DurableObjectState
 

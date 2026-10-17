@@ -71,6 +71,37 @@ A launch argument only lasts for that launch. To bake a backend into a build
 xcodebuild -project Tablo.xcodeproj -scheme Tablo -destination 'platform=iOS,name=<phone>' TABLO_API_BASE=https://preview-32.tablo.run -allowProvisioningUpdates build
 ```
 
+### Tracing
+
+The app traces itself with OpenTelemetry and sends spans to Honeycomb (service
+`tablo-ios`) when it has an **ingest key**. Without one it sends nothing. Put
+the key in `Local.xcconfig` (gitignored), next to `Tablo.xcconfig`:
+
+```
+HONEYCOMB_API_KEY = <ingest key>
+```
+
+Or pass it per build (`xcodebuild … HONEYCOMB_API_KEY=<key>`) or per launch
+(`-HoneycombAPIKey <key>`). The key ships inside the app, so use an ingest
+key, which can only send data. Spans go to the EU region
+(`HONEYCOMB_API_HOST = api.eu1.honeycomb.io` in `Tablo.xcconfig`); a US
+account sets `api.honeycomb.io` there.
+
+Each launch and each return to the foreground gets its own trace, `app.launch`
+or `app.resume`. The trace stays open until the stop page has settled: its
+board, its vehicles and their trip plans are all in, or 30 s pass. It nests
+`index.load`, `location.first_fix`, `feed.board`, `vehicles.poll` and
+`plans.load`, and the HTTP requests under each one. Each request span carries
+URLSession's DNS / connect / TLS / TTFB breakdown and a `traceparent` header.
+The root span's `tablo.vehicles_ms`, `tablo.board_ms`, `tablo.plans_ms`,
+`tablo.outcome` and `tablo.missing` attributes are the ones to graph. Every span
+carries the SDK's `session.id`. To watch spans locally without a key, print
+them to the console:
+
+```bash
+xcrun simctl launch --console-pty booted run.tablo.app -TabloTraceConsole YES
+```
+
 ## Layout
 
 | Path | What |
@@ -80,6 +111,7 @@ xcodebuild -project Tablo.xcodeproj -scheme Tablo -destination 'platform=iOS,nam
 | `Tablo/Domain` | Models, `Board` (departure view-model), `StopSearch` (matcher + ranker), `JourneyBuilder` (trip anchoring, your stop, the vehicle's segment), `Geo` |
 | `Tablo/Map` | `StopMapController`, a port of `map-proto.js` on `MKMapView`, plus marker art and the journey overlay |
 | `Tablo/Stop` | `StopModel` (screen state, polling, lifecycle) and the SwiftUI screen, sheet and search |
+| `Tablo/Telemetry` | OpenTelemetry setup (Honeycomb or console) and `PhaseTrace`, the launch / resume trace |
 | `Tablo/Theme`, `Tablo/DesignSystem` | Design-system tokens, fonts and components |
 
 ## Behaviour

@@ -4,3 +4,4 @@ Tablo/Info.plist
 build/
 DerivedData/
 *.xcuserstate
+Local.xcconfig

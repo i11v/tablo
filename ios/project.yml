@@ -5,6 +5,14 @@ options:
     iOS: "18.0"
   createIntermediateGroups: true
   generateEmptyDirectories: false
+packages:
+  Honeycomb:
+    url: https://github.com/honeycombio/honeycomb-opentelemetry-swift
+    exactVersion: 2.6.0
+  # the OTel API/SDK Honeycomb is built on (its Package.swift pins it exactly)
+  OpenTelemetryCore:
+    url: https://github.com/open-telemetry/opentelemetry-swift-core
+    exactVersion: 2.5.1
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -19,6 +27,15 @@ targets:
       - path: Tablo
         excludes:
           - "**/*.txt"
+    dependencies:
+      - package: Honeycomb
+      - package: OpenTelemetryCore
+        product: OpenTelemetryApi
+      - package: OpenTelemetryCore
+        product: OpenTelemetrySdk
+    configFiles:
+      Debug: Tablo.xcconfig
+      Release: Tablo.xcconfig
     info:
       path: Tablo/Info.plist
       properties:
@@ -37,6 +54,8 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         TabloAPIBase: $(TABLO_API_BASE)
+        HoneycombAPIKey: $(HONEYCOMB_API_KEY)
+        HoneycombAPIHost: $(HONEYCOMB_API_HOST)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: run.tablo.app

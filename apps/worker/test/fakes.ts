@@ -1,4 +1,4 @@
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Tracer } from "effect"
 import type * as Context from "effect/Context"
 import { RateLimiter } from "effect/persistence"
 import { GolemioClient } from "../src/golemio/client.ts"
@@ -20,3 +20,17 @@ export const fakeClient = (impl: Partial<ClientShape>): Layer.Layer<GolemioClien
 export const guardLayer = UpstreamGuard.layer.pipe(
   Layer.provide(RateLimiter.layer.pipe(Layer.provide(RateLimiter.layerStoreMemory))),
 )
+
+/** A tracer that keeps every span it makes. */
+export const recordingTracer = () => {
+  const spans: Array<Tracer.NativeSpan> = []
+  const tracer = Tracer.make({
+    span: (options) => {
+      const span = new Tracer.NativeSpan(options)
+      spans.push(span)
+      return span
+    },
+  })
+  const named = (name: string) => spans.filter((s) => s.name === name)
+  return { tracer, named }
+}

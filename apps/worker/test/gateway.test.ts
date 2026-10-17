@@ -1,12 +1,12 @@
 import { describe, expect, it } from "@effect/vitest"
-import { Deferred, Effect, Fiber, Layer, Ref, Tracer } from "effect"
+import { Deferred, Effect, Fiber, Layer, Ref } from "effect"
 import { TestClock } from "effect/testing"
 import type { StopSelector } from "@app/contract"
 import type { PidBoardResponse } from "../src/golemio/schema.ts"
 import { GolemioClient } from "../src/golemio/client.ts"
 import { GolemioRateLimitedError, GolemioUpstreamError } from "../src/golemio/errors.ts"
 import { DepartureGateway } from "../src/gateway/service.ts"
-import { fakeClient, guardLayer } from "./fakes.ts"
+import { fakeClient, guardLayer, recordingTracer } from "./fakes.ts"
 
 const emptyResponse: PidBoardResponse = { stops: [], departures: [] }
 
@@ -208,23 +208,9 @@ describe("DepartureGateway", () => {
   )
 
   describe("tracing", () => {
-    /** A tracer that keeps every span it makes. */
-    const recording = () => {
-      const spans: Array<Tracer.NativeSpan> = []
-      const tracer = Tracer.make({
-        span: (options) => {
-          const span = new Tracer.NativeSpan(options)
-          spans.push(span)
-          return span
-        },
-      })
-      const named = (name: string) => spans.filter((s) => s.name === name)
-      return { tracer, named }
-    }
-
     it.effect("links a caller served by another's fetch to that fetch", () =>
       Effect.gen(function* () {
-        const { tracer, named } = recording()
+        const { tracer, named } = recordingTracer()
         const started = yield* Deferred.make<void>()
         const release = yield* Deferred.make<void>()
         const gated = fakeClient({
@@ -259,7 +245,7 @@ describe("DepartureGateway", () => {
 
     it.effect("links a cache hit to the call that fetched the board", () =>
       Effect.gen(function* () {
-        const { tracer, named } = recording()
+        const { tracer, named } = recordingTracer()
         const fake = yield* makeFake
         yield* Effect.gen(function* () {
           const gw = yield* DepartureGateway

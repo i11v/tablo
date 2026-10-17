@@ -87,7 +87,7 @@ private struct TopEdge: Shape {
 }
 
 private func metaText(_ row: BoardRow) -> Text {
-    var plat = AttributedString(row.platformMeta)
+    var plat = AttributedString(row.plainMeta)
     plat.foregroundColor = Palette.meta
     var delay = AttributedString(row.separator + row.delayText)
     delay.foregroundColor = row.delayColor
@@ -293,9 +293,7 @@ private struct SecondaryRow: View {
                         .font(.hanken(15, .semibold))
                         .foregroundStyle(Palette.inkDim)
                         .lineLimit(1)
-                    if row.hasMeta {
-                        metaText(row).font(.hanken(12, .medium)).lineLimit(1)
-                    }
+                    metaText(row).font(.hanken(12, .medium)).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Countdown(tier: row.tier, minutes: d.inMinutes, atStop: d.atStop, size: 21)

@@ -23,16 +23,16 @@
   },
   "dependencies": {
     "@app/contract": "workspace:*",
-    "effect": "4.0.0",
-    "alchemy": "2.0.0-beta.80",
-    "@effect/platform-node": "4.0.0",
+    "effect": "4.0.5",
+    "alchemy": "2.0.0-beta.83",
+    "@effect/platform-node": "4.0.5",
     "ws": "^8.20.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.0.0",
-    "@effect/language-service": "^0.86.2",
-    "@effect/platform-bun": "4.0.0",
-    "@effect/vitest": "4.0.0",
+    "@effect/language-service": "^0.87.5",
+    "@effect/platform-bun": "4.0.5",
+    "@effect/vitest": "4.0.5",
     "@types/bun": "^1.3.14",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.5.0",

@@ -26,6 +26,8 @@ export class GolemioGateway extends Cloudflare.DurableObject<GolemioGateway>()(
         ),
       ]),
     )
+    // Returning the inner init Effect is Alchemy's two-phase DO pattern.
+    // @effect-diagnostics-next-line returnEffectInGen:off
     return Effect.gen(function* () {
       // Inner init: per instance / per hibernation wake. The in-memory limiter +
       // cache reset on wake — acceptable: the singleton only hibernates when idle.

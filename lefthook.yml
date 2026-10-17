@@ -8,3 +8,10 @@ pre-commit:
       run: bun run lint
     - name: format
       run: bun run fmt:check
+
+# A new worktree gets the main checkout's gitignored local config (the iOS
+# Honeycomb key) linked in; see scripts/link-local-config.sh.
+post-checkout:
+  jobs:
+    - name: link local config
+      run: sh scripts/link-local-config.sh

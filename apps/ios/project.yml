@@ -36,6 +36,14 @@ targets:
     configFiles:
       Debug: Tablo.xcconfig
       Release: Tablo.xcconfig
+    preBuildScripts:
+      # A key-less build sends no telemetry; say so rather than stay silent.
+      - name: Check Honeycomb key
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ -z "$HONEYCOMB_API_KEY" ]; then
+            echo "warning: HONEYCOMB_API_KEY is empty, so this build sends no telemetry. Set it in apps/ios/Local.xcconfig; in a git worktree, run scripts/link-local-config.sh."
+          fi
     info:
       path: Tablo/Info.plist
       properties:

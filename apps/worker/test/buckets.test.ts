@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { Schema } from "effect"
 import { Trip, TripBucketV1, tripBucketKey, tripFromBucket } from "@app/contract"
-import {
-  buildTripBuckets,
-  type GtfsTables,
-  gtfsTimeToSeconds,
-  parseAswStopId,
-} from "../src/gtfs/buckets.ts"
+import { buildTripBuckets, type GtfsTables, gtfsTimeToSeconds } from "../src/gtfs/buckets.ts"
+import { parseAswStopId } from "../src/asw.ts"
 
 const TRIP = "9_29806_261003"
 

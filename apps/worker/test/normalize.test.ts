@@ -17,6 +17,39 @@ describe("PidBoardResponse", () => {
     expect(data.departures).toHaveLength(4)
     expect(data.stops[0].asw_id).toEqual({ node: 1040, stop: 1 })
   })
+
+  it("survives an odd asw_id on one stop, falling back to its stop_id", () => {
+    const dep = (id: string, stopId: string) => ({
+      departure_timestamp: { predicted: null, scheduled: "2026-06-06T12:04:00.000Z" },
+      delay: { is_available: false, minutes: null, seconds: null },
+      route: { short_name: id, type: 0, is_night: false },
+      trip: { headsign: "X", id, is_canceled: false, is_at_stop: false },
+      stop: { id: stopId, platform_code: null },
+    })
+    const data = Schema.decodeUnknownSync(PidBoardResponse)({
+      stops: [
+        { stop_id: "U1040Z1P", stop_name: "Anděl", asw_id: { node: 1040, stop: 1 } },
+        { stop_id: "U530Z2P", stop_name: "Odd", asw_id: { node: 530, stop: null } },
+        { stop_id: "U530Z3P", stop_name: "Numeric", asw_id: { node: "530", stop: "3" } },
+        { stop_id: "T7", stop_name: "Junk", asw_id: "garbage" },
+      ],
+      departures: [dep("a", "U1040Z1P"), dep("b", "U530Z2P"), dep("c", "U530Z3P"), dep("d", "T7")],
+    })
+    expect(data.stops.map((s) => s.asw_id)).toEqual([
+      { node: 1040, stop: 1 },
+      null,
+      { node: 530, stop: 3 },
+      null,
+    ])
+    const boards = toBoards(
+      [
+        { node: 1040, stops: null },
+        { node: 530, stops: [2, 3] },
+      ],
+      data,
+    )
+    expect(boards.map((b) => b.departures.map((d) => d.route))).toEqual([["a"], ["b", "c"]])
+  })
 })
 
 describe("routeTypeToKind", () => {

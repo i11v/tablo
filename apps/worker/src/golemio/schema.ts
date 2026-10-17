@@ -1,4 +1,4 @@
-import { Schema } from "effect"
+import { Effect, Option, Schema } from "effect"
 
 /** Subset of GET /v2/pid/departureboards we consume. Unknown fields ignored. */
 const StopTime = Schema.Struct({
@@ -39,10 +39,18 @@ export const PidDeparture = Schema.Struct({
 })
 export type PidDeparture = typeof PidDeparture.Type
 
+const NumberOrNumeric = Schema.Union([Schema.Number, Schema.NumberFromString])
+
+/** An odd asw_id (Golemio has sent non-numbers here) decodes to null rather than
+ * failing the whole multi-stop board; toBoards then falls back to the stop_id. */
+const AswId = Schema.NullOr(Schema.Struct({ node: NumberOrNumeric, stop: NumberOrNumeric })).pipe(
+  Schema.catchDecoding(() => Effect.succeed(Option.some(null))),
+)
+
 export const PidStop = Schema.Struct({
   stop_id: Schema.String,
   stop_name: Schema.String,
-  asw_id: Schema.NullOr(Schema.Struct({ node: Schema.Number, stop: Schema.Number })),
+  asw_id: AswId,
 })
 export type PidStop = typeof PidStop.Type
 
@@ -57,8 +65,6 @@ export type PidBoardResponse = typeof PidBoardResponse.Type
 const PointGeometry = Schema.Struct({
   coordinates: Schema.Tuple([Schema.Number, Schema.Number]), // [lon, lat]
 })
-
-const NumberOrNumeric = Schema.Union([Schema.Number, Schema.NumberFromString])
 
 export const PidTripPosition = Schema.Struct({
   geometry: PointGeometry,

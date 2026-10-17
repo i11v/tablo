@@ -6,17 +6,12 @@ import {
   type TripBucketV1,
   tripBucketKey,
 } from "@app/contract"
+import { parseAswStopId } from "../asw.ts"
 
 /** "HH:MM:SS" after service-day midnight → seconds. Hours may exceed 23. */
 export const gtfsTimeToSeconds = (time: string): number | null => {
   const m = /^(\d+):([0-5]\d):([0-5]\d)$/.exec(time.trim())
   return m === null ? null : Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])
-}
-
-/** "U539Z1P" → node 539, stop 1; rail waypoints and other non-ASW ids → null. */
-export const parseAswStopId = (stopId: string): { node: number; stop: number } | null => {
-  const m = /^U(\d+)Z(\d+)/.exec(stopId)
-  return m === null ? null : { node: Number(m[1]), stop: Number(m[2]) }
 }
 
 // 5 decimals ≈ 1 m: plenty for drawing a route, and keeps the payload small.

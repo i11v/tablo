@@ -90,6 +90,12 @@ export const fixtures: readonly Fixture[] = [
     ],
   }),
 
+  fixture("ws-subscribe-traced", ["WS /api/ws client"], ClientMessage, {
+    _tag: "Subscribe",
+    selectors: [{ node: 539, stops: null }],
+    traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+  }),
+
   fixture("ws-unsubscribe", ["WS /api/ws client"], ClientMessage, { _tag: "Unsubscribe" }),
 
   fixture("ws-departures-update", ["WS /api/ws server"], ServerMessage, {

@@ -6,6 +6,10 @@ export const ClientMessage = Schema.TaggedUnion({
     // Bounded: see MAX_SELECTORS in domain.ts. The worker replies with a
     // ServerError frame when the cap is exceeded (decode failure path).
     selectors: Schema.Array(StopSelector).check(Schema.isMaxLength(MAX_SELECTORS)),
+    // W3C traceparent of the client span waiting for this board, so the
+    // worker's first poll joins the client's trace. Optional: older builds
+    // don't send it.
+    traceparent: Schema.optionalKey(Schema.String),
   },
   Unsubscribe: {},
 })

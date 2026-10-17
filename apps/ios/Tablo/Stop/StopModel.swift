@@ -193,6 +193,9 @@ final class StopModel {
             openJourney(d)
         }
         feed.onUpdate = { [weak self] in self?.feedUpdated() }
+        feed.traceparent = { [weak self] in
+            self?.boardWait.flatMap { Telemetry.headers(for: $0)["traceparent"] }
+        }
         location.onChange = { [weak self] in self?.locationChanged() }
         phase = PhaseTrace(.launch, start: launched, attributes: [
             "tablo.prewarmed": .bool(prewarmed),
@@ -687,12 +690,13 @@ final class StopModel {
         activePlatform = Self.allPlatforms
         stop = entry
         save(entry)
-        feed.subscribe(entry.selector)
+        // the board wait first: the subscription carries its trace
         if let boardWait {
             boardWait.addEvent(name: "stop.switch", attributes: ["stop.to": .string(entry.name)])
         } else {
             awaitBoard()
         }
+        feed.subscribe(entry.selector)
         map.setStop(entry.coord, name: entry.name)
         map.flyToStop(duration: 0.9)
         map.setVehicles([], glide: 0)

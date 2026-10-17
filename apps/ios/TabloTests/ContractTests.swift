@@ -60,6 +60,11 @@ final class ContractTests: XCTestCase {
     func testClientMessagesMatchTheContract() throws {
         let subscribe = ClientMessage.subscribe([StopSelector(node: 539, stops: nil), StopSelector(node: 1040, stops: [1, 2])])
         try assertSameJSON(subscribe.json, fixture("ws-subscribe"))
+        let traced = ClientMessage.subscribe(
+            [StopSelector(node: 539, stops: nil)],
+            traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+        )
+        try assertSameJSON(traced.json, fixture("ws-subscribe-traced"))
         try assertSameJSON(ClientMessage.unsubscribe.json, fixture("ws-unsubscribe"))
     }
 

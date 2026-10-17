@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import { Effect, Fiber, Layer, Ref } from "effect"
+import { Deferred, Effect, Fiber, Layer, Ref, Tracer } from "effect"
 import { TestClock } from "effect/testing"
 import type { StopSelector } from "@app/contract"
 import type { PidBoardResponse } from "../src/golemio/schema.ts"
@@ -206,4 +206,74 @@ describe("DepartureGateway", () => {
       }).pipe(Effect.provide(gatewayLayer(fake.layer)))
     }),
   )
+
+  describe("tracing", () => {
+    /** A tracer that keeps every span it makes. */
+    const recording = () => {
+      const spans: Array<Tracer.NativeSpan> = []
+      const tracer = Tracer.make({
+        span: (options) => {
+          const span = new Tracer.NativeSpan(options)
+          spans.push(span)
+          return span
+        },
+      })
+      const named = (name: string) => spans.filter((s) => s.name === name)
+      return { tracer, named }
+    }
+
+    it.effect("links a caller served by another's fetch to that fetch", () =>
+      Effect.gen(function* () {
+        const { tracer, named } = recording()
+        const started = yield* Deferred.make<void>()
+        const release = yield* Deferred.make<void>()
+        const gated = fakeClient({
+          fetchBoards: () =>
+            Effect.gen(function* () {
+              yield* Deferred.succeed(started, undefined)
+              yield* Deferred.await(release)
+              return emptyResponse
+            }),
+        })
+        yield* Effect.gen(function* () {
+          const gw = yield* DepartureGateway
+          const sel = [{ node: 1040, stops: null }]
+          const first = yield* Effect.forkChild(gw.getBoards(sel))
+          yield* Deferred.await(started)
+          const second = yield* Effect.forkChild(gw.getBoards(sel))
+          yield* Effect.yieldNow
+          yield* Deferred.succeed(release, undefined)
+          yield* Fiber.join(first)
+          yield* Fiber.join(second)
+        }).pipe(Effect.provide(gatewayLayer(gated)), Effect.withTracer(tracer))
+
+        const [fetcher, waiter] = named("DepartureGateway.getBoards")
+        expect(fetcher!.attributes.get("tablo.boards.fetched")).toBe(1)
+        expect(waiter!.attributes.get("tablo.boards.awaited")).toBe(1)
+        expect(waiter!.links.map((l) => [l.span.spanId, l.attributes["tablo.link"]])).toEqual([
+          [fetcher!.spanId, "inflight"],
+        ])
+        expect(fetcher!.links).toEqual([])
+      }),
+    )
+
+    it.effect("links a cache hit to the call that fetched the board", () =>
+      Effect.gen(function* () {
+        const { tracer, named } = recording()
+        const fake = yield* makeFake
+        yield* Effect.gen(function* () {
+          const gw = yield* DepartureGateway
+          const sel = [{ node: 1040, stops: null }]
+          yield* gw.getBoards(sel)
+          yield* gw.getBoards(sel)
+        }).pipe(Effect.provide(gatewayLayer(fake.layer)), Effect.withTracer(tracer))
+
+        const [fetcher, hit] = named("DepartureGateway.getBoards")
+        expect(hit!.attributes.get("tablo.boards.cached")).toBe(1)
+        expect(hit!.links.map((l) => [l.span.spanId, l.attributes["tablo.link"]])).toEqual([
+          [fetcher!.spanId, "cached"],
+        ])
+      }),
+    )
+  })
 })

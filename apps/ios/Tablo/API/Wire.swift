@@ -95,20 +95,24 @@ struct StopSelector: Codable, Hashable {
 }
 
 enum ClientMessage: Encodable, Equatable {
-    case subscribe([StopSelector])
+    /// `traceparent` is the app span waiting for the board, so the worker's
+    /// first poll lands in the same trace.
+    case subscribe([StopSelector], traceparent: String? = nil)
     case unsubscribe
 
     private enum CodingKeys: String, CodingKey {
         case tag = "_tag"
         case selectors
+        case traceparent
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case let .subscribe(selectors):
+        case let .subscribe(selectors, traceparent):
             try c.encode("Subscribe", forKey: .tag)
             try c.encode(selectors, forKey: .selectors)
+            try c.encodeIfPresent(traceparent, forKey: .traceparent)
         case .unsubscribe:
             try c.encode("Unsubscribe", forKey: .tag)
         }

@@ -157,6 +157,7 @@
       "$<Subscribe>.selectors[].node": "integer",
       "$<Subscribe>.selectors[].stops": "array | null",
       "$<Subscribe>.selectors[].stops[]": "integer",
+      "$<Subscribe>.traceparent": "absent | string",
       "$<Unsubscribe>._tag": "\"Unsubscribe\""
     }
   }

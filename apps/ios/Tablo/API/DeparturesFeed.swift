@@ -24,6 +24,9 @@ final class DeparturesFeed {
 
     /// Fires after every server frame.
     @ObservationIgnored var onUpdate: (() -> Void)?
+    /// The `traceparent` to send with a subscription: the span waiting for
+    /// its board, if any.
+    @ObservationIgnored var traceparent: (() -> String?)?
 
     @ObservationIgnored private let base: URL
     @ObservationIgnored private let session = URLSession(configuration: .default)
@@ -149,7 +152,7 @@ final class DeparturesFeed {
 
     private func sendSubscription() {
         guard let socket else { return }
-        let message: ClientMessage = selector.map { .subscribe([$0]) } ?? .unsubscribe
+        let message: ClientMessage = selector.map { .subscribe([$0], traceparent: traceparent?()) } ?? .unsubscribe
         let payload = message.json
         guard payload != lastSent else { return }
         lastSent = payload

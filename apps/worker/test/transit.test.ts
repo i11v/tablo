@@ -11,7 +11,7 @@ import type { GolemioClient } from "../src/golemio/client.ts"
 import { PidTripPosition, PidVehiclePosition } from "../src/golemio/schema.ts"
 import { DepartureGateway } from "../src/gateway/service.ts"
 import { TransitGateway } from "../src/gateway/transit.ts"
-import { fakeClient, guardLayer } from "./fakes.ts"
+import { fakeClient, guardLayer, recordingTracer } from "./fakes.ts"
 import { tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
 
 const positionData = Schema.decodeUnknownSync(PidTripPosition)(tripPositionFixture)
@@ -248,4 +248,61 @@ describe("TransitGateway", () => {
       }).pipe(Effect.provide(gatewaysLayer(fake.layer)))
     }),
   )
+
+  describe("tracing", () => {
+    const linksOf = (span: {
+      links: ReadonlyArray<{
+        span: { spanId: string }
+        attributes: Readonly<Record<string, unknown>>
+      }>
+    }) => span.links.map((l) => [l.span.spanId, l.attributes["tablo.link"]])
+
+    it.effect("links callers served by another's fetch or its cached result", () =>
+      Effect.gen(function* () {
+        const { tracer, named } = recordingTracer()
+        const fake = yield* makeFake
+        yield* Ref.set(fake.latencyMs, 1_000)
+        yield* Effect.gen(function* () {
+          const gw = yield* TransitGateway
+          const fiber = yield* Effect.forkChild(
+            Effect.all([gw.getTripVehicle(TRIP), gw.getTripVehicle(TRIP)], {
+              concurrency: "unbounded",
+            }),
+          )
+          yield* Effect.yieldNow
+          yield* TestClock.adjust("1 second")
+          yield* Fiber.join(fiber)
+          yield* gw.getTripVehicle(TRIP)
+        }).pipe(Effect.provide(gatewaysLayer(fake.layer)), Effect.withTracer(tracer))
+
+        const [fetcher, waiter, hit] = named("TransitGateway.getTripVehicle")
+        expect(fetcher!.attributes.get("tablo.cache")).toBe("fetched")
+        expect(fetcher!.attributes.get("tablo.outcome")).toBe("ok")
+        expect(waiter!.attributes.get("tablo.cache")).toBe("inflight")
+        expect(linksOf(waiter!)).toEqual([[fetcher!.spanId, "inflight"]])
+        expect(hit!.attributes.get("tablo.cache")).toBe("hit")
+        expect(linksOf(hit!)).toEqual([[fetcher!.spanId, "cached"]])
+      }),
+    )
+
+    it.effect("marks a stale answer served while upstream fails", () =>
+      Effect.gen(function* () {
+        const { tracer, named } = recordingTracer()
+        const fake = yield* makeFake
+        yield* Effect.gen(function* () {
+          const gw = yield* TransitGateway
+          yield* gw.getTripVehicle(TRIP)
+          yield* Ref.set(fake.mode, "fail")
+          yield* TestClock.adjust("6 seconds")
+          yield* gw.getTripVehicle(TRIP)
+        }).pipe(Effect.provide(gatewaysLayer(fake.layer)), Effect.withTracer(tracer))
+
+        const [fresh, stale] = named("TransitGateway.getTripVehicle")
+        expect(fresh!.attributes.get("tablo.cache.stale")).toBeUndefined()
+        expect(stale!.attributes.get("tablo.cache.stale")).toBe(true)
+        expect(stale!.attributes.get("tablo.outcome")).toBe("ok")
+        expect(stale!.attributes.get("tablo.reason")).toBeTypeOf("string")
+      }),
+    )
+  })
 })

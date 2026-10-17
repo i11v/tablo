@@ -1,4 +1,5 @@
-import { Cause, Clock, Deferred, Effect, Ref } from "effect"
+import { Cause, Clock, Deferred, Effect, Ref, type Tracer } from "effect"
+import { currentSpanRef, linkCurrentSpan } from "../trace.ts"
 import { reasonOf } from "./upstream.ts"
 
 /** What upstream definitively said about a key. Cached. */
@@ -25,6 +26,14 @@ export interface CacheOptions {
 interface Entry<A> {
   readonly found: Found<A>
   readonly fetchedAt: number
+  /** The span whose upstream call produced this entry. */
+  readonly fetchedBy: Tracer.ExternalSpan | undefined
+}
+
+/** A key being fetched right now, and the span fetching it. */
+interface Inflight<A> {
+  readonly deferred: Deferred.Deferred<Outcome<A>>
+  readonly fetchedBy: Tracer.ExternalSpan | undefined
 }
 
 /**
@@ -36,14 +45,19 @@ interface Entry<A> {
 export const makeOutcomeCache = <A>(options: CacheOptions) =>
   Effect.gen(function* () {
     const entries = yield* Ref.make(new Map<string, Entry<A>>())
-    const inflight = yield* Ref.make(new Map<string, Deferred.Deferred<Outcome<A>>>())
+    const inflight = yield* Ref.make(new Map<string, Inflight<A>>())
     const notFoundTtlMs = options.notFoundTtlMs ?? options.ttlMs
 
-    const store = (key: string, found: Found<A>, fetchedAt: number) =>
+    const store = (
+      key: string,
+      found: Found<A>,
+      fetchedAt: number,
+      fetchedBy: Tracer.ExternalSpan | undefined,
+    ) =>
       Ref.update(entries, (m) => {
         const next = new Map(m)
         next.delete(key) // re-insert so iteration order tracks recency
-        next.set(key, { found, fetchedAt })
+        next.set(key, { found, fetchedAt, fetchedBy })
         while (next.size > options.capacity) {
           next.delete(next.keys().next().value as string)
         }
@@ -66,26 +80,32 @@ export const makeOutcomeCache = <A>(options: CacheOptions) =>
     const fetchInto = <E>(
       key: string,
       fetch: Effect.Effect<Found<A>, E>,
-      deferred: Deferred.Deferred<Outcome<A>>,
+      { deferred, fetchedBy }: Inflight<A>,
     ) =>
       fetch.pipe(
         Effect.flatMap((found) =>
           Effect.gen(function* () {
-            yield* store(key, found, yield* Clock.currentTimeMillis)
+            yield* store(key, found, yield* Clock.currentTimeMillis, fetchedBy)
             yield* Deferred.succeed(deferred, found)
           }),
         ),
         Effect.catchCause((cause) =>
-          Effect.flatMap(fallback(key, reasonOf(Cause.squash(cause))), (outcome) =>
-            Deferred.succeed(deferred, outcome),
-          ),
+          Effect.gen(function* () {
+            const reason = reasonOf(Cause.squash(cause))
+            const outcome = yield* fallback(key, reason)
+            yield* Effect.annotateCurrentSpan({
+              "tablo.reason": reason,
+              "tablo.cache.stale": outcome._tag !== "unavailable",
+            })
+            yield* Deferred.succeed(deferred, outcome)
+          }),
         ),
         // Completing an already-done Deferred is a no-op.
         Effect.onExit(() =>
           Effect.gen(function* () {
             yield* Deferred.succeed(deferred, yield* fallback(key, "Interrupted"))
             yield* Ref.update(inflight, (m) => {
-              if (m.get(key) !== deferred) return m
+              if (m.get(key)?.deferred !== deferred) return m
               const next = new Map(m)
               next.delete(key)
               return next
@@ -94,16 +114,32 @@ export const makeOutcomeCache = <A>(options: CacheOptions) =>
         ),
       )
 
-    /** Never fails: a fresh hit, the shared in-flight result, or a new fetch. */
+    /** Never fails: a fresh hit, the shared in-flight result, or a new fetch.
+     * The caller's span records which (`tablo.cache`) and, when the answer
+     * came from another caller's fetch, links to it. */
     const get = <E>(key: string, fetch: Effect.Effect<Found<A>, E>): Effect.Effect<Outcome<A>> =>
+      Effect.gen(function* () {
+        const outcome = yield* lookup(key, fetch)
+        yield* Effect.annotateCurrentSpan("tablo.outcome", outcome._tag)
+        return outcome
+      })
+
+    const lookup = <E>(key: string, fetch: Effect.Effect<Found<A>, E>) =>
       Effect.gen(function* () {
         const now = yield* Clock.currentTimeMillis
         const entry = (yield* Ref.get(entries)).get(key)
         if (entry !== undefined) {
           const ttl = entry.found._tag === "ok" ? options.ttlMs : notFoundTtlMs
-          if (now - entry.fetchedAt < ttl) return entry.found
+          if (now - entry.fetchedAt < ttl) {
+            yield* Effect.annotateCurrentSpan("tablo.cache", "hit")
+            yield* linkCurrentSpan([entry.fetchedBy], { "tablo.link": "cached" })
+            return entry.found as Outcome<A>
+          }
         }
-        const mine = yield* Deferred.make<Outcome<A>>()
+        const mine: Inflight<A> = {
+          deferred: yield* Deferred.make<Outcome<A>>(),
+          fetchedBy: yield* currentSpanRef,
+        }
         // Atomic claim: exactly one caller per key fetches, the rest await it.
         const existing = yield* Ref.modify(inflight, (m) => {
           const current = m.get(key)
@@ -112,9 +148,14 @@ export const makeOutcomeCache = <A>(options: CacheOptions) =>
           next.set(key, mine)
           return [undefined, next] as const
         })
-        if (existing !== undefined) return yield* Deferred.await(existing)
+        if (existing !== undefined) {
+          yield* Effect.annotateCurrentSpan("tablo.cache", "inflight")
+          yield* linkCurrentSpan([existing.fetchedBy], { "tablo.link": "inflight" })
+          return yield* Deferred.await(existing.deferred)
+        }
+        yield* Effect.annotateCurrentSpan("tablo.cache", "fetched")
         yield* fetchInto(key, fetch, mine)
-        return yield* Deferred.await(mine)
+        return yield* Deferred.await(mine.deferred)
       })
 
     return { get }

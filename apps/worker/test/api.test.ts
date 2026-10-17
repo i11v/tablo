@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { Effect, FileSystem, Layer, Path, Schema } from "effect"
+import { Effect, FileSystem, Layer, Path, Schema, Tracer } from "effect"
 import { HttpRouter } from "effect/http"
 import { LiveVehicles, Trip, TripVehicle, type BBox } from "@app/contract"
 import { apiLayer } from "../src/api.ts"
 import type { Outcome, TransitApi } from "../src/gateway/transit.ts"
+import type { TransitRpc } from "../src/api.ts"
 import { toLiveVehicle, toTrip, toTripVehicle } from "../src/golemio/normalize.ts"
 import { PidTripPosition, PidTripResponse, PidVehiclePosition } from "../src/golemio/schema.ts"
 import { tripFixture, tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
@@ -44,13 +45,16 @@ afterEach(async () => {
   dispose = undefined
 })
 
-const serve = (transit: TransitApi) => {
+const serve = (transit: TransitRpc, layer: Layer.Layer<never> = Layer.empty) => {
   const web = HttpRouter.toWebHandler(
-    apiLayer("test", () => transit).pipe(Layer.provide([FileSystem.layerNoop({}), Path.layer])),
+    apiLayer("test", () => transit).pipe(
+      Layer.provide([FileSystem.layerNoop({}), Path.layer]),
+      Layer.provideMerge(layer),
+    ),
     { disableLogger: true },
   )
   dispose = web.dispose
-  return (path: string) => web.handler(new Request(`http://local${path}`))
+  return (path: string, init?: RequestInit) => web.handler(new Request(`http://local${path}`, init))
 }
 
 describe("transit API", () => {
@@ -105,6 +109,25 @@ describe("transit API", () => {
   it("maps a failed DO hop to 503, not 500", async () => {
     const res = await serve(fakeTransit("die"))("/api/trips/9_1_1")
     expect(res.status).toBe(503)
+  })
+
+  it("passes the client's trace on to the gateway", async () => {
+    const seen: Array<string | undefined> = []
+    const transit = fakeTransit("ok")
+    // any tracer but the built-in no-op one turns on request spans
+    const tracer = Tracer.make({ span: (options) => new Tracer.NativeSpan(options) })
+    const res = await serve(
+      {
+        ...transit,
+        getTrip: (tripId, traceparent) => (seen.push(traceparent), transit.getTrip(tripId)),
+      },
+      Layer.succeed(Tracer.Tracer, tracer),
+    )("/api/trips/9_1_1", {
+      headers: { traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01" },
+    })
+    expect(res.status).toBe(200)
+    expect(seen).toHaveLength(1)
+    expect(seen[0]).toMatch(/^00-0af7651916cd43dd8448eb211c80319c-[0-9a-f]{16}-01$/)
   })
 
   it("rejects bad input with 400", async () => {

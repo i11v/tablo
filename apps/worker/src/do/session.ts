@@ -6,7 +6,7 @@ import {
   type ServerMessage,
   type StopSelector,
 } from "@app/contract"
-import { currentTraceparent } from "../trace.ts"
+import { currentTraceparent, fromTraceparent, linkCurrentSpan, withCallerSpan } from "../trace.ts"
 import { GolemioGateway } from "./gateway.ts"
 
 const POLL_MS = 15_000
@@ -25,6 +25,10 @@ export class ClientSession extends Cloudflare.DurableObject<ClientSession>()(
     // @effect-diagnostics-next-line returnEffectInGen:off
     return Effect.gen(function* () {
       const state = yield* Cloudflare.DurableObjectState
+      // The client span that asked for the current subscription. The first
+      // poll runs in its trace; alarm polls link back to it. In memory only:
+      // after hibernation, polls simply go unlinked.
+      let subscribedBy: string | undefined
 
       const broadcast = Effect.fn("ClientSession.broadcast")(function* (message: ServerMessage) {
         const payload = encodeServer(message)
@@ -33,10 +37,19 @@ export class ClientSession extends Cloudflare.DurableObject<ClientSession>()(
         }
       })
 
-      const poll = Effect.fn("ClientSession.poll")(function* () {
+      const poll = Effect.fn("ClientSession.poll")(function* (trigger: "subscribe" | "alarm") {
         const selectors = (yield* state.storage.get<ReadonlyArray<StopSelector>>(STORAGE_KEY)) ?? []
         const sockets = yield* state.getWebSockets()
+        yield* Effect.annotateCurrentSpan({
+          "tablo.poll.trigger": trigger,
+          "tablo.selectors": selectors.length,
+          "tablo.sockets": sockets.length,
+        })
+        if (trigger === "alarm") {
+          yield* linkCurrentSpan([fromTraceparent(subscribedBy)], { "tablo.link": "subscription" })
+        }
         if (selectors.length === 0 || sockets.length === 0) {
+          yield* Effect.annotateCurrentSpan("tablo.poll.outcome", "idle")
           yield* state.storage.deleteAlarm()
           return
         }
@@ -52,12 +65,25 @@ export class ClientSession extends Cloudflare.DurableObject<ClientSession>()(
           // drop this frame — broadcasting it could land *after* the fresh
           // one and briefly show boards the client no longer wants.
           const current = (yield* state.storage.get<ReadonlyArray<StopSelector>>(STORAGE_KEY)) ?? []
-          if (JSON.stringify(current) !== JSON.stringify(selectors)) return
+          if (JSON.stringify(current) !== JSON.stringify(selectors)) {
+            yield* Effect.annotateCurrentSpan("tablo.poll.outcome", "superseded")
+            return
+          }
           yield* broadcast({ _tag: "DeparturesUpdate", ...result })
+          yield* Effect.annotateCurrentSpan({
+            "tablo.poll.outcome": "sent",
+            "tablo.boards": result.boards.length,
+            "tablo.degraded": result.degraded,
+          })
         }).pipe(
           // Broad catch (typed failures AND defects, e.g. RpcCallError): a
           // failed tick must not bubble — the alarm is already armed to retry.
-          Effect.catchCause(() => Effect.void),
+          Effect.catchCause((cause) =>
+            Effect.annotateCurrentSpan({
+              "tablo.poll.outcome": "failed",
+              "tablo.error": String(Cause.squash(cause)),
+            }),
+          ),
         )
       })
 
@@ -74,12 +100,15 @@ export class ClientSession extends Cloudflare.DurableObject<ClientSession>()(
             switch (msg._tag) {
               case "Subscribe": {
                 yield* state.storage.put(STORAGE_KEY, msg.selectors)
-                yield* poll() // immediate first update; poll re-arms the alarm
+                subscribedBy = msg.traceparent
+                // immediate first update; poll re-arms the alarm
+                yield* poll("subscribe").pipe(withCallerSpan(msg.traceparent))
                 break
               }
               case "Unsubscribe": {
                 yield* state.storage.put(STORAGE_KEY, [])
                 yield* state.storage.deleteAlarm()
+                subscribedBy = undefined
                 break
               }
             }
@@ -118,7 +147,7 @@ export class ClientSession extends Cloudflare.DurableObject<ClientSession>()(
             }
           }).pipe(Effect.ignore),
 
-        alarm: () => poll().pipe(Effect.ignore),
+        alarm: () => poll("alarm").pipe(Effect.ignore),
       }
     })
   }),

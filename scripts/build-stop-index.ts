@@ -9,7 +9,7 @@ import { buildIndex } from "./lib/build.ts"
 
 const GTFS_URL = "https://data.pid.cz/PID_GTFS.zip"
 const TMP = ".alchemy/tmp-gtfs"
-const OUT_DIR = "packages/web/public/data"
+const OUT_DIR = "apps/web/public/data"
 // Last good copy of the feed. CI restores/saves this via actions/cache so a
 // data.pid.cz outage can't block a deploy (stops change rarely; a slightly
 // stale index is strictly better than no hotfix).

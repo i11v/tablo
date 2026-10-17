@@ -1,15 +1,15 @@
 import * as Alchemy from "alchemy"
 import * as Cloudflare from "alchemy/Cloudflare"
 import * as Effect from "effect/Effect"
-import Server from "./packages/worker/src/index.ts"
-import { resolveWorkerStage, workerName } from "./packages/worker/src/workerName.ts"
+import Server from "./apps/worker/src/index.ts"
+import { resolveWorkerStage, workerName } from "./apps/worker/src/workerName.ts"
 
 export default Alchemy.Stack(
   "tablo",
   { providers: Cloudflare.providers(), state: Cloudflare.state() },
   Effect.gen(function* () {
     // The worker's *name* comes from TABLO_STAGE (process.env, read at module
-    // load in packages/worker/src/index.ts — see the note there for why it
+    // load in apps/worker/src/index.ts — see the note there for why it
     // cannot use this Stage service), while the *state scope* comes from the
     // `--stage` flag. If the two disagree — e.g. a manual
     // `alchemy deploy --stage production` without TABLO_STAGE set — alchemy

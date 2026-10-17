@@ -40,7 +40,7 @@ if (command === "write") {
   console.error(
     "\nInstalled iOS builds never update, so keep the old shape working: add a new field" +
       "\ninstead of renaming or retyping one. If the app provably tolerates this change" +
-      "\n(check ios/Tablo/API/Wire.swift), add the `contract-break` label to the PR.",
+      "\n(check apps/ios/Tablo/API/Wire.swift), add the `contract-break` label to the PR.",
   )
   process.exit(1)
 } else {

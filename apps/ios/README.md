@@ -1,6 +1,6 @@
 # tablo for iOS
 
-tablo's **primary client**. The React PWA in `packages/web` is the secondary,
+tablo's **primary client**. The React PWA in `apps/web` is the secondary,
 web client on the same backend.
 
 A native SwiftUI + MapKit build of the **Stop prototype** design
@@ -50,7 +50,7 @@ team: `project.yml` leaves `DEVELOPMENT_TEAM` empty, so pick one in Xcode
 `DEVELOPMENT_TEAM=<team id>` to `xcodebuild`.
 
 CI (`.github/workflows/ios.yml`) runs `xcodegen generate` + `xcodebuild test`
-on PRs and pushes that touch `ios/`. The production deploy doesn't build the
+on PRs and pushes that touch `apps/ios/`. The production deploy doesn't build the
 app ([`docs/DEPLOY.md`](../docs/DEPLOY.md)).
 
 ### Pointing at another backend

@@ -53,7 +53,7 @@ export default class Server extends Cloudflare.Worker<Server>()(
     main: import.meta.filename,
     compatibility: { date: "2026-06-01", flags: ["nodejs_compat"] },
     assets: {
-      directory: "./packages/web/dist",
+      directory: "./apps/web/dist",
       notFoundHandling: "single-page-application",
       // Production-correct: /api/* hits the worker first, everything else is
       // served by the Cloudflare assets router (with the SPA fallback).

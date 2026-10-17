@@ -1,24 +1,24 @@
 name: iOS
 
-# Builds the native app (ios/) and runs TabloTests on a simulator. The app
-# builds from ios/ alone (XcodeGen project.yml + Swift sources), so web- and
+# Builds the native app (apps/ios/) and runs TabloTests on a simulator. The app
+# builds from apps/ios/ alone (XcodeGen project.yml + Swift sources), so web- and
 # worker-only changes skip the macOS runner.
 #
 # Deliberately NOT filtered on packages/contract/**: what TabloTests read of
-# the contract is ios/TabloTests/ContractFixtures/, JSON generated from the
+# the contract is apps/ios/TabloTests/ContractFixtures/, JSON generated from the
 # schemas (`bun run contract:write`, kept current by `bun run test`). A
 # contract change that alters the wire alters those files, which are under
-# ios/ and trigger this; one that doesn't can't change this workflow's result.
+# apps/ios/ and trigger this; one that doesn't can't change this workflow's result.
 # Breaks for builds already installed are caught by contract.yml instead.
 on:
   pull_request:
     paths:
-      - "ios/**"
+      - "apps/ios/**"
       - ".github/workflows/ios.yml"
   push:
     branches: [main]
     paths:
-      - "ios/**"
+      - "apps/ios/**"
       - ".github/workflows/ios.yml"
   workflow_dispatch:
 
@@ -47,7 +47,7 @@ jobs:
     defaults:
       run:
         shell: bash # = bash -eo pipefail, so `xcodebuild | xcbeautify` fails when xcodebuild does
-        working-directory: ios
+        working-directory: apps/ios
     steps:
       - uses: actions/checkout@v5
 
@@ -109,7 +109,7 @@ jobs:
           SIM_UDID: ${{ steps.sim.outputs.udid }}
           NSUnbufferedIO: "YES" # stream xcodebuild output through the pipe as it happens
         run: |
-          mkdir -p build   # gitignored (ios/.gitignore); holds DerivedData, the result bundle and the raw log
+          mkdir -p build   # gitignored (apps/ios/.gitignore); holds DerivedData, the result bundle and the raw log
           args=(
             test
             -project Tablo.xcodeproj
@@ -128,7 +128,7 @@ jobs:
         with:
           name: ios-test-results
           path: |
-            ios/build/Tablo.xcresult
-            ios/build/xcodebuild.log
+            apps/ios/build/Tablo.xcresult
+            apps/ios/build/xcodebuild.log
           if-no-files-found: ignore
           retention-days: 14

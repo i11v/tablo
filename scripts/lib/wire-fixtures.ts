@@ -1,5 +1,5 @@
 /**
- * Sample payloads for the iOS contract tests (ios/TabloTests/ContractTests.swift).
+ * Sample payloads for the iOS contract tests (apps/ios/TabloTests/ContractTests.swift).
  *
  * Each value is typed by, and encoded with, the real contract schema, so the
  * JSON files are exactly what the backend sends (or accepts). Between them,
@@ -21,7 +21,7 @@ import {
   UpstreamUnavailable,
 } from "@app/contract"
 
-export const FIXTURES_DIR = "ios/TabloTests/ContractFixtures"
+export const FIXTURES_DIR = "apps/ios/TabloTests/ContractFixtures"
 
 export interface Fixture {
   /** File name in FIXTURES_DIR, without `.json`. */

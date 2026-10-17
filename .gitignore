@@ -12,5 +12,5 @@ dist/
 
 .alchemy/
 .cache/
-packages/web/dist/
-packages/web/public/data/
+apps/web/dist/
+apps/web/public/data/

@@ -17,7 +17,7 @@ a handoff bundle (`tablo-design-system/`, gzipped tar fetched from an
 `api.anthropic.com/v1/design/h/…` URL). The bundle holds the token CSS, React
 brand + transit components, three UI kits, specimen cards, and the design-chat
 transcripts (the real intent source). It is the **canonical reference**; this
-repo is the production implementation. `packages/web/src/styles.css` is the
+repo is the production implementation. `apps/web/src/styles.css` is the
 upstream the bundle's `@theme` mirrors — they are kept in sync.
 
 This is the **second** uptake. The first attempt built a separate
@@ -98,7 +98,7 @@ only literal hexes left are the token *definitions* in `styles.css`.
 ## Verify / regenerate
 
 ```bash
-bunx tsc -p packages/web && bun run --cwd packages/web build   # typecheck + build
+bunx tsc -p apps/web && bun run --cwd apps/web build   # typecheck + build
 bun run vite dev   # then open /preview.html for the component board (mock data)
 uv run --with pillow --with numpy python brand/gen_icon.py     # rebuild the t. icon
 ```

@@ -27,13 +27,7 @@
         "vitest": "^5.0.3",
       },
     },
-    "packages/contract": {
-      "name": "@app/contract",
-      "dependencies": {
-        "effect": "4.0.0",
-      },
-    },
-    "packages/web": {
+    "apps/web": {
       "name": "@app/web",
       "dependencies": {
         "@app/contract": "workspace:*",
@@ -60,11 +54,17 @@
         "workbox-window": "^7.4.1",
       },
     },
-    "packages/worker": {
+    "apps/worker": {
       "name": "@app/worker",
       "dependencies": {
         "@app/contract": "workspace:*",
         "alchemy": "2.0.0-beta.80",
+        "effect": "4.0.0",
+      },
+    },
+    "packages/contract": {
+      "name": "@app/contract",
+      "dependencies": {
         "effect": "4.0.0",
       },
     },
@@ -82,9 +82,9 @@
 
     "@app/contract": ["@app/contract@workspace:packages/contract"],
 
-    "@app/web": ["@app/web@workspace:packages/web"],
+    "@app/web": ["@app/web@workspace:apps/web"],
 
-    "@app/worker": ["@app/worker@workspace:packages/worker"],
+    "@app/worker": ["@app/worker@workspace:apps/worker"],
 
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
 

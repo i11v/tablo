@@ -1,5 +1,7 @@
+/// <reference types="node" />
+import { DatabaseSync } from "node:sqlite"
 import { describe, expect, it } from "@effect/vitest"
-import { Effect, Fiber, Layer, Ref, Schema } from "effect"
+import { Clock, Effect, Fiber, Layer, Ref, Schema } from "effect"
 import { TestClock } from "effect/testing"
 import type { BBox } from "@app/contract"
 import {
@@ -10,7 +12,8 @@ import {
 import type { GolemioClient } from "../src/golemio/client.ts"
 import { PidTripPosition, PidTripResponse, PidVehiclePosition } from "../src/golemio/schema.ts"
 import { DepartureGateway } from "../src/gateway/service.ts"
-import { TransitGateway } from "../src/gateway/transit.ts"
+import { TRIP_STORE, TransitGateway } from "../src/gateway/transit.ts"
+import { type SqlExec, TripStore } from "../src/gateway/tripStore.ts"
 import { fakeClient, guardLayer } from "./fakes.ts"
 import { tripFixture, tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
 
@@ -72,10 +75,24 @@ const makeFake = Effect.gen(function* () {
 })
 
 /** Both gateways on ONE client and ONE guard — the DO's wiring. */
-const gatewaysLayer = (client: Layer.Layer<GolemioClient>) =>
+const gatewaysLayer = (
+  client: Layer.Layer<GolemioClient>,
+  store: Layer.Layer<TripStore> = TripStore.layerNone,
+) =>
   Layer.mergeAll(DepartureGateway.layer, TransitGateway.layer).pipe(
-    Layer.provide([client, guardLayer]),
+    Layer.provide([client, guardLayer, store]),
   )
+
+/** A Durable Object's `storage.sql`, on Node's SQLite: exec runs eagerly. */
+const sqlite = (): SqlExec => {
+  const db = new DatabaseSync(":memory:")
+  return {
+    exec: (query, ...bindings) => {
+      const rows = db.prepare(query).all(...bindings) as Array<Record<string, unknown>>
+      return { toArray: () => rows }
+    },
+  }
+}
 
 const TRIP = "9_29806_261003"
 
@@ -285,4 +302,73 @@ describe("TransitGateway", () => {
       }).pipe(Effect.provide(gatewaysLayer(fake.layer)))
     }),
   )
+
+  describe("persisted trip plans", () => {
+    /** Each build is a fresh gateway (empty memory) over the same storage —
+     * what a Durable Object eviction and cold start look like. */
+    const coldGateway = (client: Layer.Layer<GolemioClient>, sql: SqlExec) =>
+      gatewaysLayer(client, TripStore.layerSql(sql, TRIP_STORE))
+
+    it.effect("a cold gateway serves trips fetched before without calling upstream", () =>
+      Effect.gen(function* () {
+        const fake = yield* makeFake
+        const sql = sqlite()
+        const getTrip = TransitGateway.use((gw) => gw.getTrip(TRIP))
+        const warm = yield* getTrip.pipe(Effect.provide(coldGateway(fake.layer, sql)))
+        expect(warm._tag).toBe("ok")
+        yield* TestClock.adjust("1 hour")
+        const cold = yield* getTrip.pipe(Effect.provide(coldGateway(fake.layer, sql)))
+        expect(cold).toEqual(warm)
+        expect(yield* fake.calls).toBe(1)
+      }),
+    )
+
+    it.effect("keeps the 6 h TTL and the stale fallback across cold starts", () =>
+      Effect.gen(function* () {
+        const fake = yield* makeFake
+        const sql = sqlite()
+        const getTrip = TransitGateway.use((gw) => gw.getTrip(TRIP))
+        yield* getTrip.pipe(Effect.provide(coldGateway(fake.layer, sql)))
+        yield* TestClock.adjust("7 hours") // past the TTL, inside the stale window
+        yield* Ref.set(fake.mode, "fail")
+        const stale = yield* getTrip.pipe(Effect.provide(coldGateway(fake.layer, sql)))
+        expect(stale._tag).toBe("ok")
+        expect(yield* fake.calls).toBe(2)
+        yield* TestClock.adjust("18 hours") // past the stale window: pruned
+        const gone = yield* getTrip.pipe(Effect.provide(coldGateway(fake.layer, sql)))
+        expect(gone._tag).toBe("unavailable")
+      }),
+    )
+
+    it.effect("doesn't persist a notFound", () =>
+      Effect.gen(function* () {
+        const fake = yield* makeFake
+        const sql = sqlite()
+        yield* Ref.set(fake.mode, "notFound")
+        const getTrip = TransitGateway.use((gw) => gw.getTrip(TRIP))
+        yield* getTrip.pipe(Effect.provide(coldGateway(fake.layer, sql)))
+        yield* Ref.set(fake.mode, "ok")
+        expect((yield* getTrip.pipe(Effect.provide(coldGateway(fake.layer, sql))))._tag).toBe("ok")
+        expect(yield* fake.calls).toBe(2)
+      }),
+    )
+
+    it.effect("bounds storage to the newest trips", () =>
+      TripStore.use((store) =>
+        Effect.gen(function* () {
+          for (const id of ["a", "b", "c"]) {
+            yield* TestClock.adjust("1 second")
+            const value = { tripId: id, headsign: "x", stops: [], shape: [] }
+            const fetchedAt = yield* Clock.currentTimeMillis
+            yield* store.save(id, { found: { _tag: "ok", value }, fetchedAt })
+          }
+          expect(yield* store.load("a")).toBeUndefined()
+          expect((yield* store.load("c"))?.found).toEqual({
+            _tag: "ok",
+            value: { tripId: "c", headsign: "x", stops: [], shape: [] },
+          })
+        }),
+      ).pipe(Effect.provide(TripStore.layerSql(sqlite(), { maxAgeMs: 3600_000, capacity: 2 }))),
+    )
+  })
 })

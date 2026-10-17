@@ -11,7 +11,7 @@ export type Found<A> = { readonly _tag: "ok"; readonly value: A } | { readonly _
  */
 export type Outcome<A> = Found<A> | { readonly _tag: "unavailable"; readonly reason: string }
 
-export interface CacheOptions {
+export interface CacheOptions<A> {
   /** Entries younger than this are served without asking upstream. */
   readonly ttlMs: number
   /** TTL for a cached notFound (defaults to ttlMs). */
@@ -20,11 +20,22 @@ export interface CacheOptions {
   readonly maxStaleMs: number
   /** Bound on entries; the least recently stored are evicted first. */
   readonly capacity: number
+  /** A slower tier behind memory that outlives it, consulted on a memory miss. */
+  readonly persist?: PersistentTier<A>
 }
 
-interface Entry<A> {
+export interface Entry<A> {
   readonly found: Found<A>
   readonly fetchedAt: number
+}
+
+/**
+ * Durable storage behind the in-memory map. Best effort: both operations
+ * never fail — a broken tier degrades to a miss, never to an error.
+ */
+export interface PersistentTier<A> {
+  readonly load: (key: string) => Effect.Effect<Entry<A> | undefined>
+  readonly save: (key: string, entry: Entry<A>) => Effect.Effect<void>
 }
 
 /**
@@ -33,7 +44,7 @@ interface Entry<A> {
  * concurrent caller, and a stale fallback when upstream fails. Keys derive
  * from client input, so the bound is what keeps it from being an OOM vector.
  */
-export const makeOutcomeCache = <A>(options: CacheOptions) =>
+export const makeOutcomeCache = <A>(options: CacheOptions<A>) =>
   Effect.gen(function* () {
     const entries = yield* Ref.make(new Map<string, Entry<A>>())
     const inflight = yield* Ref.make(new Map<string, Deferred.Deferred<Outcome<A>>>())
@@ -71,7 +82,9 @@ export const makeOutcomeCache = <A>(options: CacheOptions) =>
       fetch.pipe(
         Effect.flatMap((found) =>
           Effect.gen(function* () {
-            yield* store(key, found, yield* Clock.currentTimeMillis)
+            const fetchedAt = yield* Clock.currentTimeMillis
+            yield* store(key, found, fetchedAt)
+            if (options.persist) yield* options.persist.save(key, { found, fetchedAt })
             yield* Deferred.succeed(deferred, found)
           }),
         ),
@@ -94,11 +107,21 @@ export const makeOutcomeCache = <A>(options: CacheOptions) =>
         ),
       )
 
+    /** The memory entry, else one promoted from the persistent tier. */
+    const lookup = (key: string) =>
+      Effect.gen(function* () {
+        const entry = (yield* Ref.get(entries)).get(key)
+        if (entry !== undefined || options.persist === undefined) return entry
+        const loaded = yield* options.persist.load(key)
+        if (loaded !== undefined) yield* store(key, loaded.found, loaded.fetchedAt)
+        return loaded
+      })
+
     /** Never fails: a fresh hit, the shared in-flight result, or a new fetch. */
     const get = <E>(key: string, fetch: Effect.Effect<Found<A>, E>): Effect.Effect<Outcome<A>> =>
       Effect.gen(function* () {
         const now = yield* Clock.currentTimeMillis
-        const entry = (yield* Ref.get(entries)).get(key)
+        const entry = yield* lookup(key)
         if (entry !== undefined) {
           const ttl = entry.found._tag === "ok" ? options.ttlMs : notFoundTtlMs
           if (now - entry.fetchedAt < ttl) return entry.found

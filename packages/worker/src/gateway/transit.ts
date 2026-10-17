@@ -4,6 +4,7 @@ import * as Context from "effect/Context"
 import { GolemioClient } from "../golemio/client.ts"
 import { toLiveVehicle, toTrip, toTripVehicle } from "../golemio/normalize.ts"
 import { type Found, makeOutcomeCache, type Outcome } from "./cache.ts"
+import { TripStore, type TripStoreOptions } from "./tripStore.ts"
 import { UpstreamGuard } from "./upstream.ts"
 
 export type { Outcome } from "./cache.ts"
@@ -16,6 +17,9 @@ const TRIP = {
   maxStaleMs: 24 * 3600_000,
   capacity: 128,
 }
+/** Plans persisted behind {@link TRIP}, so a cold gateway doesn't refetch the
+ * ones it already had: as long as the stale window, a day's worth of trips. */
+export const TRIP_STORE: TripStoreOptions = { maxAgeMs: TRIP.maxStaleMs, capacity: 4096 }
 // Positions move: as fresh as boards. Stale ones are only worth serving for a
 // minute — the payload's own timestamps tell the client how old they are.
 const TRIP_VEHICLE = { ttlMs: 5_000, maxStaleMs: 60_000, capacity: 256 }
@@ -46,7 +50,7 @@ export class TransitGateway extends Context.Service<TransitGateway, TransitApi>(
     Effect.gen(function* () {
       const client = yield* GolemioClient
       const guard = yield* UpstreamGuard
-      const trips = yield* makeOutcomeCache<Trip>(TRIP)
+      const trips = yield* makeOutcomeCache<Trip>({ ...TRIP, persist: yield* TripStore })
       const tripVehicles = yield* makeOutcomeCache<TripVehicle>(TRIP_VEHICLE)
       const snapshot = yield* makeOutcomeCache<LiveVehicles>(ALL_VEHICLES)
 

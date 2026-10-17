@@ -5,7 +5,8 @@ import { RateLimiter } from "effect/persistence"
 import type { BBox, StopSelector } from "@app/contract"
 import { GolemioClient } from "../golemio/client.ts"
 import { DepartureGateway } from "../gateway/service.ts"
-import { TransitGateway } from "../gateway/transit.ts"
+import { TRIP_STORE, TransitGateway } from "../gateway/transit.ts"
+import { TripStore } from "../gateway/tripStore.ts"
 import { UpstreamGuard } from "../gateway/upstream.ts"
 
 export class GolemioGateway extends Cloudflare.DurableObject<GolemioGateway>()(
@@ -28,11 +29,18 @@ export class GolemioGateway extends Cloudflare.DurableObject<GolemioGateway>()(
     )
     return Effect.gen(function* () {
       // Inner init: per instance / per hibernation wake. The in-memory limiter +
-      // cache reset on wake — acceptable: the singleton only hibernates when idle.
+      // caches reset on wake — acceptable: the singleton only hibernates when
+      // idle. Trip plans are the exception: static and the costliest to refill
+      // (one upstream call each), they persist in this object's SQLite storage.
+      const state = yield* Cloudflare.DurableObjectState
       const { departures, transit } = yield* Effect.all({
         departures: DepartureGateway,
         transit: TransitGateway,
-      }).pipe(Effect.provide(gatewayLayer))
+      }).pipe(
+        Effect.provide(
+          gatewayLayer.pipe(Layer.provide(TripStore.layerSql(state.raw.storage.sql, TRIP_STORE))),
+        ),
+      )
       // Typed RPC, called via getByName("singleton"). Every method here
       // never fails: typed failures don't survive the DO RPC boundary
       // intact, so results are plain data (BoardsResult / Outcome).

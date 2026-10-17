@@ -83,7 +83,10 @@ HONEYCOMB_API_KEY = <ingest key>
 ```
 
 Or pass it per build (`xcodebuild … HONEYCOMB_API_KEY=<key>`) or per launch
-(`-HoneycombAPIKey <key>`). The key ships inside the app, so use an ingest
+(`-HoneycombAPIKey <key>`). A git worktree gets the main checkout's
+`Local.xcconfig` symlinked in when it's created (a lefthook `post-checkout`
+job); for a worktree made before that, run `scripts/link-local-config.sh` in
+it. A build without a key says so with a build warning. The key ships inside the app, so use an ingest
 key, which can only send data. Spans go to the EU region
 (`HONEYCOMB_API_HOST = api.eu1.honeycomb.io` in `Tablo.xcconfig`); a US
 account sets `api.honeycomb.io` there.

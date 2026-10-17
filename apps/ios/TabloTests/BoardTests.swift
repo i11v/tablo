@@ -1,5 +1,4 @@
 import XCTest
-import SwiftUI
 @testable import Tablo
 
 final class BoardTests: XCTestCase {
@@ -56,20 +55,6 @@ final class BoardTests: XCTestCase {
         XCTAssertEqual(Board.delayText(2), "+2 min")
         XCTAssertEqual(Board.delayText(-1), "-1 min")
         XCTAssertEqual(Board.delayText(0), "")
-    }
-
-    func testRowMetaLeadsWithTheClockTime() {
-        // 300 s after `now` is 16:18 in Prague (CEST); the clock follows the prediction
-        let d = Board.resolve(dep(at: 120, predicted: 300), now: now)
-        let row = BoardRow(
-            departure: d, tier: .neutral, clock: JourneyBuilder.clock(d.time),
-            platformMeta: "nást. A", delayText: "+3 min", delayColor: .clear
-        )
-        XCTAssertEqual(row.plainMeta, "16:18 · nást. A")
-        XCTAssertEqual(row.separator, " · ")
-        let bare = BoardRow(departure: d, tier: .neutral, clock: "16:18", platformMeta: "", delayText: "", delayColor: .clear)
-        XCTAssertEqual(bare.plainMeta, "16:18")
-        XCTAssertEqual(bare.separator, "")
     }
 
     func testPlatformKeys() {

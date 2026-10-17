@@ -87,11 +87,31 @@ private struct TopEdge: Shape {
 }
 
 private func metaText(_ row: BoardRow) -> Text {
-    var plat = AttributedString(row.plainMeta)
-    plat.foregroundColor = Palette.meta
-    var delay = AttributedString(row.separator + row.delayText)
-    delay.foregroundColor = row.delayColor
-    return Text(plat + delay)
+    Text(row.platformMeta).foregroundStyle(Palette.meta)
+}
+
+/// The countdown stacked over the departure's clock time and delay, right-aligned.
+private struct When: View {
+    let row: BoardRow
+    let size: CGFloat
+
+    var body: some View {
+        let d = row.departure
+        VStack(alignment: .trailing, spacing: 3) {
+            Countdown(tier: row.tier, minutes: d.inMinutes, atStop: d.atStop, size: size)
+            HStack(spacing: 6) {
+                Text(row.clock).foregroundStyle(Palette.meta)
+                if !row.delayText.isEmpty {
+                    Text(row.delayText).foregroundStyle(row.delayColor)
+                }
+            }
+            .font(.hanken(12, .medium))
+            .monospacedDigit()
+            .lineLimit(1)
+            .fixedSize()
+            .accessibilityElement(children: .combine)
+        }
+    }
 }
 
 private struct Hairline: View {
@@ -249,13 +269,15 @@ private struct LeadRow: View {
                         if row.tier != .neutral {
                             TierPill(tier: row.tier)
                         }
-                        metaText(row)
-                            .font(.hanken(12, .medium))
-                            .lineLimit(1)
+                        if row.hasMeta {
+                            metaText(row)
+                                .font(.hanken(12, .medium))
+                                .lineLimit(1)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Countdown(tier: row.tier, minutes: d.inMinutes, atStop: d.atStop, size: 38)
+                When(row: row, size: 38)
             }
             .padding(.leading, 13)
             .background(alignment: .leading) {
@@ -293,10 +315,12 @@ private struct SecondaryRow: View {
                         .font(.hanken(15, .semibold))
                         .foregroundStyle(Palette.inkDim)
                         .lineLimit(1)
-                    metaText(row).font(.hanken(12, .medium)).lineLimit(1)
+                    if row.hasMeta {
+                        metaText(row).font(.hanken(12, .medium)).lineLimit(1)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Countdown(tier: row.tier, minutes: d.inMinutes, atStop: d.atStop, size: 21)
+                When(row: row, size: 21)
             }
             .padding(.vertical, 9)
             .padding(.horizontal, 8)

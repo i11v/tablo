@@ -16,9 +16,7 @@ struct BoardRow: Identifiable {
     var id: String { departure.id }
     /// Only departures with a trip id have a journey to follow.
     var canFollow: Bool { departure.tripId != nil }
-    /// "14:32 · nást. A", without the delay (which takes its own colour).
-    var plainMeta: String { [clock, platformMeta].filter { !$0.isEmpty }.joined(separator: " · ") }
-    var separator: String { !plainMeta.isEmpty && !delayText.isEmpty ? " · " : "" }
+    var hasMeta: Bool { !platformMeta.isEmpty }
 }
 
 struct PlatformTab: Identifiable {

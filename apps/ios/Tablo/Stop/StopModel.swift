@@ -6,6 +6,8 @@ import SwiftUI
 struct BoardRow: Identifiable {
     let departure: Departure
     let tier: Tier
+    /// "14:32": the departure on Prague's wall clock (predicted, else scheduled).
+    let clock: String
     /// "nást. A" when the board shows every platform.
     let platformMeta: String
     let delayText: String
@@ -14,8 +16,7 @@ struct BoardRow: Identifiable {
     var id: String { departure.id }
     /// Only departures with a trip id have a journey to follow.
     var canFollow: Bool { departure.tripId != nil }
-    var hasMeta: Bool { !platformMeta.isEmpty || !delayText.isEmpty }
-    var separator: String { !platformMeta.isEmpty && !delayText.isEmpty ? " · " : "" }
+    var hasMeta: Bool { !platformMeta.isEmpty }
 }
 
 struct PlatformTab: Identifiable {
@@ -446,6 +447,7 @@ final class StopModel {
         return BoardRow(
             departure: d,
             tier: Tier.reach(inMinutes: d.inMinutes, walk: walk),
+            clock: JourneyBuilder.clock(d.time),
             platformMeta: showPlatform ? "nást. \(d.platform ?? "")" : "",
             delayText: Board.delayText(d.delayMinutes),
             delayColor: d.delayMinutes > 0 ? Palette.late : Palette.early

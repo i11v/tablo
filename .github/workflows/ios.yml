@@ -47,7 +47,7 @@ jobs:
     defaults:
       run:
         shell: bash # = bash -eo pipefail, so `xcodebuild | xcbeautify` fails when xcodebuild does
-        working-directory: ios
+        working-directory: apps/ios
     steps:
       - uses: actions/checkout@v5
 

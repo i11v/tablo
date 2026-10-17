@@ -1,4 +1,5 @@
 import Observation
+import OpenTelemetryApi
 import SwiftUI
 
 /// One row of the departures board, already resolved against your walk time.
@@ -136,6 +137,12 @@ final class StopModel {
     @ObservationIgnored private var planless: Set<String> = []
     /// Trips of the vehicles on the map right now.
     @ObservationIgnored private var mapTrips: Set<String> = []
+    /// The launch or resume being traced, until the page settles.
+    @ObservationIgnored private var phase: PhaseTrace?
+    /// Open while the phase waits for its first location fix / the stop's board.
+    @ObservationIgnored private var fixWait: Span?
+    @ObservationIgnored private var boardWait: Span?
+    @ObservationIgnored private var backgroundAt: Date?
 
     private enum Keys {
         static let stop = "tablo.currentStop"
@@ -145,6 +152,9 @@ final class StopModel {
     init(api: TabloAPI = TabloAPI(), defaults: UserDefaults = .standard) {
         let saved = defaults.data(forKey: Keys.stop).flatMap { try? JSONDecoder().decode(IndexStop.self, from: $0) }
         let initial = saved ?? Self.fallbackStop
+        let prewarmed = ProcessInfo.processInfo.environment["ActivePrewarm"] == "1"
+        // a prewarmed process started long before you tapped the icon
+        let launched = prewarmed ? Date() : Telemetry.processStart
         self.api = api
         self.defaults = defaults
         stop = initial
@@ -165,6 +175,12 @@ final class StopModel {
         }
         feed.onUpdate = { [weak self] in self?.feedUpdated() }
         location.onChange = { [weak self] in self?.locationChanged() }
+        phase = PhaseTrace(.launch, start: launched, attributes: [
+            "tablo.prewarmed": .bool(prewarmed),
+            "tablo.saved_stop": .bool(saved != nil),
+            "stop.name": .string(initial.name),
+        ]) { [weak self] in self?.phaseEnded() }
+        phase?.event("model.init")
         feed.subscribe(initial.selector)
         loadIndex()
         syncMap()
@@ -178,6 +194,7 @@ final class StopModel {
         active = on
         if on {
             now = Date()
+            beginPhase()
             feed.start()
             location.start()
             let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
@@ -196,7 +213,47 @@ final class StopModel {
             clock = nil
             stopVehiclePolling()
             journeyTask?.cancel()
+            phase?.end("background")
+            backgroundAt = Date()
+            Telemetry.flushInBackground()
         }
+    }
+
+    // MARK: - Tracing
+
+    /// Coming to the foreground: the launch trace is already open; a return
+    /// from the background starts a resume trace.
+    private func beginPhase() {
+        if let backgroundAt {
+            phase = PhaseTrace(.resume, attributes: [
+                "tablo.background_s": .int(Int(Date().timeIntervalSince(backgroundAt))),
+                "stop.name": .string(stop.name),
+                "tablo.has_location": .bool(location.coordinate != nil),
+            ]) { [weak self] in self?.phaseEnded() }
+        } else {
+            phase?.event("active")
+        }
+        guard let phase else { return }
+        if location.coordinate == nil {
+            fixWait = Telemetry.span("location.first_fix", parent: phase.span)
+        }
+        awaitBoard()
+    }
+
+    /// A span from now until the current stop's board arrives.
+    private func awaitBoard() {
+        guard let phase, boardWait == nil else { return }
+        boardWait = Telemetry.span("feed.board", parent: phase.span, attributes: ["stop.name": .string(stop.name)])
+    }
+
+    private func phaseEnded() {
+        for wait in [fixWait, boardWait].compactMap({ $0 }) {
+            wait.setAttribute(key: "tablo.outcome", value: "unfinished")
+            wait.end()
+        }
+        fixWait = nil
+        boardWait = nil
+        phase = nil
     }
 
     private func tick() {
@@ -211,17 +268,23 @@ final class StopModel {
     private func loadIndex() {
         indexTask?.cancel()
         indexState = .loading
+        let span = Telemetry.span("index.load", parent: phase?.span)
         indexTask = Task { [weak self, api] in
+            defer { span.end() }
             do {
-                let stops = try await api.stopIndex()
+                let stops = try await api.stopIndex(parent: span)
+                span.setAttribute(key: "index.stops", value: stops.count)
                 // the search expansion and key table are ~10k rows: build them off the main actor
+                let build = Telemetry.span("index.build", parent: span)
                 let (search, byKey) = await Task.detached(priority: .userInitiated) {
                     (StopSearch.Index(stops), Dictionary(stops.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first }))
                 }.value
+                build.end()
                 guard !Task.isCancelled else { return }
                 self?.indexLoaded(stops, search, byKey)
             } catch {
                 guard !Task.isCancelled else { return }
+                span.fail(error)
                 self?.indexState = .failed
             }
         }
@@ -246,6 +309,10 @@ final class StopModel {
     // MARK: - Location
 
     private func locationChanged() {
+        if let fixWait, location.coordinate != nil {
+            fixWait.end()
+            self.fixWait = nil
+        }
         updateNearest()
         placeByLocation()
         syncMap()
@@ -503,6 +570,7 @@ final class StopModel {
     func openSearch() {
         query = ""
         searchOpen = true
+        phase?.end("search")
         stopVehiclePolling()
     }
 
@@ -525,6 +593,7 @@ final class StopModel {
             searchOpen = false
             query = ""
         }
+        phase?.stopSwitched(from: stop.name, to: entry.name, reason: userInitiated ? "user" : "location")
         // size the sheet first: the map frames the stop against its final height
         if let sheet {
             setSheet(sheet)
@@ -541,6 +610,11 @@ final class StopModel {
         stop = entry
         save(entry)
         feed.subscribe(entry.selector)
+        if let boardWait {
+            boardWait.addEvent(name: "stop.switch", attributes: ["stop.to": .string(entry.name)])
+        } else {
+            awaitBoard()
+        }
         map.setStop(entry.coord, name: entry.name)
         map.flyToStop(duration: 0.9)
         map.setVehicles([], glide: 0)
@@ -581,6 +655,7 @@ final class StopModel {
         withAnimation(.easeOut(duration: 0.18)) { follow = Follow(departure: wire, trip: trip, vehicle: nil) }
         setSheet(h)
         map.setSelected(nil)
+        phase?.end("journey")
         stopVehiclePolling()
         if let j = journey { map.showJourney(j, id: tripId, sheetHeight: h) }
         startJourneyPolling()
@@ -616,6 +691,14 @@ final class StopModel {
     // MARK: - Live data
 
     private func feedUpdated() {
+        if let board = feed.boards[stop.key] {
+            if let boardWait {
+                boardWait.setAttribute(key: "departures", value: board.count)
+                boardWait.end()
+                self.boardWait = nil
+            }
+            phase?.boardShown()
+        }
         // keep the followed departure fresh while it's on the board (it may leave once it departs)
         if let tripId = follow?.departure.tripId,
            let fresh = feed.boards[stop.key]?.first(where: { $0.tripId == tripId }) {
@@ -643,14 +726,21 @@ final class StopModel {
         stopVehiclePolling()
         guard active, follow == nil, !searchOpen else { return }
         let box = BBox.around(stop.coord)
+        let stopName = stop.name
         vehicleTask = Task { [weak self, api] in
             while !Task.isCancelled {
                 var wait = Self.vehiclePoll
+                let span = Telemetry.span("vehicles.poll", parent: self?.phase?.span, attributes: ["stop.name": .string(stopName)])
                 do {
-                    let list = try await api.vehicles(in: box)
+                    let list = try await api.vehicles(in: box, parent: span)
+                    span.setAttribute(key: "vehicles", value: list.count)
+                    span.end()
                     guard !Task.isCancelled else { return }
+                    self?.phase?.vehiclesShown(list.count)
                     self?.vehiclesLoaded(list)
                 } catch {
+                    span.fail(error)
+                    span.end()
                     guard !Task.isCancelled else { return }
                     self?.vehiclesLoaded([])
                     wait = 30
@@ -694,26 +784,44 @@ final class StopModel {
                 return Geo.haversineMetres(a.coord, here) < Geo.haversineMetres(b.coord, here)
             }
             .map(\.tripId)
-        guard !wanted.isEmpty else { return }
+        guard !wanted.isEmpty else {
+            phase?.plansReady()
+            return
+        }
         planRun += 1
         let run = planRun
+        let span = Telemetry.span("plans.load", parent: phase?.span, attributes: [
+            "plans.wanted": .int(wanted.count), "plans.on_board": .int(wanted.filter(onBoard.contains).count),
+        ])
         planTask = Task { [weak self, api] in
+            var loaded = 0, planless = 0, outcome = "done"
+            defer {
+                span.setAttribute(key: "plans.loaded", value: loaded)
+                span.setAttribute(key: "plans.planless", value: planless)
+                span.setAttribute(key: "tablo.outcome", value: Task.isCancelled ? "cancelled" : outcome)
+                span.end()
+            }
             for tripId in wanted {
                 guard !Task.isCancelled, let self else { return }
                 // gone from the map, or loaded meanwhile (a followed journey)
                 guard mapTrips.contains(tripId), tripPlans[tripId] == nil else { continue }
                 do {
-                    let trip = try await api.trip(tripId)
+                    let trip = try await api.trip(tripId, parent: span)
                     guard !Task.isCancelled else { return }
                     vehiclePlanLoaded(tripId, TripPlan(trip))
+                    loaded += 1
                 } catch APIError.notFound {
-                    planless.insert(tripId)
+                    self.planless.insert(tripId)
+                    planless += 1
                 } catch {
+                    outcome = "error"
                     break // transient: the next poll tries again
                 }
                 try? await Task.sleep(for: .seconds(1))
             }
-            if self?.planRun == run { self?.planTask = nil }
+            guard let self, !Task.isCancelled else { return }
+            if outcome == "done" { phase?.plansReady() }
+            if planRun == run { planTask = nil }
         }
     }
 

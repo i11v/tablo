@@ -1,0 +1,13 @@
+// Build settings that stay out of git.
+//
+// Honeycomb ingest key for tracing; empty builds send no telemetry. Set it in
+// Local.xcconfig (gitignored) next to this file:
+//   HONEYCOMB_API_KEY = <ingest key>
+// or per build: `xcodebuild … HONEYCOMB_API_KEY=<ingest key>`.
+HONEYCOMB_API_KEY =
+
+// Honeycomb region, as the API host (no scheme: `//` starts an xcconfig comment).
+// US accounts: api.honeycomb.io.
+HONEYCOMB_API_HOST = api.eu1.honeycomb.io
+
+#include? "Local.xcconfig"

@@ -18,7 +18,13 @@
 import { expect, test, beforeAll } from "vitest"
 import WebSocket from "ws"
 import { Schema } from "effect"
-import { ServerMessageJson } from "@app/contract"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
+import {
+  ServerMessageJson,
+  TRIP_BUCKET_DIR,
+  type TripBucketV1,
+  tripFromBucket,
+} from "@app/contract"
 
 let baseUrl: string
 
@@ -85,4 +91,17 @@ test("subscribe over ws yields a decodable DeparturesUpdate", async () => {
   // subscribed board key came back.
   expect(typeof msg.degraded).toBe("boolean")
   expect(msg.degraded || msg.boards.some((b) => b.key === "1040")).toBe(true)
+})
+
+test("serves a trip plan from the deployed GTFS buckets, without Golemio", async () => {
+  // Needs `bun run build:index && bun run build:web` first; with the dummy
+  // Golemio token any plan that comes back can only have come from the assets.
+  const dir = "apps/web/dist" + TRIP_BUCKET_DIR
+  const file = existsSync(dir) ? readdirSync(dir).find((f) => f.endsWith(".json")) : undefined
+  if (file === undefined) return
+  const bucket = JSON.parse(readFileSync(dir + "/" + file, "utf8")) as TripBucketV1
+  const tripId = Object.keys(bucket.trips)[0]
+  const res = await fetch(baseUrl + "/api/trips/" + tripId)
+  expect(res.status).toBe(200)
+  expect(await res.json()).toEqual(tripFromBucket(bucket, tripId))
 })

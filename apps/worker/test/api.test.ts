@@ -3,6 +3,7 @@ import { Effect, FileSystem, Layer, Path, Schema } from "effect"
 import { HttpRouter } from "effect/http"
 import { LiveVehicles, Trip, TripVehicle, type BBox } from "@app/contract"
 import { apiLayer } from "../src/api.ts"
+import { noTripPlans, type TripPlansApi } from "../src/gtfs/plans.ts"
 import type { Outcome, TransitApi } from "../src/gateway/transit.ts"
 import { toLiveVehicle, toTrip, toTripVehicle } from "../src/golemio/normalize.ts"
 import { PidTripPosition, PidTripResponse, PidVehiclePosition } from "../src/golemio/schema.ts"
@@ -44,9 +45,11 @@ afterEach(async () => {
   dispose = undefined
 })
 
-const serve = (transit: TransitApi) => {
+const serve = (transit: TransitApi, plans: TripPlansApi = noTripPlans) => {
   const web = HttpRouter.toWebHandler(
-    apiLayer("test", () => transit).pipe(Layer.provide([FileSystem.layerNoop({}), Path.layer])),
+    apiLayer("test", () => transit, plans).pipe(
+      Layer.provide([FileSystem.layerNoop({}), Path.layer]),
+    ),
     { disableLogger: true },
   )
   dispose = web.dispose
@@ -59,6 +62,19 @@ describe("transit API", () => {
     expect(res.status).toBe(200)
     const body = Schema.decodeUnknownSync(Trip)(await res.json())
     expect(body.stops.map((s) => s.name)).toContain("Národní třída")
+  })
+
+  it("GET /api/trips/:tripId serves a deployed GTFS plan without the gateway", async () => {
+    const gtfsPlan = { ...trip, headsign: "from GTFS" }
+    const plans: TripPlansApi = {
+      get: (id) => Effect.succeed(id === trip.tripId ? gtfsPlan : undefined),
+    }
+    // A gateway that dies proves the hit never reaches it.
+    const get = serve(fakeTransit("die"), plans)
+    const res = await get("/api/trips/" + trip.tripId)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual(gtfsPlan)
+    expect((await get("/api/trips/9_1_1")).status).toBe(503) // miss → gateway
   })
 
   it("GET /api/trips/:tripId/vehicle returns the live position", async () => {

@@ -112,8 +112,8 @@ export const parseAswStopId = (stopId: string): { node: number; stop: number } |
 }
 
 // 5 decimals ≈ 1 m: plenty for drawing a route, and keeps the payload small.
-const round5 = (x: number) => Math.round(x * 1e5) / 1e5
-const round4 = (x: number) => Math.round(x * 1e4) / 1e4
+export const round5 = (x: number) => Math.round(x * 1e5) / 1e5
+export const round4 = (x: number) => Math.round(x * 1e4) / 1e4
 const finiteOrNull = (x: number | null | undefined): number | null =>
   x !== null && x !== undefined && Number.isFinite(x) ? x : null
 

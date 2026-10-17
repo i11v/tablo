@@ -4,6 +4,7 @@ import * as Etag from "effect/http/Etag"
 import * as HttpPlatform from "effect/http/HttpPlatform"
 import { HttpApiBuilder } from "effect/http-api"
 import type { Outcome, TransitApi } from "./gateway/transit.ts"
+import type { TripPlansApi } from "./gtfs/plans.ts"
 import { reasonOf } from "./gateway/upstream.ts"
 
 /**
@@ -37,9 +38,10 @@ const resolve = <A, E>(
 
 /**
  * The HTTP API. `transit` resolves the gateway per request — in the Worker,
- * `() => namespace.getByName("singleton")`.
+ * `() => namespace.getByName("singleton")`. Trip plans come from `plans` (the
+ * deployed GTFS) when it has them, and from the gateway (Golemio) otherwise.
  */
-export const apiLayer = (version: string, transit: () => TransitApi) =>
+export const apiLayer = (version: string, transit: () => TransitApi, plans: TripPlansApi) =>
   HttpApiBuilder.layer(Api).pipe(
     Layer.provide(
       HttpApiBuilder.group(Api, "system", (handlers) =>
@@ -50,9 +52,13 @@ export const apiLayer = (version: string, transit: () => TransitApi) =>
       HttpApiBuilder.group(Api, "transit", (handlers) =>
         handlers
           .handle("trip", ({ params }) =>
-            resolve(
-              transit().getTrip(params.tripId),
-              () => new TripNotFound({ tripId: params.tripId }),
+            Effect.flatMap(plans.get(params.tripId), (plan) =>
+              plan !== undefined
+                ? Effect.succeed(plan)
+                : resolve(
+                    transit().getTrip(params.tripId),
+                    () => new TripNotFound({ tripId: params.tripId }),
+                  ),
             ),
           )
           .handle("tripVehicle", ({ params }) =>

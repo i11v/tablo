@@ -8,6 +8,7 @@ import * as HttpRouter from "effect/http/HttpRouter"
 import { apiLayer } from "./api.ts"
 import { ClientSession } from "./do/session.ts"
 import { GolemioGateway } from "./do/gateway.ts"
+import { makeTripPlans, TripBucketLoadError } from "./gtfs/plans.ts"
 import { resolveWorkerStage, workerDomain, workerName } from "./workerName.ts"
 
 export { ClientSession, GolemioGateway }
@@ -80,8 +81,26 @@ export default class Server extends Cloudflare.Worker<Server>()(
     )
     // Trips and vehicles go through the same singleton gateway DO as the
     // boards, so every upstream call shares its rate budget and caches.
+    // Trip plans ship as static assets built from GTFS at deploy time
+    // (scripts/build-stop-index.ts), read here through the ASSETS binding.
+    // `env` is only populated at exec phase, so read the binding lazily.
+    const env = yield* Cloudflare.WorkerEnvironment
+    const plans = yield* makeTripPlans((path) =>
+      Effect.tryPromise({
+        try: async () => {
+          const assets = (env as Record<string, AssetsFetcher>).ASSETS
+          const res = await assets.fetch(new Request("https://assets.local" + path))
+          // A missing file is a 404, or the SPA fallback's index.html.
+          const json = (res.headers.get("content-type") ?? "").includes("application/json")
+          if (res.status === 404 || (res.ok && !json)) return undefined
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          return (await res.json()) as unknown
+        },
+        catch: (cause) => new TripBucketLoadError({ path, cause }),
+      }),
+    )
     const apiHandler = yield* HttpRouter.toHttpEffect(
-      apiLayer(version, () => gateways.getByName("singleton")),
+      apiLayer(version, () => gateways.getByName("singleton"), plans),
     )
 
     return {

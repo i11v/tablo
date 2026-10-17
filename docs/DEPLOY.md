@@ -53,6 +53,13 @@ plain 200 isn't enough — the previous build's health endpoint also answers 200
 - `CLOUDFLARE_ACCOUNT_ID`
 - `GOLEMIO_API_TOKEN` — the Prague transit (Golemio) API key the worker needs at
   runtime.
+- `HONEYCOMB_API_KEY` (optional) — a Honeycomb ingest key. With it, the worker
+  sends traces and logs to Honeycomb (EU region) as service `tablo-worker`;
+  without it, it exports nothing. Use the same Honeycomb environment as the iOS
+  app so a request's trace runs from the app into the worker. Bound like
+  `GOLEMIO_API_TOKEN`: baked into the worker as a secret at deploy time, so
+  setting or rotating it takes a redeploy. Previews get it too, tagged with
+  `alchemy.stage = pr-<N>`.
 
 **Variable:**
 - `CF_WORKERS_SUBDOMAIN = i11v` — the account's workers.dev subdomain. Only used

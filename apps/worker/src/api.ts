@@ -6,6 +6,7 @@ import { HttpApiBuilder } from "effect/http-api"
 import type { Outcome, TransitApi } from "./gateway/transit.ts"
 import type { TripPlansApi } from "./gtfs/plans.ts"
 import { reasonOf } from "./gateway/upstream.ts"
+import { currentTraceparent } from "./trace.ts"
 
 /**
  * Unwrap a gateway Outcome into the endpoint's success / typed errors. The
@@ -37,11 +38,21 @@ const resolve = <A, E>(
   })
 
 /**
+ * The gateway as the Worker reaches it, over DO RPC: each call also takes the
+ * caller's traceparent, which the RPC hop doesn't carry (see trace.ts).
+ */
+export type TransitRpc = {
+  readonly [K in keyof TransitApi]: (
+    ...args: [...Parameters<TransitApi[K]>, traceparent?: string]
+  ) => ReturnType<TransitApi[K]>
+}
+
+/**
  * The HTTP API. `transit` resolves the gateway per request — in the Worker,
  * `() => namespace.getByName("singleton")`. Trip plans come from `plans` (the
  * deployed GTFS) when it has them, and from the gateway (Golemio) otherwise.
  */
-export const apiLayer = (version: string, transit: () => TransitApi, plans: TripPlansApi) =>
+export const apiLayer = (version: string, transit: () => TransitRpc, plans: TripPlansApi) =>
   HttpApiBuilder.layer(Api).pipe(
     Layer.provide(
       HttpApiBuilder.group(Api, "system", (handlers) =>
@@ -56,20 +67,24 @@ export const apiLayer = (version: string, transit: () => TransitApi, plans: Trip
               plan !== undefined
                 ? Effect.succeed(plan)
                 : resolve(
-                    transit().getTrip(params.tripId),
+                    Effect.flatMap(currentTraceparent, (tp) =>
+                      transit().getTrip(params.tripId, tp),
+                    ),
                     () => new TripNotFound({ tripId: params.tripId }),
                   ),
             ),
           )
           .handle("tripVehicle", ({ params }) =>
             resolve(
-              transit().getTripVehicle(params.tripId),
+              Effect.flatMap(currentTraceparent, (tp) =>
+                transit().getTripVehicle(params.tripId, tp),
+              ),
               () => new TripNotFound({ tripId: params.tripId }),
             ),
           )
           .handle("vehicles", ({ query }) =>
             resolve(
-              transit().getVehicles(query.bbox),
+              Effect.flatMap(currentTraceparent, (tp) => transit().getVehicles(query.bbox, tp)),
               // the gateway maps an empty box to an empty list; never expected
               () => new UpstreamUnavailable({ reason: "NotFound" }),
             ),

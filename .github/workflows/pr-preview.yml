@@ -52,6 +52,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GOLEMIO_API_TOKEN: ${{ secrets.GOLEMIO_API_TOKEN }}
+          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}   # optional: worker traces + logs
       - name: Smoke test (/api/health serves this commit)
         env:
           URL: https://tablo-pr-${{ github.event.pull_request.number }}.${{ vars.CF_WORKERS_SUBDOMAIN }}.workers.dev

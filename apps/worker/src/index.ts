@@ -1,6 +1,7 @@
 /// <reference types="node" />
+import * as Alchemy from "alchemy"
 import * as Cloudflare from "alchemy/Cloudflare"
-import { Config, Effect } from "effect"
+import { Config, Effect, Layer, Redacted } from "effect"
 import * as HttpServerRequest from "effect/http/HttpServerRequest"
 import * as HttpServerError from "effect/http/HttpServerError"
 import * as HttpServerResponse from "effect/http/HttpServerResponse"
@@ -42,6 +43,33 @@ const WORKER_STAGE = resolveWorkerStage(typeof process !== "undefined" ? (proces
 // Custom hostname for this stage (production → tablo.run, pr-N →
 // preview-N.tablo.run), or undefined for workers.dev-only stages.
 const WORKER_DOMAIN = workerDomain(WORKER_STAGE)
+
+// Traces and logs go to Honeycomb as service `tablo-worker`, in the same
+// environment as the iOS app's `tablo-ios`: the app sends a W3C traceparent
+// with every request, so one trace runs from the tap on the phone through the
+// Worker and the gateway DO to Golemio. The ingest key is read from the deploy
+// environment (like TABLO_STAGE, at module load) and bound onto the worker as
+// a secret; a deploy without HONEYCOMB_API_KEY exports nothing. Alchemy builds
+// the exporter per event and flushes it in waitUntil, so it never delays a
+// response. Workers Logs (console, exceptions) are on by Alchemy's default.
+const HONEYCOMB_API_KEY =
+  typeof process !== "undefined" ? process.env?.HONEYCOMB_API_KEY : undefined
+// EU region, like the app; US accounts set https://api.honeycomb.io.
+const HONEYCOMB_API =
+  (typeof process !== "undefined" ? process.env?.HONEYCOMB_API_URL : undefined) ??
+  "https://api.eu1.honeycomb.io"
+const telemetry = HONEYCOMB_API_KEY
+  ? (() => {
+      // per-signal entries ignore the shared `headers`, so each carries the key
+      const headers = { "x-honeycomb-team": Redacted.make(HONEYCOMB_API_KEY) }
+      return Alchemy.Telemetry.layerOtlp({
+        // no metrics: nothing records any yet
+        traces: { url: `${HONEYCOMB_API}/v1/traces`, headers },
+        logs: { url: `${HONEYCOMB_API}/v1/logs`, headers },
+        serviceName: "tablo-worker",
+      })
+    })()
+  : Layer.empty
 
 export default class Server extends Cloudflare.Worker<Server>()(
   "Server",
@@ -173,7 +201,7 @@ export default class Server extends Cloudflare.Worker<Server>()(
         })
       }),
     }
-  }),
+  }).pipe(Effect.provide(telemetry)),
 ) {}
 
 interface AssetsFetcher {

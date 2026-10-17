@@ -6,6 +6,7 @@ import {
   type ServerMessage,
   type StopSelector,
 } from "@app/contract"
+import { currentTraceparent } from "../trace.ts"
 import { GolemioGateway } from "./gateway.ts"
 
 const POLL_MS = 15_000
@@ -43,7 +44,9 @@ export class ClientSession extends Cloudflare.DurableObject<ClientSession>()(
         // work, so a failed RPC/broadcast can't freeze this session's updates.
         yield* state.storage.setAlarm(Date.now() + POLL_MS)
         yield* Effect.gen(function* () {
-          const result = yield* gateway.getByName("singleton").getBoards(selectors)
+          const result = yield* gateway
+            .getByName("singleton")
+            .getBoards(selectors, yield* currentTraceparent)
           // Other events can interleave at the RPC await above. If the
           // subscription changed mid-flight (Unsubscribe or a new Subscribe),
           // drop this frame — broadcasting it could land *after* the fresh

@@ -1,23 +1,15 @@
 import { describe, expect, it } from "vitest"
 import { Schema } from "effect"
-import { LiveVehicle, Trip, TripVehicle } from "@app/contract"
+import { LiveVehicle, TripVehicle } from "@app/contract"
+import { PidBoardResponse, PidTripPosition, PidVehiclePosition } from "../src/golemio/schema.ts"
 import {
-  PidBoardResponse,
-  PidTripPosition,
-  PidTripResponse,
-  PidVehiclePosition,
-} from "../src/golemio/schema.ts"
-import {
-  gtfsTimeToSeconds,
-  parseAswStopId,
   routeTypeToKind,
   toBoards,
   toLiveVehicle,
-  toTrip,
   toTripVehicle,
 } from "../src/golemio/normalize.ts"
 import { fixture } from "./fixtures/departureboards.ts"
-import { tripFixture, tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
+import { tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
 
 describe("PidBoardResponse", () => {
   it("decodes the fixture, ignoring unknown fields", () => {
@@ -196,103 +188,6 @@ describe("toBoards", () => {
     const [board] = toBoards([{ node: 1040, stops: null }], data)
     const times = board.departures.map((d) => Date.parse(d.predicted ?? d.scheduled))
     expect(times).toEqual([...times].sort((a, b) => a - b))
-  })
-})
-
-describe("gtfsTimeToSeconds", () => {
-  it("counts seconds after service-day midnight, past 24:00 too", () => {
-    expect(gtfsTimeToSeconds("10:46:00")).toBe(38_760)
-    expect(gtfsTimeToSeconds("00:00:00")).toBe(0)
-    expect(gtfsTimeToSeconds("25:10:05")).toBe(90_605)
-    expect(gtfsTimeToSeconds("7:05:00")).toBe(25_500) // GTFS allows H:MM:SS
-  })
-  it("rejects garbage", () => {
-    expect(gtfsTimeToSeconds("")).toBeNull()
-    expect(gtfsTimeToSeconds("10:46")).toBeNull()
-    expect(gtfsTimeToSeconds("10:61:00")).toBeNull()
-  })
-})
-
-describe("parseAswStopId", () => {
-  it("parses U<node>Z<stop> GTFS stop ids", () => {
-    expect(parseAswStopId("U539Z1P")).toEqual({ node: 539, stop: 1 })
-    expect(parseAswStopId("U539Z101P")).toEqual({ node: 539, stop: 101 })
-    expect(parseAswStopId("U1072Z301")).toEqual({ node: 1072, stop: 301 })
-  })
-  it("returns null for non-ASW ids", () => {
-    expect(parseAswStopId("T58005")).toBeNull()
-    expect(parseAswStopId("U539S1")).toBeNull()
-  })
-})
-
-describe("toTrip", () => {
-  const data = Schema.decodeUnknownSync(PidTripResponse)(tripFixture)
-
-  it("orders stops by sequence and normalizes them", () => {
-    const trip = toTrip(data)
-    expect(trip.tripId).toBe("9_29806_261003")
-    expect(trip.headsign).toBe("Spojovací")
-    expect(trip.stops.map((s) => s.sequence)).toEqual([1, 12, 13, 33])
-    expect(trip.stops[2]).toEqual({
-      name: "Národní třída",
-      lat: 50.081158,
-      lon: 14.419593,
-      node: 539,
-      stop: 1,
-      platform: "A",
-      sequence: 13,
-      arrival: 11 * 3600 + 5 * 60,
-      departure: 11 * 3600 + 5 * 60,
-      distance: 6.381883,
-    })
-    expect(trip.stops[0].distance).toBe(0)
-  })
-
-  it("orders the shape by sequence as rounded [lon, lat, km] points", () => {
-    const trip = toTrip(data)
-    expect(trip.shape).toEqual([
-      [14.34667, 50.06807, 0],
-      [14.34678, 50.06807, 0.0084],
-      [14.35185, 50.06824, 0.3723],
-      [14.49929, 50.09159, 14.9414],
-      [14.49942, 50.09154, 14.9523],
-    ])
-  })
-
-  it("drops consecutive points that coincide after rounding", () => {
-    const [first] = tripFixture.shapes.filter((p) => p.properties.shape_pt_sequence === 1)
-    const nearDuplicate = {
-      ...first,
-      geometry: { ...first.geometry, coordinates: [14.3466662, 50.0680658] },
-      properties: { ...first.properties, shape_pt_sequence: 1.5, shape_dist_traveled: 0.0001 },
-    }
-    const trip = toTrip(
-      Schema.decodeUnknownSync(PidTripResponse)({
-        ...tripFixture,
-        shapes: [...tripFixture.shapes, nearDuplicate],
-      }),
-    )
-    expect(trip.shape).toHaveLength(5)
-    expect(trip.shape[0]).toEqual([14.34667, 50.06807, 0])
-  })
-
-  it("falls back across arrival/departure and drops stops with no usable time", () => {
-    const [a, b] = tripFixture.stop_times
-    const trip = toTrip(
-      Schema.decodeUnknownSync(PidTripResponse)({
-        ...tripFixture,
-        stop_times: [
-          { ...a, arrival_time: "garbage" },
-          { ...b, arrival_time: "x", departure_time: "y", shape_dist_traveled: null },
-        ],
-      }),
-    )
-    expect(trip.stops).toHaveLength(1)
-    expect(trip.stops[0].arrival).toBe(trip.stops[0].departure)
-  })
-
-  it("produces a value the contract schema accepts", () => {
-    expect(() => Schema.decodeUnknownSync(Trip)(toTrip(data))).not.toThrow()
   })
 })
 

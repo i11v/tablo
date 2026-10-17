@@ -29,6 +29,7 @@ the workers.dev one, not a replacement. Same for previews — each PR gets its o
 | Trigger | Workflow | Command | Result |
 |---------|----------|---------|--------|
 | push to `main` | `.github/workflows/deploy.yml` | `alchemy deploy --stage production` | worker **`tablo`** |
+| daily 03:30 UTC (or manual) | `.github/workflows/deploy.yml` | same | refreshes the GTFS-built data (stop index, trip plans) |
 | open / sync a PR | `.github/workflows/pr-preview.yml` | `alchemy deploy --stage pr-<N>` | worker **`tablo-pr-<N>`** + URL comment |
 | close a PR | `pr-preview.yml` (cleanup job) | `alchemy destroy --stage pr-<N>` | preview removed |
 
@@ -73,6 +74,16 @@ is **gitignored** — it's a build artifact, never committed, regenerated every
 deploy. CI caches the feed (`actions/cache`) so a `data.pid.cz` outage can't
 block a deploy. Both clients load it through `/data/stops-manifest.json`, which
 points at the current hashed file.
+
+## Trip plans (also `build:index`)
+
+The same script builds every trip's plan (stops, times, shape) from the feed into
+`apps/web/public/data/trips/v1/<route>.json`, one file per route prefix of the
+trip id (~900 files, ~160 MB, ~2.3 GB peak RAM, a few seconds). They ship as
+static assets; `GET /api/trips/:tripId` reads them through the `ASSETS` binding
+and never calls Golemio: an id the deployed feed lacks is a 404. The feed
+changes daily, hence the scheduled deploy above. Why assets and not KV/D1/R2,
+and why no Golemio fallback: [docs/adr/0001-trip-plans-from-gtfs.md](adr/0001-trip-plans-from-gtfs.md).
 
 ## iOS compatibility
 

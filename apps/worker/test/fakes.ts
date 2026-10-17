@@ -10,7 +10,6 @@ type ClientShape = Context.Service.Shape<typeof GolemioClient>
 export const fakeClient = (impl: Partial<ClientShape>): Layer.Layer<GolemioClient> =>
   Layer.succeed(GolemioClient, {
     fetchBoards: () => Effect.die("unexpected fetchBoards"),
-    fetchTrip: () => Effect.die("unexpected fetchTrip"),
     fetchTripPosition: () => Effect.die("unexpected fetchTripPosition"),
     fetchAllVehicles: () => Effect.die("unexpected fetchAllVehicles"),
     ...impl,

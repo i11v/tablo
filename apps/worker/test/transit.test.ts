@@ -8,13 +8,12 @@ import {
   GolemioUpstreamError,
 } from "../src/golemio/errors.ts"
 import type { GolemioClient } from "../src/golemio/client.ts"
-import { PidTripPosition, PidTripResponse, PidVehiclePosition } from "../src/golemio/schema.ts"
+import { PidTripPosition, PidVehiclePosition } from "../src/golemio/schema.ts"
 import { DepartureGateway } from "../src/gateway/service.ts"
 import { TransitGateway } from "../src/gateway/transit.ts"
 import { fakeClient, guardLayer } from "./fakes.ts"
-import { tripFixture, tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
+import { tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
 
-const tripData = Schema.decodeUnknownSync(PidTripResponse)(tripFixture)
 const positionData = Schema.decodeUnknownSync(PidTripPosition)(tripPositionFixture)
 const vehiclesData = vehiclePositionsFixture.features
   .slice(0, 4)
@@ -60,7 +59,6 @@ const makeFake = Effect.gen(function* () {
           Effect.succeed({ stops: [], departures: [] }),
         ),
       ),
-    fetchTrip: (id) => respond(`trip:${id}`, tripData),
     fetchTripPosition: (id) => respond(`position:${id}`, positionData),
     fetchAllVehicles: () =>
       respond("vehicles", vehiclesData).pipe(
@@ -80,25 +78,6 @@ const gatewaysLayer = (client: Layer.Layer<GolemioClient>) =>
 const TRIP = "9_29806_261003"
 
 describe("TransitGateway", () => {
-  it.effect("caches a trip plan for hours", () =>
-    Effect.gen(function* () {
-      const fake = yield* makeFake
-      yield* Effect.gen(function* () {
-        const gw = yield* TransitGateway
-        const first = yield* gw.getTrip(TRIP)
-        expect(first._tag).toBe("ok")
-        if (first._tag === "ok")
-          expect(first.value.stops.map((s) => s.sequence)).toEqual([1, 12, 13, 33])
-        yield* TestClock.adjust("5 hours")
-        expect((yield* gw.getTrip(TRIP))._tag).toBe("ok")
-        expect(yield* fake.calls).toBe(1)
-        yield* TestClock.adjust("61 minutes") // past the 6 h TTL
-        yield* gw.getTrip(TRIP)
-        expect(yield* fake.calls).toBe(2)
-      }).pipe(Effect.provide(gatewaysLayer(fake.layer)))
-    }),
-  )
-
   it.effect("shares one upstream call among concurrent identical requests", () =>
     Effect.gen(function* () {
       const fake = yield* makeFake
@@ -106,7 +85,7 @@ describe("TransitGateway", () => {
       yield* Effect.gen(function* () {
         const gw = yield* TransitGateway
         const fiber = yield* Effect.forkChild(
-          Effect.all([gw.getTrip(TRIP), gw.getTrip(TRIP), gw.getTrip(TRIP)], {
+          Effect.all([gw.getTripVehicle(TRIP), gw.getTripVehicle(TRIP), gw.getTripVehicle(TRIP)], {
             concurrency: "unbounded",
           }),
         )
@@ -114,23 +93,7 @@ describe("TransitGateway", () => {
         yield* TestClock.adjust("1 second")
         const results = yield* Fiber.join(fiber)
         expect(results.map((r) => r._tag)).toEqual(["ok", "ok", "ok"])
-        expect(yield* Ref.get(fake.log)).toEqual([`trip:${TRIP}`])
-      }).pipe(Effect.provide(gatewaysLayer(fake.layer)))
-    }),
-  )
-
-  it.effect("reports an unknown trip as notFound and remembers that for a minute", () =>
-    Effect.gen(function* () {
-      const fake = yield* makeFake
-      yield* Ref.set(fake.mode, "notFound")
-      yield* Effect.gen(function* () {
-        const gw = yield* TransitGateway
-        expect(yield* gw.getTrip("nope")).toEqual({ _tag: "notFound" })
-        expect(yield* gw.getTrip("nope")).toEqual({ _tag: "notFound" })
-        expect(yield* fake.calls).toBe(1)
-        yield* TestClock.adjust("61 seconds")
-        yield* gw.getTrip("nope")
-        expect(yield* fake.calls).toBe(2)
+        expect(yield* Ref.get(fake.log)).toEqual([`position:${TRIP}`])
       }).pipe(Effect.provide(gatewaysLayer(fake.layer)))
     }),
   )
@@ -188,7 +151,7 @@ describe("TransitGateway", () => {
       yield* Ref.set(fake.mode, "fail")
       yield* Effect.gen(function* () {
         const gw = yield* TransitGateway
-        expect(yield* gw.getTrip(TRIP)).toEqual({
+        expect(yield* gw.getTripVehicle(TRIP)).toEqual({
           _tag: "unavailable",
           reason: "GolemioUpstreamError",
         })
@@ -248,7 +211,7 @@ describe("TransitGateway", () => {
       yield* Effect.gen(function* () {
         const transit = yield* TransitGateway
         const boards = yield* DepartureGateway
-        expect(yield* transit.getTrip(TRIP)).toEqual({
+        expect(yield* transit.getTripVehicle(TRIP)).toEqual({
           _tag: "unavailable",
           reason: "GolemioRateLimitedError",
         })
@@ -256,7 +219,7 @@ describe("TransitGateway", () => {
         const board = yield* boards.getBoards([{ node: 539, stops: null }])
         expect(board.degraded).toBe(true)
         expect(board.reason).toBe("GatewayShedError")
-        expect(yield* transit.getTripVehicle(TRIP)).toEqual({
+        expect(yield* transit.getVehicles(box(50.07, 14.4, 50.1, 14.44))).toEqual({
           _tag: "unavailable",
           reason: "GatewayShedError",
         })
@@ -268,14 +231,14 @@ describe("TransitGateway", () => {
     }),
   )
 
-  it.effect("trips spend the same rate budget as boards", () =>
+  it.effect("trip vehicles spend the same rate budget as boards", () =>
     Effect.gen(function* () {
       const fake = yield* makeFake
       yield* Effect.gen(function* () {
         const transit = yield* TransitGateway
         const boards = yield* DepartureGateway
         for (let i = 0; i < 20; i++) {
-          yield* transit.getTrip(`trip_${i}`) // exhausts the 20 / 8 s window
+          yield* transit.getTripVehicle(`trip_${i}`) // exhausts the 20 / 8 s window
         }
         const fiber = yield* Effect.forkChild(boards.getBoards([{ node: 539, stops: null }]))
         yield* TestClock.adjust("6 seconds") // shed timeout < remaining window

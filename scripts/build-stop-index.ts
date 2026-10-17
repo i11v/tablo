@@ -3,8 +3,9 @@ import { existsSync } from "node:fs"
 import { mkdir, rm } from "node:fs/promises"
 import { $ } from "bun"
 import { Schema } from "effect"
-import { StopIndexV1, StopsManifest } from "@app/contract"
-import { parseCsv } from "./lib/csv.ts"
+import { StopIndexV1, StopsManifest, TRIP_BUCKET_DIR, tripBucketPath } from "@app/contract"
+import { buildTripBuckets } from "../apps/worker/src/gtfs/buckets.ts"
+import { iterCsv, parseCsv } from "./lib/csv.ts"
 import { buildIndex } from "./lib/build.ts"
 
 const GTFS_URL = "https://data.pid.cz/PID_GTFS.zip"
@@ -36,7 +37,7 @@ if (res !== null && res.ok) {
 }
 await rm(TMP, { recursive: true, force: true })
 await mkdir(TMP, { recursive: true })
-await $`unzip -o ${CACHE_ZIP} stops.txt -d ${TMP}`.quiet()
+await $`unzip -o ${CACHE_ZIP} stops.txt trips.txt stop_times.txt shapes.txt -d ${TMP}`.quiet()
 
 const rows = parseCsv(await Bun.file(TMP + "/stops.txt").text())
 const index = buildIndex(rows, new Date().toISOString())
@@ -61,5 +62,34 @@ const manifest = Schema.encodeUnknownSync(StopsManifest)({
   count: index.stops.length,
 })
 await Bun.write(OUT_DIR + "/stops-manifest.json", JSON.stringify(manifest))
-await rm(TMP, { recursive: true, force: true })
 console.log("stop index: " + index.stops.length + " entries -> " + OUT_DIR + "/" + file)
+
+// Trip plans, one bucket per route, served by the worker's /api/trips (see
+// apps/worker/src/gtfs/buckets.ts). Under OUT_DIR, so they ship as assets.
+const table = async (name: string) => iterCsv(await Bun.file(TMP + "/" + name).text())
+const buckets = buildTripBuckets({
+  trips: await table("trips.txt"),
+  stops: parseCsv(await Bun.file(TMP + "/stops.txt").text()),
+  stopTimes: await table("stop_times.txt"),
+  shapes: await table("shapes.txt"),
+})
+if (buckets.size === 0) throw new Error("GTFS produced no trip buckets")
+let tripCount = 0
+let bytes = 0
+for (const [key, bucket] of buckets) {
+  tripCount += Object.keys(bucket.trips).length
+  const body = JSON.stringify(bucket)
+  bytes += body.length
+  await Bun.write("apps/web/public" + tripBucketPath(key), body)
+}
+await rm(TMP, { recursive: true, force: true })
+console.log(
+  "trip plans: " +
+    tripCount +
+    " trips in " +
+    buckets.size +
+    " buckets, " +
+    Math.round(bytes / 1e6) +
+    " MB -> apps/web/public" +
+    TRIP_BUCKET_DIR,
+)

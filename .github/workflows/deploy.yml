@@ -3,6 +3,12 @@ name: Deploy (production)
 on:
   push:
     branches: [main]
+  # Daily, after PID publishes its GTFS feed (~03:50 Prague): trip plans are
+  # built from it into the assets (build:index), so a redeploy refreshes them.
+  # 03:30 UTC = 04:30 CET / 05:30 CEST.
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
 
 # Serialize production deploys; never cancel mid-flight (Alchemy writes state).
 concurrency:

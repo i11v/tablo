@@ -6,7 +6,6 @@ import { GolemioNotFoundError, GolemioRateLimitedError, GolemioUpstreamError } f
 import {
   PidBoardResponse,
   PidTripPosition,
-  PidTripResponse,
   PidVehiclePosition,
   PidVehiclePositions,
 } from "./schema.ts"
@@ -26,10 +25,6 @@ export class GolemioClient extends Context.Service<
     readonly fetchBoards: (
       selectors: ReadonlyArray<StopSelector>,
     ) => Effect.Effect<PidBoardResponse, FetchError>
-    /** A trip's stops, stop times and shape. */
-    readonly fetchTrip: (
-      tripId: string,
-    ) => Effect.Effect<PidTripResponse, FetchError | GolemioNotFoundError>
     /** The live position of one trip's vehicle; NotFound when it isn't tracked. */
     readonly fetchTripPosition: (
       tripId: string,
@@ -109,14 +104,6 @@ export class GolemioClient extends Context.Service<
           )
         })
 
-        const fetchTrip = Effect.fn("GolemioClient.fetchTrip")((tripId: string) =>
-          getJson(
-            `/v2/gtfs/trips/${encodeURIComponent(tripId)}`,
-            { includeStops: "true", includeStopTimes: "true", includeShapes: "true" },
-            PidTripResponse,
-          ),
-        )
-
         const fetchTripPosition = Effect.fn("GolemioClient.fetchTripPosition")((tripId: string) =>
           getJson(`/v2/vehiclepositions/${encodeURIComponent(tripId)}`, {}, PidTripPosition),
         )
@@ -133,7 +120,7 @@ export class GolemioClient extends Context.Service<
           ),
         )
 
-        return { fetchBoards, fetchTrip, fetchTripPosition, fetchAllVehicles }
+        return { fetchBoards, fetchTripPosition, fetchAllVehicles }
       }),
     )
 }

@@ -3,7 +3,7 @@ import { Effect, Layer, Redacted } from "effect"
 import { HttpClient, HttpClientResponse } from "effect/http"
 import { GolemioClient } from "../src/golemio/client.ts"
 import { fixture } from "./fixtures/departureboards.ts"
-import { tripFixture, tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
+import { tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
 
 const capture: { url: URL | null; token: string | undefined } = { url: null, token: undefined }
 
@@ -63,35 +63,13 @@ describe("GolemioClient", () => {
     }).pipe(Effect.provide(layerWith(401, { error_message: "unauthorized", error_status: 401 }))),
   )
 
-  it.effect("fetchTrip asks for stops, stop times and shapes in one call", () =>
-    Effect.gen(function* () {
-      const client = yield* GolemioClient
-      const data = yield* client.fetchTrip("9_29806_261003")
-      expect(data.trip_id).toBe("9_29806_261003")
-      expect(data.stop_times).toHaveLength(4)
-      expect(capture.url!.pathname).toBe("/v2/gtfs/trips/9_29806_261003")
-      const params = capture.url!.searchParams
-      expect(params.get("includeStops")).toBe("true")
-      expect(params.get("includeStopTimes")).toBe("true")
-      expect(params.get("includeShapes")).toBe("true")
-      expect(capture.token).toBe("test-token")
-    }).pipe(Effect.provide(layerWith(200, tripFixture))),
-  )
-
-  it.effect("fetchTrip maps 404 to GolemioNotFoundError", () =>
-    Effect.gen(function* () {
-      const client = yield* GolemioClient
-      const error = yield* Effect.flip(client.fetchTrip("nope"))
-      expect(error._tag).toBe("GolemioNotFoundError")
-    }).pipe(Effect.provide(layerWith(404, { error_message: "Not Found", error_status: 404 }))),
-  )
-
   it.effect("fetchTripPosition hits the per-trip endpoint without extra params", () =>
     Effect.gen(function* () {
       const client = yield* GolemioClient
       const data = yield* client.fetchTripPosition("9_29806_261003")
       expect(data.properties.last_position.shape_dist_traveled).toBe(5.831)
       expect(capture.url!.pathname).toBe("/v2/vehiclepositions/9_29806_261003")
+      expect(capture.token).toBe("test-token")
       // Golemio 400s on unknown query params here
       expect([...capture.url!.searchParams.keys()]).toEqual([])
     }).pipe(Effect.provide(layerWith(200, tripPositionFixture))),

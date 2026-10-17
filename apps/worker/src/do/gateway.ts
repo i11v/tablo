@@ -44,9 +44,7 @@ export class GolemioGateway extends Cloudflare.DurableObject<GolemioGateway>()(
         /** Called by ClientSession. */
         getBoards: (selectors: ReadonlyArray<StopSelector>, traceparent?: string) =>
           departures.getBoards(selectors).pipe(withCallerSpan(traceparent)),
-        /** Called by the Worker's /api/trips and /api/vehicles handlers. */
-        getTrip: (tripId: string, traceparent?: string) =>
-          transit.getTrip(tripId).pipe(withCallerSpan(traceparent)),
+        /** Called by the Worker's /api/trips/:id/vehicle and /api/vehicles handlers. */
         getTripVehicle: (tripId: string, traceparent?: string) =>
           transit.getTripVehicle(tripId).pipe(withCallerSpan(traceparent)),
         getVehicles: (bbox: BBox, traceparent?: string) =>

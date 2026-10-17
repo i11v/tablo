@@ -4,6 +4,7 @@ import * as Etag from "effect/http/Etag"
 import * as HttpPlatform from "effect/http/HttpPlatform"
 import { HttpApiBuilder } from "effect/http-api"
 import type { Outcome, TransitApi } from "./gateway/transit.ts"
+import type { TripPlansApi } from "./gtfs/plans.ts"
 import { reasonOf } from "./gateway/upstream.ts"
 import { currentTraceparent } from "./trace.ts"
 
@@ -48,9 +49,10 @@ export type TransitRpc = {
 
 /**
  * The HTTP API. `transit` resolves the gateway per request — in the Worker,
- * `() => namespace.getByName("singleton")`.
+ * `() => namespace.getByName("singleton")`. Trip plans come from `plans`: the
+ * GTFS built into the deploy, never upstream.
  */
-export const apiLayer = (version: string, transit: () => TransitRpc) =>
+export const apiLayer = (version: string, transit: () => TransitRpc, plans: TripPlansApi) =>
   HttpApiBuilder.layer(Api).pipe(
     Layer.provide(
       HttpApiBuilder.group(Api, "system", (handlers) =>
@@ -61,10 +63,7 @@ export const apiLayer = (version: string, transit: () => TransitRpc) =>
       HttpApiBuilder.group(Api, "transit", (handlers) =>
         handlers
           .handle("trip", ({ params }) =>
-            resolve(
-              Effect.flatMap(currentTraceparent, (tp) => transit().getTrip(params.tripId, tp)),
-              () => new TripNotFound({ tripId: params.tripId }),
-            ),
+            resolve(plans.get(params.tripId), () => new TripNotFound({ tripId: params.tripId })),
           )
           .handle("tripVehicle", ({ params }) =>
             resolve(

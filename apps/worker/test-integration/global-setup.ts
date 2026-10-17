@@ -20,7 +20,7 @@ import { createConnection } from "node:net"
 import { rm, readdir } from "node:fs/promises"
 import { join } from "node:path"
 
-// Repo root is two levels up from packages/worker/test-integration.
+// Repo root is two levels up from apps/worker/test-integration.
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..")
 const STAGE = "integration"
 const PORT = 4517

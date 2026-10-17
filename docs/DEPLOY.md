@@ -5,10 +5,10 @@ Everything specific to deploying tablo is below.
 
 A deploy ships the **backend** (the worker: HTTP API, `/api/ws`, Durable
 Objects) and the **web client** it serves as static assets — nothing else. The
-iOS app (`ios/`), the primary client, isn't deployed: it's built and installed
-from Xcode (see [`ios/README.md`](../ios/README.md)) and has its own CI
+iOS app (`apps/ios/`), the primary client, isn't deployed: it's built and installed
+from Xcode (see [`apps/ios/README.md`](../apps/ios/README.md)) and has its own CI
 workflow, `.github/workflows/ios.yml` (`xcodegen generate` + `xcodebuild test`
-on changes under `ios/`). Neither deploy workflow builds it. It does run on the
+on changes under `apps/ios/`). Neither deploy workflow builds it. It does run on the
 deployed API, though — see [iOS compatibility](#ios-compatibility).
 
 ## Live URLs
@@ -61,7 +61,7 @@ plain 200 isn't enough — the previous build's health endpoint also answers 200
 ## The stop index (`build:index`)
 
 `build:index` downloads the public Prague GTFS feed (~48 MB, `data.pid.cz`, **no
-token**) and writes a hashed stop index into `packages/web/public/data/`, which
+token**) and writes a hashed stop index into `apps/web/public/data/`, which
 is **gitignored** — it's a build artifact, never committed, regenerated every
 deploy. CI caches the feed (`actions/cache`) so a `data.pid.cz` outage can't
 block a deploy. Both clients load it through `/data/stops-manifest.json`, which
@@ -73,12 +73,12 @@ The iOS app talks to production by default, and installed builds don't update
 when the backend does (no App Store — a build stays on a phone until it's
 reinstalled). The app reads the stop index, `/api/ws`, `/api/trips/:tripId`,
 `/api/trips/:tripId/vehicle` and `/api/vehicles`, and mirrors their shapes by
-hand in `ios/Tablo/API/Wire.swift` (no codegen). So changes to
+hand in `apps/ios/Tablo/API/Wire.swift` (no codegen). So changes to
 `packages/contract` must be backward compatible: adding a field is safe (both
 Effect Schema and Swift `Decodable` ignore unknown keys); renaming, removing or
 retyping one breaks installed builds. To try a backend change on a phone before
 merge, bake the PR preview into a build (`TABLO_API_BASE=https://preview-<N>.tablo.run`,
-see [`ios/README.md`](../ios/README.md#pointing-at-another-backend)).
+see [`apps/ios/README.md`](../apps/ios/README.md#pointing-at-another-backend)).
 
 Two checks hold the contract in place, both generated from the Effect schemas
 by `bun run contract:write` (commit what it writes):
@@ -93,7 +93,7 @@ by `bun run contract:write` (commit what it writes):
   `contract-break` PR label skips it for a break the app provably tolerates.
   It sees types, not refinements (a tightened range or max length isn't
   flagged).
-- **`ios/TabloTests/ContractFixtures/*.json`** are sample payloads encoded by
+- **`apps/ios/TabloTests/ContractFixtures/*.json`** are sample payloads encoded by
   the schemas (`scripts/lib/wire-fixtures.ts`), which `ContractTests.swift`
   decodes, asserting every value. A wire change regenerates them, so it runs
   the iOS workflow — the current app must read what the backend now sends.
@@ -103,7 +103,7 @@ don't show every field in every form (a nullable field both null and set).
 
 ## Custom domains (`tablo.run`)
 
-Attached via the worker's `domain` prop in `packages/worker/src/index.ts`. The
+Attached via the worker's `domain` prop in `apps/worker/src/index.ts`. The
 hostname is derived from the stage by `workerDomain()` in `workerName.ts`:
 
 ```ts
@@ -154,7 +154,7 @@ Two that bite this project hardest:
 1. **Stage name must come from `process.env.TABLO_STAGE`, read at module load —
    never from the `Alchemy.Stage` service.** The worker derives its name (and its
    custom hostname, via `workerDomain`) from `WORKER_STAGE` in
-   `packages/worker/src/index.ts`.
+   `apps/worker/src/index.ts`.
    Reading `Alchemy.Stage` inside the worker definition leaks a deploy-only
    `Context` requirement into the *runtime*, so every `/api/*` request crashes
    with `Service not found: Stage` → Cloudflare **1101** (static assets still

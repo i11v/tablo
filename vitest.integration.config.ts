@@ -9,6 +9,6 @@ export default defineConfig({
     fileParallelism: false,
     // Spawns a real `bun alchemy dev` stack (local workerd + both DOs) on an
     // isolated stage/port and exposes its base URL via TABLO_INTEGRATION_URL.
-    globalSetup: ["packages/worker/test-integration/global-setup.ts"],
+    globalSetup: ["apps/worker/test-integration/global-setup.ts"],
   },
 })

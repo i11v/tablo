@@ -1,11 +1,8 @@
 import type {
   Departure,
   LiveVehicle,
-  ShapePoint,
   StopBoard,
   StopSelector,
-  Trip,
-  TripStop,
   TripVehicle,
   VehicleKind,
 } from "@app/contract"
@@ -14,7 +11,6 @@ import type {
   PidBoardResponse,
   PidDeparture,
   PidTripPosition,
-  PidTripResponse,
   PidVehiclePosition,
 } from "./schema.ts"
 
@@ -97,64 +93,10 @@ export const toBoards = (
   return boards.map(({ key, departures }) => ({ key, departures }))
 }
 
-/* ---- trips & vehicles ---- */
+/* ---- vehicles ---- */
 
-/** "HH:MM:SS" after service-day midnight → seconds. Hours may exceed 23. */
-export const gtfsTimeToSeconds = (time: string): number | null => {
-  const m = /^(\d+):([0-5]\d):([0-5]\d)$/.exec(time.trim())
-  return m === null ? null : Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])
-}
-
-/** "U539Z1P" → node 539, stop 1; rail waypoints and other non-ASW ids → null. */
-export const parseAswStopId = (stopId: string): { node: number; stop: number } | null => {
-  const m = /^U(\d+)Z(\d+)/.exec(stopId)
-  return m === null ? null : { node: Number(m[1]), stop: Number(m[2]) }
-}
-
-// 5 decimals ≈ 1 m: plenty for drawing a route, and keeps the payload small.
-export const round5 = (x: number) => Math.round(x * 1e5) / 1e5
-export const round4 = (x: number) => Math.round(x * 1e4) / 1e4
 const finiteOrNull = (x: number | null | undefined): number | null =>
   x !== null && x !== undefined && Number.isFinite(x) ? x : null
-
-export const toTrip = (data: PidTripResponse): Trip => {
-  const stops = [...data.stop_times]
-    .sort((a, b) => a.stop_sequence - b.stop_sequence)
-    .flatMap((st): Array<TripStop> => {
-      const arrival = gtfsTimeToSeconds(st.arrival_time) ?? gtfsTimeToSeconds(st.departure_time)
-      const departure = gtfsTimeToSeconds(st.departure_time) ?? arrival
-      if (arrival === null || departure === null) return []
-      const [lon, lat] = st.stop.geometry.coordinates
-      const asw = parseAswStopId(st.stop.properties.stop_id)
-      return [
-        {
-          name: st.stop.properties.stop_name,
-          lat,
-          lon,
-          node: asw?.node ?? null,
-          stop: asw?.stop ?? null,
-          platform: st.stop.properties.platform_code,
-          sequence: st.stop_sequence,
-          arrival,
-          departure,
-          distance: st.shape_dist_traveled ?? 0,
-        },
-      ]
-    })
-
-  const shape: Array<ShapePoint> = []
-  for (const pt of [...data.shapes].sort(
-    (a, b) => a.properties.shape_pt_sequence - b.properties.shape_pt_sequence,
-  )) {
-    const lon = round5(pt.geometry.coordinates[0])
-    const lat = round5(pt.geometry.coordinates[1])
-    const prev = shape.at(-1)
-    if (prev !== undefined && prev[0] === lon && prev[1] === lat) continue
-    shape.push([lon, lat, round4(pt.properties.shape_dist_traveled)])
-  }
-
-  return { tripId: data.trip_id, headsign: data.trip_headsign, stops, shape }
-}
 
 export const toTripVehicle = (data: PidTripPosition): TripVehicle => {
   const pos = data.properties.last_position

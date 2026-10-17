@@ -4,7 +4,7 @@ import { ShapePoint, type Trip } from "./transit.ts"
 /**
  * Trip plans built from PID's static GTFS at deploy time, one file per route
  * under {@link TRIP_BUCKET_DIR}. The Worker serves /api/trips/:tripId from
- * these, so a plan costs no Golemio call. Not read by the clients directly:
+ * these, so a plan costs no upstream call. Not read by the clients directly:
  * the API's `Trip` stays the contract; this is its storage format.
  */
 export const TRIP_BUCKET_DIR = "/data/trips/v1"

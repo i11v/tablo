@@ -3,14 +3,32 @@ import { Effect, FileSystem, Layer, Path, Schema, Tracer } from "effect"
 import { HttpRouter } from "effect/http"
 import { LiveVehicles, Trip, TripVehicle, type BBox } from "@app/contract"
 import { apiLayer } from "../src/api.ts"
-import { noTripPlans, type TripPlansApi } from "../src/gtfs/plans.ts"
+import type { TripPlansApi } from "../src/gtfs/plans.ts"
 import type { Outcome, TransitApi } from "../src/gateway/transit.ts"
 import type { TransitRpc } from "../src/api.ts"
-import { toLiveVehicle, toTrip, toTripVehicle } from "../src/golemio/normalize.ts"
-import { PidTripPosition, PidTripResponse, PidVehiclePosition } from "../src/golemio/schema.ts"
-import { tripFixture, tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
+import { toLiveVehicle, toTripVehicle } from "../src/golemio/normalize.ts"
+import { PidTripPosition, PidVehiclePosition } from "../src/golemio/schema.ts"
+import { tripPositionFixture, vehiclePositionsFixture } from "./fixtures/transit.ts"
 
-const trip = toTrip(Schema.decodeUnknownSync(PidTripResponse)(tripFixture))
+const trip: Trip = {
+  tripId: "9_29806_261003",
+  headsign: "Spojovací",
+  stops: [
+    {
+      name: "Národní třída",
+      lat: 50.081158,
+      lon: 14.419593,
+      node: 539,
+      stop: 1,
+      platform: "A",
+      sequence: 13,
+      arrival: 39_900,
+      departure: 39_900,
+      distance: 6.381883,
+    },
+  ],
+  shape: [[14.41959, 50.08116, 6.3819]],
+}
 const vehicle = toTripVehicle(Schema.decodeUnknownSync(PidTripPosition)(tripPositionFixture))
 const vehicles = {
   vehicles: vehiclePositionsFixture.features
@@ -31,7 +49,6 @@ const fakeTransit = (
       ? Effect.die(new Error("RpcCallError: instance reset"))
       : Effect.succeed(outcome === "ok" ? ok(value) : outcome)
   return {
-    getTrip: () => answer(trip),
     getTripVehicle: () => answer(vehicle),
     getVehicles: (bbox) => {
       seen.bbox = bbox
@@ -46,10 +63,20 @@ afterEach(async () => {
   dispose = undefined
 })
 
+/** Deployed-GTFS stand-in: knows `trip`, or answers `outcome` for everything. */
+const fakePlans = (outcome?: Outcome<never> | "die"): TripPlansApi => ({
+  get: (id) =>
+    outcome === "die"
+      ? Effect.die(new Error("boom"))
+      : Effect.succeed(
+          outcome ?? (id === trip.tripId ? ok(trip) : ({ _tag: "notFound" } as const)),
+        ),
+})
+
 const serve = (
   transit: TransitRpc,
   layer: Layer.Layer<never> = Layer.empty,
-  plans: TripPlansApi = noTripPlans,
+  plans: TripPlansApi = fakePlans(),
 ) => {
   const web = HttpRouter.toWebHandler(
     apiLayer("test", () => transit, plans).pipe(
@@ -63,24 +90,23 @@ const serve = (
 }
 
 describe("transit API", () => {
-  it("GET /api/trips/:tripId returns the trip plan", async () => {
-    const res = await serve(fakeTransit("ok"))("/api/trips/9_29806_261003")
-    expect(res.status).toBe(200)
-    const body = Schema.decodeUnknownSync(Trip)(await res.json())
-    expect(body.stops.map((s) => s.name)).toContain("Národní třída")
-  })
-
-  it("GET /api/trips/:tripId serves a deployed GTFS plan without the gateway", async () => {
-    const gtfsPlan = { ...trip, headsign: "from GTFS" }
-    const plans: TripPlansApi = {
-      get: (id) => Effect.succeed(id === trip.tripId ? gtfsPlan : undefined),
-    }
-    // A gateway that dies proves the hit never reaches it.
-    const get = serve(fakeTransit("die"), Layer.empty, plans)
+  it("GET /api/trips/:tripId serves the deployed GTFS plan, never the gateway", async () => {
+    // A gateway that dies proves trips never reach it.
+    const get = serve(fakeTransit("die"))
     const res = await get("/api/trips/" + trip.tripId)
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual(gtfsPlan)
-    expect((await get("/api/trips/9_1_1")).status).toBe(503) // miss → gateway
+    expect(Schema.decodeUnknownSync(Trip)(await res.json())).toEqual(trip)
+    const miss = await get("/api/trips/9_1_1")
+    expect(miss.status).toBe(404)
+    expect(await miss.json()).toEqual({ _tag: "TripNotFound", tripId: "9_1_1" })
+  })
+
+  it("maps an unreadable trip bucket to 503, not 404 or 500", async () => {
+    const unavailable = { _tag: "unavailable", reason: "TripBucketLoadError" } as const
+    for (const plans of [fakePlans(unavailable), fakePlans("die")]) {
+      const res = await serve(fakeTransit("ok"), Layer.empty, plans)("/api/trips/9_1_1")
+      expect(res.status).toBe(503)
+    }
   })
 
   it("GET /api/trips/:tripId/vehicle returns the live position", async () => {
@@ -99,19 +125,15 @@ describe("transit API", () => {
     expect(seen.bbox).toEqual({ minLat: 50.077, minLon: 14.412, maxLat: 50.085, maxLon: 14.428 })
   })
 
-  it("maps notFound to 404 TripNotFound", async () => {
-    const get = serve(fakeTransit({ _tag: "notFound" }))
-    for (const path of ["/api/trips/9_1_1", "/api/trips/9_1_1/vehicle"]) {
-      const res = await get(path)
-      expect(res.status).toBe(404)
-      expect(await res.json()).toEqual({ _tag: "TripNotFound", tripId: "9_1_1" })
-    }
+  it("maps an untracked vehicle to 404 TripNotFound", async () => {
+    const res = await serve(fakeTransit({ _tag: "notFound" }))("/api/trips/9_1_1/vehicle")
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ _tag: "TripNotFound", tripId: "9_1_1" })
   })
 
   it("maps unavailable to 503 UpstreamUnavailable", async () => {
     const get = serve(fakeTransit({ _tag: "unavailable", reason: "GolemioRateLimitedError" }))
     for (const path of [
-      "/api/trips/9_1_1",
       "/api/trips/9_1_1/vehicle",
       "/api/vehicles?bbox=50.077,14.412,50.085,14.428",
     ]) {
@@ -125,7 +147,7 @@ describe("transit API", () => {
   })
 
   it("maps a failed DO hop to 503, not 500", async () => {
-    const res = await serve(fakeTransit("die"))("/api/trips/9_1_1")
+    const res = await serve(fakeTransit("die"))("/api/trips/9_1_1/vehicle")
     expect(res.status).toBe(503)
   })
 
@@ -137,10 +159,13 @@ describe("transit API", () => {
     const res = await serve(
       {
         ...transit,
-        getTrip: (tripId, traceparent) => (seen.push(traceparent), transit.getTrip(tripId)),
+        getTripVehicle: (tripId, traceparent) => (
+          seen.push(traceparent),
+          transit.getTripVehicle(tripId)
+        ),
       },
       Layer.succeed(Tracer.Tracer, tracer),
-    )("/api/trips/9_1_1", {
+    )("/api/trips/9_1_1/vehicle", {
       headers: { traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01" },
     })
     expect(res.status).toBe(200)

@@ -81,9 +81,9 @@ The same script builds every trip's plan (stops, times, shape) from the feed int
 `apps/web/public/data/trips/v1/<route>.json`, one file per route prefix of the
 trip id (~900 files, ~160 MB, ~2.3 GB peak RAM, a few seconds). They ship as
 static assets; `GET /api/trips/:tripId` reads them through the `ASSETS` binding
-and only asks Golemio (via the gateway Durable Object) for ids the deployed feed
-doesn't have. The feed changes daily, hence the scheduled deploy above. Why
-assets and not KV/D1/R2: [docs/adr/0001-trip-plans-from-gtfs.md](adr/0001-trip-plans-from-gtfs.md).
+and never calls Golemio: an id the deployed feed lacks is a 404. The feed
+changes daily, hence the scheduled deploy above. Why assets and not KV/D1/R2,
+and why no Golemio fallback: [docs/adr/0001-trip-plans-from-gtfs.md](adr/0001-trip-plans-from-gtfs.md).
 
 ## iOS compatibility
 

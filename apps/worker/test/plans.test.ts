@@ -4,6 +4,8 @@ import { type TripBucketV1, tripFromBucket } from "@app/contract"
 import { buildTripBuckets } from "../src/gtfs/buckets.ts"
 import { makeTripPlans, TripBucketLoadError } from "../src/gtfs/plans.ts"
 
+const notFound = { _tag: "notFound" } as const
+
 const bucket: TripBucketV1 = buildTripBuckets({
   trips: [
     ["trip_id", "trip_headsign", "shape_id"],
@@ -58,9 +60,14 @@ describe("TripPlans", () => {
   it.effect("serves plans from the route's bucket, loading it once", () =>
     Effect.gen(function* () {
       const { plans, loads } = yield* setup
-      expect(yield* plans.get("22_1_260101")).toEqual(tripFromBucket(bucket, "22_1_260101"))
-      expect((yield* plans.get("22_2_260101"))?.headsign).toBe("Nádraží Hostivař")
-      expect(yield* plans.get("22_1_260101")).toBeDefined()
+      expect(yield* plans.get("22_1_260101")).toEqual({
+        _tag: "ok",
+        value: tripFromBucket(bucket, "22_1_260101"),
+      })
+      expect(yield* plans.get("22_2_260101")).toMatchObject({
+        value: { headsign: "Nádraží Hostivař" },
+      })
+      expect((yield* plans.get("22_1_260101"))._tag).toBe("ok")
       expect(yield* Ref.get(loads)).toEqual(["/data/trips/v1/22.json"])
     }),
   )
@@ -68,31 +75,34 @@ describe("TripPlans", () => {
   it.effect("misses for unknown trips, routes and id shapes", () =>
     Effect.gen(function* () {
       const { plans, loads } = yield* setup
-      expect(yield* plans.get("22_9_260101")).toBeUndefined()
-      expect(yield* plans.get("999_1_260101")).toBeUndefined()
-      expect(yield* plans.get("nounderscore")).toBeUndefined()
+      expect(yield* plans.get("22_9_260101")).toEqual(notFound)
+      expect(yield* plans.get("999_1_260101")).toEqual(notFound)
+      expect(yield* plans.get("nounderscore")).toEqual(notFound)
       expect(yield* Ref.get(loads)).toEqual(["/data/trips/v1/22.json", "/data/trips/v1/999.json"])
     }),
   )
 
-  it.effect("treats a failed load as a miss and retries it next time", () =>
+  it.effect("reports a failed load as unavailable and retries it next time", () =>
     Effect.gen(function* () {
       const { plans, loads, mode } = yield* setup
       yield* Ref.set(mode, "fail")
-      expect(yield* plans.get("22_1_260101")).toBeUndefined()
+      expect(yield* plans.get("22_1_260101")).toEqual({
+        _tag: "unavailable",
+        reason: "TripBucketLoadError",
+      })
       yield* Ref.set(mode, "ok")
-      expect(yield* plans.get("22_1_260101")).toBeDefined()
+      expect((yield* plans.get("22_1_260101"))._tag).toBe("ok")
       expect(yield* Ref.get(loads)).toHaveLength(2)
     }),
   )
 
-  it.effect("misses rather than serves a plan that doesn't match the contract", () =>
+  it.effect("reports malformed data as unavailable, never serves it", () =>
     Effect.gen(function* () {
       const broken = { ...bucket, stops: [["Anděl", "50.07", 14.4, 1, 1, "A"]] }
       const plans = yield* makeTripPlans(() => Effect.succeed(broken as unknown))
-      expect(yield* plans.get("22_1_260101")).toBeUndefined()
+      expect((yield* plans.get("22_1_260101"))._tag).toBe("unavailable")
       const notABucket = yield* makeTripPlans(() => Effect.succeed("<html>" as unknown))
-      expect(yield* notABucket.get("22_1_260101")).toBeUndefined()
+      expect((yield* notABucket.get("22_1_260101"))._tag).toBe("unavailable")
     }),
   )
 })

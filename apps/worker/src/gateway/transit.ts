@@ -1,21 +1,13 @@
-import type { BBox, LiveVehicle, LiveVehicles, Trip, TripVehicle } from "@app/contract"
+import type { BBox, LiveVehicle, LiveVehicles, TripVehicle } from "@app/contract"
 import { Clock, Effect, Layer } from "effect"
 import * as Context from "effect/Context"
 import { GolemioClient } from "../golemio/client.ts"
-import { toLiveVehicle, toTrip, toTripVehicle } from "../golemio/normalize.ts"
+import { toLiveVehicle, toTripVehicle } from "../golemio/normalize.ts"
 import { type Found, makeOutcomeCache, type Outcome } from "./cache.ts"
 import { UpstreamGuard } from "./upstream.ts"
 
 export type { Outcome } from "./cache.ts"
 
-// A trip id names one scheduled run, so its plan is static: cache it long.
-// Unknown ids are remembered briefly so a bad id can't hammer upstream.
-const TRIP = {
-  ttlMs: 6 * 3600_000,
-  notFoundTtlMs: 60_000,
-  maxStaleMs: 24 * 3600_000,
-  capacity: 128,
-}
 // Positions move: as fresh as boards. Stale ones are only worth serving for a
 // minute — the payload's own timestamps tell the client how old they are.
 const TRIP_VEHICLE = { ttlMs: 5_000, maxStaleMs: 60_000, capacity: 256 }
@@ -32,12 +24,12 @@ const notFound = { _tag: "notFound" } as const
 
 export interface TransitApi {
   /** Never fails — see {@link Outcome}. */
-  readonly getTrip: (tripId: string) => Effect.Effect<Outcome<Trip>>
   readonly getTripVehicle: (tripId: string) => Effect.Effect<Outcome<TripVehicle>>
   readonly getVehicles: (bbox: BBox) => Effect.Effect<Outcome<LiveVehicles>>
 }
 
-/** Trips and live vehicles, on the same upstream budget as the boards. */
+/** Live vehicles, on the same upstream budget as the boards. Trip plans
+ * don't come from here: they're built from GTFS (see ../gtfs). */
 export class TransitGateway extends Context.Service<TransitGateway, TransitApi>()(
   "@app/TransitGateway",
 ) {
@@ -46,19 +38,8 @@ export class TransitGateway extends Context.Service<TransitGateway, TransitApi>(
     Effect.gen(function* () {
       const client = yield* GolemioClient
       const guard = yield* UpstreamGuard
-      const trips = yield* makeOutcomeCache<Trip>(TRIP)
       const tripVehicles = yield* makeOutcomeCache<TripVehicle>(TRIP_VEHICLE)
       const snapshot = yield* makeOutcomeCache<LiveVehicles>(ALL_VEHICLES)
-
-      const getTrip = Effect.fn("TransitGateway.getTrip")((tripId: string) =>
-        trips.get(
-          tripId,
-          guard.run(client.fetchTrip(tripId)).pipe(
-            Effect.map((data) => ok(toTrip(data))),
-            Effect.catchTag("GolemioNotFoundError", () => Effect.succeed(notFound)),
-          ),
-        ),
-      )
 
       const getTripVehicle = Effect.fn("TransitGateway.getTripVehicle")((tripId: string) =>
         tripVehicles.get(
@@ -85,7 +66,7 @@ export class TransitGateway extends Context.Service<TransitGateway, TransitApi>(
           : all
       })
 
-      return { getTrip, getTripVehicle, getVehicles }
+      return { getTripVehicle, getVehicles }
     }),
   )
 }

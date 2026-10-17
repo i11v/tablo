@@ -49,8 +49,8 @@ export type TransitRpc = {
 
 /**
  * The HTTP API. `transit` resolves the gateway per request — in the Worker,
- * `() => namespace.getByName("singleton")`. Trip plans come from `plans` (the
- * deployed GTFS) when it has them, and from the gateway (Golemio) otherwise.
+ * `() => namespace.getByName("singleton")`. Trip plans come from `plans`: the
+ * GTFS built into the deploy, never upstream.
  */
 export const apiLayer = (version: string, transit: () => TransitRpc, plans: TripPlansApi) =>
   HttpApiBuilder.layer(Api).pipe(
@@ -63,16 +63,7 @@ export const apiLayer = (version: string, transit: () => TransitRpc, plans: Trip
       HttpApiBuilder.group(Api, "transit", (handlers) =>
         handlers
           .handle("trip", ({ params }) =>
-            Effect.flatMap(plans.get(params.tripId), (plan) =>
-              plan !== undefined
-                ? Effect.succeed(plan)
-                : resolve(
-                    Effect.flatMap(currentTraceparent, (tp) =>
-                      transit().getTrip(params.tripId, tp),
-                    ),
-                    () => new TripNotFound({ tripId: params.tripId }),
-                  ),
-            ),
+            resolve(plans.get(params.tripId), () => new TripNotFound({ tripId: params.tripId })),
           )
           .handle("tripVehicle", ({ params }) =>
             resolve(

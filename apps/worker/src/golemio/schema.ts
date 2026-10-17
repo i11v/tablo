@@ -52,44 +52,11 @@ export const PidBoardResponse = Schema.Struct({
 })
 export type PidBoardResponse = typeof PidBoardResponse.Type
 
-/* ---- GET /v2/gtfs/trips/:id?includeStops&includeStopTimes&includeShapes ---- */
+/* ---- GET /v2/vehiclepositions/:tripId ---- */
 
 const PointGeometry = Schema.Struct({
   coordinates: Schema.Tuple([Schema.Number, Schema.Number]), // [lon, lat]
 })
-
-const PidTripStopTime = Schema.Struct({
-  arrival_time: Schema.String, // "HH:MM:SS", may exceed 24:00
-  departure_time: Schema.String,
-  stop_sequence: Schema.Number,
-  shape_dist_traveled: Schema.NullOr(Schema.Number),
-  stop: Schema.Struct({
-    geometry: PointGeometry,
-    properties: Schema.Struct({
-      stop_id: Schema.String,
-      stop_name: Schema.String,
-      platform_code: Schema.NullOr(Schema.String),
-    }),
-  }),
-})
-
-const PidShapePoint = Schema.Struct({
-  geometry: PointGeometry,
-  properties: Schema.Struct({
-    shape_dist_traveled: Schema.Number,
-    shape_pt_sequence: Schema.Number,
-  }),
-})
-
-export const PidTripResponse = Schema.Struct({
-  trip_id: Schema.String,
-  trip_headsign: Schema.String,
-  stop_times: Schema.Array(PidTripStopTime),
-  shapes: Schema.Array(PidShapePoint),
-})
-export type PidTripResponse = typeof PidTripResponse.Type
-
-/* ---- GET /v2/vehiclepositions/:tripId ---- */
 
 const NumberOrNumeric = Schema.Union([Schema.Number, Schema.NumberFromString])
 

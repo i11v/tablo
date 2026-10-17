@@ -6,7 +6,22 @@ import {
   type TripBucketV1,
   tripBucketKey,
 } from "@app/contract"
-import { gtfsTimeToSeconds, parseAswStopId, round4, round5 } from "../golemio/normalize.ts"
+
+/** "HH:MM:SS" after service-day midnight → seconds. Hours may exceed 23. */
+export const gtfsTimeToSeconds = (time: string): number | null => {
+  const m = /^(\d+):([0-5]\d):([0-5]\d)$/.exec(time.trim())
+  return m === null ? null : Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])
+}
+
+/** "U539Z1P" → node 539, stop 1; rail waypoints and other non-ASW ids → null. */
+export const parseAswStopId = (stopId: string): { node: number; stop: number } | null => {
+  const m = /^U(\d+)Z(\d+)/.exec(stopId)
+  return m === null ? null : { node: Number(m[1]), stop: Number(m[2]) }
+}
+
+// 5 decimals ≈ 1 m: plenty for drawing a route, and keeps the payload small.
+const round5 = (x: number) => Math.round(x * 1e5) / 1e5
+const round4 = (x: number) => Math.round(x * 1e4) / 1e4
 
 /** GTFS tables as CSV rows, header first. */
 export interface GtfsTables {
@@ -42,10 +57,12 @@ function* rowsOf<K extends string>(
 const orNull = (s: string): string | null => (s === "" ? null : s)
 
 /**
- * GTFS → one {@link TripBucketV1} per route prefix. Applies the same
- * normalization as the Golemio path (`toTrip`), so a plan served from a
- * bucket equals the one Golemio would have given. Output is deterministic
- * (sorted keys, stable indices): an unchanged route yields identical bytes.
+ * GTFS → one {@link TripBucketV1} per route prefix: calls in sequence order,
+ * times as seconds after service-day midnight (an unparseable arrival falls
+ * back to the departure and vice versa; a call with neither is dropped), and
+ * the shape rounded to ~1 m with coinciding neighbours merged. Output is
+ * deterministic (sorted keys, stable indices): an unchanged route yields
+ * identical bytes, so a redeploy re-uploads only routes that changed.
  */
 export const buildTripBuckets = (gtfs: GtfsTables): Map<string, TripBucketV1> => {
   const stops = new Map<string, TripBucketStop>()

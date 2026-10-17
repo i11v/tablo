@@ -26,8 +26,9 @@ static assets: one JSON file per route prefix of the trip id
 (`/data/trips/v1/991.json`, ~900 files, ~160 MB, largest ~2.3 MB, median ~30 KB;
 format in `packages/contract/src/trip-bucket.ts`). The Worker reads them through
 its `ASSETS` binding and keeps a few parsed files and many plans in isolate
-memory. Golemio, through the gateway, is only a fallback for ids that the
-deployed feed lacks. A daily scheduled deploy rebuilds the files from the new
+memory. There is no Golemio fallback: the trip-plan path to Golemio
+(`fetchTrip`, the gateway's trip cache, `toTrip`) is removed, so trips have one
+source of truth. A daily scheduled deploy rebuilds the files from the new
 feed.
 
 ## Options considered
@@ -51,16 +52,22 @@ feed.
   CI.
 - **Persisting Golemio answers in the gateway DO** (i11v/tablo#52). It still
   pays one upstream call per trip per DO lifetime and keeps every request on
-  one object. At most a fallback tier.
+  one object. Closed unmerged.
+- **GTFS with a Golemio fallback** for ids the deployed feed lacks. Every
+  live trip id checked was in the feed, and the feed covers the next two
+  weeks, so the fallback would rarely run. It would keep a second trip-plan
+  implementation alive and keep trips on the shared upstream budget. Rejected.
 
 ## Consequences
 
 - A plan costs no Golemio call and no Durable Object hop.
   `/api/trips/:tripId/vehicle` and `/api/vehicles` stay live and still go
   through the gateway.
-- Plans are as fresh as the last deploy. Ids published since then fall back to
-  Golemio. If `data.pid.cz` is down, the cached previous feed is used, as with
-  the stop index.
+- Plans are as fresh as the last deploy. An id the deployed feed lacks is a 404
+  (`TripNotFound`). If a trip file can't be read or holds malformed data,
+  that's a 503 (`UpstreamUnavailable`) so clients retry. If `data.pid.cz` is
+  down at deploy time, the cached previous feed is used, as with the stop
+  index. It covers ~2 weeks ahead.
 - The HTTP contract is unchanged; the bucket format is internal and versioned
   by path (`v1`).
 - Deploy artifacts grow by ~160 MB, and PR previews upload them too.

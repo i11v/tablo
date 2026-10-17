@@ -7,14 +7,17 @@ export const HealthResponse = Schema.Struct({
   version: Schema.String,
 })
 
-/** The trip isn't known upstream, or (for /vehicle) isn't being tracked right now. */
+/** The trip isn't in the timetable, or (for /vehicle) isn't being tracked right now. */
 export class TripNotFound extends Schema.TaggedError<TripNotFound>()(
   "TripNotFound",
   { tripId: Schema.String },
   { httpApiStatus: 404 },
 ) {}
 
-/** Golemio is failing or rate-limiting us and there's nothing cached to serve. */
+/**
+ * A source we depend on can't answer: Golemio failing or rate-limiting us with
+ * nothing cached, or (for trip plans) the deployed timetable data unreadable.
+ */
 export class UpstreamUnavailable extends Schema.TaggedError<UpstreamUnavailable>()(
   "UpstreamUnavailable",
   { reason: Schema.String },

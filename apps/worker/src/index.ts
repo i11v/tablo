@@ -107,9 +107,9 @@ export default class Server extends Cloudflare.Worker<Server>()(
       Config.withDefault(VERSION),
       Effect.orDie,
     )
-    // Trips and vehicles go through the same singleton gateway DO as the
-    // boards, so every upstream call shares its rate budget and caches.
-    // Trip plans ship as static assets built from GTFS at deploy time
+    // Live vehicles go through the same singleton gateway DO as the boards,
+    // so every upstream call shares its rate budget and caches. Trip plans
+    // never touch upstream: they ship as static assets built from GTFS at deploy time
     // (scripts/build-stop-index.ts), read here through the ASSETS binding.
     // `env` is only populated at exec phase, so read the binding lazily.
     const env = yield* Cloudflare.WorkerEnvironment

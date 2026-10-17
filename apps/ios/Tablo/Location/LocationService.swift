@@ -25,6 +25,11 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         manager.activityType = .otherNavigation
     }
 
+    /// Access is granted: a fix is on its way.
+    var mayLocate: Bool {
+        [.authorizedWhenInUse, .authorizedAlways].contains(manager.authorizationStatus)
+    }
+
     func start() {
         running = true
         apply(manager.authorizationStatus)

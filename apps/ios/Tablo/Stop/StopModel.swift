@@ -86,6 +86,18 @@ final class StopModel {
     static let journeyPoll: TimeInterval = 10
     /// Farther than this from every stop you're outside the network: don't jump to the "nearest".
     static let nearestRadius = 5000.0
+    /// Trip plans for the vehicles a poll first shows load this many at a
+    /// time, up to `planBurstLimit` requests; the rest, and later arrivals,
+    /// one at a time, a second apart. Every trip the worker hasn't cached
+    /// spends from Golemio's 20-calls-per-8-s budget, shared with the boards:
+    /// past it the worker queues calls and sheds them (503) after 5 s.
+    static let planBurst = 3
+    static let planBurstLimit = 12
+    /// How long the first vehicle poll waits for the first location fix to
+    /// pick the stop it's for, rather than poll the saved stop and drop it.
+    static let placementGrace: Duration = .milliseconds(1500)
+    /// The cached stop index serves at once; the manifest is checked this long after.
+    static let indexRefreshDelay: Duration = .seconds(3)
 
     /// Národní třída — the stop shown before anything better is known.
     static let fallbackStop = IndexStop(
@@ -122,10 +134,16 @@ final class StopModel {
     @ObservationIgnored private var searchIndex: StopSearch.Index?
     @ObservationIgnored private var byKey: [String: IndexStop] = [:]
     @ObservationIgnored private var tripPlans: [String: TripPlan] = [:]
+    @ObservationIgnored private let planStore = TripPlanStore()
+    /// The current vehicle set's first plans are in flight or done: later ones are paced.
+    @ObservationIgnored private var plansPrimed = false
     @ObservationIgnored private var boardHeight: CGFloat?
     /// You chose a stop yourself: location never moves you again.
     @ObservationIgnored private var userPicked = false
     @ObservationIgnored private var placedByLocation = false
+    /// The first fix had its chance to pick the stop: polling waits no longer.
+    @ObservationIgnored private var placementGraceOver = false
+    @ObservationIgnored private var placementGraceTask: Task<Void, Never>?
     @ObservationIgnored private var active = false
     @ObservationIgnored private var clock: Timer?
     @ObservationIgnored private var indexTask: Task<Void, Never>?
@@ -184,6 +202,7 @@ final class StopModel {
         feed.subscribe(initial.selector)
         loadIndex()
         syncMap()
+        Task.detached(priority: .utility) { [planStore] in planStore.prune() }
     }
 
     // MARK: - Lifecycle
@@ -202,6 +221,7 @@ final class StopModel {
             }
             RunLoop.main.add(timer, forMode: .common)
             clock = timer
+            startPlacementGrace()
             restartVehiclePolling()
             startJourneyPolling()
             if indexState == .failed { loadIndex() }
@@ -265,29 +285,64 @@ final class StopModel {
         loadIndex()
     }
 
+    /// The newest cached index serves at once; the network only when there's
+    /// none. A cached one is checked against the manifest a little later.
     private func loadIndex() {
         indexTask?.cancel()
         indexState = .loading
         let span = Telemetry.span("index.load", parent: phase?.span)
         indexTask = Task { [weak self, api] in
-            defer { span.end() }
+            var cached = false
             do {
-                let stops = try await api.stopIndex(parent: span)
-                span.setAttribute(key: "index.stops", value: stops.count)
-                // the search expansion and key table are ~10k rows: build them off the main actor
-                let build = Telemetry.span("index.build", parent: span)
-                let (search, byKey) = await Task.detached(priority: .userInitiated) {
-                    (StopSearch.Index(stops), Dictionary(stops.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first }))
-                }.value
-                build.end()
+                var stops = await api.cachedStopIndex(parent: span)
+                cached = stops != nil
+                if stops == nil { stops = try await api.stopIndex(parent: span) }
+                let all = stops ?? []
+                span.setAttribute(key: "index.stops", value: all.count)
+                let (search, byKey) = await Self.buildIndex(all, parent: span)
+                span.end()
                 guard !Task.isCancelled else { return }
-                self?.indexLoaded(stops, search, byKey)
+                self?.indexLoaded(all, search, byKey)
             } catch {
-                guard !Task.isCancelled else { return }
                 span.fail(error)
+                span.end()
+                guard !Task.isCancelled else { return }
                 self?.indexState = .failed
+                return
             }
+            guard cached, !Task.isCancelled else { return }
+            try? await Task.sleep(for: Self.indexRefreshDelay)
+            guard !Task.isCancelled else { return }
+            await self?.refreshIndex()
         }
+    }
+
+    /// Swap in a newer index if the manifest names one; the cached one stays otherwise.
+    private func refreshIndex() async {
+        let span = Telemetry.span("index.refresh", parent: phase?.span)
+        defer { span.end() }
+        do {
+            guard let stops = try await api.stopIndex(unlessCached: true, parent: span) else {
+                span.setAttribute(key: "index.changed", value: false)
+                return
+            }
+            span.setAttribute(key: "index.changed", value: true)
+            span.setAttribute(key: "index.stops", value: stops.count)
+            let (search, byKey) = await Self.buildIndex(stops, parent: span)
+            guard !Task.isCancelled else { return }
+            indexLoaded(stops, search, byKey)
+        } catch {
+            span.fail(error)
+        }
+    }
+
+    /// The search expansion and key table are ~10k rows: built off the main actor.
+    private nonisolated static func buildIndex(_ stops: [IndexStop], parent: Span) async -> (StopSearch.Index, [String: IndexStop]) {
+        let build = Telemetry.span("index.build", parent: parent)
+        defer { build.end() }
+        return await Task.detached(priority: .userInitiated) {
+            (StopSearch.Index(stops), Dictionary(stops.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first }))
+        }.value
     }
 
     private func indexLoaded(_ stops: [IndexStop], _ search: StopSearch.Index, _ byKey: [String: IndexStop]) {
@@ -333,8 +388,29 @@ final class StopModel {
         placedByLocation = true
         guard let nearest = StopSearch.nearest(entries, to: here, limit: 1).first,
               nearest.metres <= Self.nearestRadius, nearest.stop.key != stop.key
-        else { return }
+        else {
+            // staying put: the poll held back for this can start
+            if vehicleTask == nil { restartVehiclePolling() }
+            return
+        }
         switchStop(to: nearest.stop, userInitiated: false)
+    }
+
+    /// The first fix may still move you to another stop, so a poll for this
+    /// one would be thrown away.
+    private var awaitingPlacement: Bool {
+        !userPicked && !placedByLocation && !placementGraceOver && location.mayLocate
+    }
+
+    /// Bounds how long the first poll waits on placement (no fix, no index yet).
+    private func startPlacementGrace() {
+        guard !placementGraceOver, placementGraceTask == nil else { return }
+        placementGraceTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.placementGrace)
+            guard let self, !placementGraceOver else { return }
+            placementGraceOver = true
+            if vehicleTask == nil { restartVehiclePolling() }
+        }
     }
 
     // MARK: - Derived
@@ -724,7 +800,8 @@ final class StopModel {
     /// (production before the endpoint ships answers 404/500).
     private func restartVehiclePolling() {
         stopVehiclePolling()
-        guard active, follow == nil, !searchOpen else { return }
+        guard active, follow == nil, !searchOpen, !awaitingPlacement else { return }
+        plansPrimed = false
         let box = BBox.around(stop.coord)
         let stopName = stop.name
         vehicleTask = Task { [weak self, api] in
@@ -752,6 +829,7 @@ final class StopModel {
 
     private func stopVehiclePolling() {
         vehicleTask?.cancel()
+        vehicleTask = nil
         planTask?.cancel()
         planTask = nil
     }
@@ -769,21 +847,37 @@ final class StopModel {
         syncMap()
     }
 
-    /// Fetch the trips of the vehicles on the map so they glide along their
-    /// lines — one at a time, a second apart, to leave the shared upstream
-    /// budget to the boards. Trips on the board first, then nearest the stop.
-    private func loadVehiclePlans(_ list: [LiveVehicle]) {
-        guard planTask == nil else { return }
-        let onBoard = Set(departures.compactMap(\.tripId))
-        let here = stop.coord
-        let wanted = list
-            .filter { tripPlans[$0.tripId] == nil && !planless.contains($0.tripId) }
+    /// Board trips first, then the vehicles nearest the stop.
+    nonisolated static func planOrder(_ vehicles: [LiveVehicle], onBoard: Set<String>, near here: LngLat) -> [String] {
+        vehicles
             .sorted { a, b in
                 let ka = onBoard.contains(a.tripId), kb = onBoard.contains(b.tripId)
                 if ka != kb { return ka }
                 return Geo.haversineMetres(a.coord, here) < Geo.haversineMetres(b.coord, here)
             }
             .map(\.tripId)
+    }
+
+    private enum PlanFetch {
+        case plan(TripPlan)
+        case planless
+        case failed
+    }
+
+    /// Fetch the trips of the vehicles on the map so they glide along their
+    /// lines, in `planOrder`. Plans fetched earlier today come off disk. The
+    /// first vehicles a poll shows load `planBurst` at a time; later arrivals
+    /// one at a time, a second apart, to leave the shared upstream budget to
+    /// the boards.
+    private func loadVehiclePlans(_ list: [LiveVehicle]) {
+        guard planTask == nil else { return }
+        let onBoard = Set(departures.compactMap(\.tripId))
+        let wanted = Self.planOrder(
+            list.filter { tripPlans[$0.tripId] == nil && !planless.contains($0.tripId) },
+            onBoard: onBoard, near: stop.coord
+        )
+        let first = !plansPrimed
+        plansPrimed = true
         guard !wanted.isEmpty else {
             phase?.plansReady()
             return
@@ -792,34 +886,67 @@ final class StopModel {
         let run = planRun
         let span = Telemetry.span("plans.load", parent: phase?.span, attributes: [
             "plans.wanted": .int(wanted.count), "plans.on_board": .int(wanted.filter(onBoard.contains).count),
+            "plans.concurrency": .int(first ? Self.planBurst : 1),
         ])
-        planTask = Task { [weak self, api] in
-            var loaded = 0, planless = 0, outcome = "done"
+        planTask = Task { [weak self, api, planStore] in
+            var loaded = 0, planless = 0, stored = 0, outcome = "done"
+            var width = first ? Self.planBurst : 1
+            var burst = first ? Self.planBurstLimit : 0
             defer {
                 span.setAttribute(key: "plans.loaded", value: loaded)
                 span.setAttribute(key: "plans.planless", value: planless)
+                span.setAttribute(key: "plans.stored", value: stored)
                 span.setAttribute(key: "tablo.outcome", value: Task.isCancelled ? "cancelled" : outcome)
                 span.end()
             }
-            for tripId in wanted {
-                guard !Task.isCancelled, let self else { return }
-                // gone from the map, or loaded meanwhile (a followed journey)
-                guard mapTrips.contains(tripId), tripPlans[tripId] == nil else { continue }
-                do {
-                    let trip = try await api.trip(tripId, parent: span)
-                    guard !Task.isCancelled else { return }
-                    vehiclePlanLoaded(tripId, TripPlan(trip))
-                    loaded += 1
-                } catch APIError.notFound {
-                    self.planless.insert(tripId)
-                    planless += 1
-                } catch {
-                    outcome = "error"
-                    break // transient: the next poll tries again
-                }
-                try? await Task.sleep(for: .seconds(1))
+            let onDisk = await Task.detached(priority: .userInitiated) { planStore.plans(wanted) }.value
+            guard !Task.isCancelled, let self else { return }
+            for id in wanted {
+                guard let plan = onDisk[id], mapTrips.contains(id), tripPlans[id] == nil else { continue }
+                vehiclePlanLoaded(id, plan)
+                stored += 1
             }
-            guard let self, !Task.isCancelled else { return }
+            var queue = wanted.filter { onDisk[$0] == nil }[...]
+            await withTaskGroup(of: (String, PlanFetch).self) { group in
+                var running = 0
+                var failed = false
+                while true {
+                    while !failed, running < width, let id = queue.popFirst() {
+                        // gone from the map, or loaded meanwhile (a followed journey)
+                        guard self.mapTrips.contains(id), self.tripPlans[id] == nil else { continue }
+                        running += 1
+                        burst -= 1
+                        if burst <= 0 { width = 1 }
+                        group.addTask {
+                            do {
+                                let (trip, data) = try await api.tripResponse(id, parent: span)
+                                planStore.write(data, for: id)
+                                return (id, .plan(TripPlan(trip)))
+                            } catch APIError.notFound {
+                                return (id, .planless)
+                            } catch {
+                                return (id, .failed)
+                            }
+                        }
+                    }
+                    guard let (id, result) = await group.next() else { return }
+                    running -= 1
+                    guard !Task.isCancelled else { return }
+                    switch result {
+                    case let .plan(plan):
+                        self.vehiclePlanLoaded(id, plan)
+                        loaded += 1
+                    case .planless:
+                        self.planless.insert(id)
+                        planless += 1
+                    case .failed:
+                        outcome = "error"
+                        failed = true // transient: the next poll tries again
+                    }
+                    if width == 1, !failed, !queue.isEmpty { try? await Task.sleep(for: .seconds(1)) }
+                }
+            }
+            guard !Task.isCancelled else { return }
             if outcome == "done" { phase?.plansReady() }
             if planRun == run { planTask = nil }
         }

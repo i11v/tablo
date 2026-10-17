@@ -72,35 +72,42 @@ struct TabloAPI: Sendable {
 
     // MARK: Stop index
 
-    /// The stop index: the manifest names a content-hashed (immutable) file,
-    /// kept on disk under that name. Offline, the newest cached index serves.
-    /// `parent` gets `index.source`: cache, network or offline (the newest cached).
-    func stopIndex(parent: Span? = nil) async throws -> [IndexStop] {
+    /// The newest stop index on disk, without touching the network — what a
+    /// launch shows first. `parent` gets `index.source` = cache when it serves.
+    func cachedStopIndex(parent: Span? = nil) async -> [IndexStop]? {
+        guard let data = StopIndexCache().newest(), let file = try? Wire.decode(StopIndexFile.self, from: data) else { return nil }
+        parent?.setAttribute(key: "index.source", value: "cache")
+        return file.stops
+    }
+
+    /// The stop index the manifest names (a content-hashed, immutable file,
+    /// kept on disk under that name). With `unlessCached`, nil when that file
+    /// is already on disk: the cached index is current. `parent` gets
+    /// `index.source` = cache or network.
+    func stopIndex(unlessCached: Bool = false, parent: Span? = nil) async throws -> [IndexStop]? {
         let cache = StopIndexCache()
-        do {
-            let manifest = try await get(StopsManifest.self, path: "/data/stops-manifest.json", parent: parent)
-            if let data = cache.read(manifest.path), let file = try? Wire.decode(StopIndexFile.self, from: data) {
-                parent?.setAttribute(key: "index.source", value: "cache")
-                return file.stops
-            }
-            let data = try await data(path: manifest.path, query: [], route: "/data/{index}", parent: parent)
-            let file = try decodeOrThrow(StopIndexFile.self, data)
-            cache.write(data, for: manifest.path)
-            parent?.setAttribute(key: "index.source", value: "network")
-            return file.stops
-        } catch {
-            if let data = cache.newest(), let file = try? Wire.decode(StopIndexFile.self, from: data) {
-                parent?.setAttribute(key: "index.source", value: "offline")
-                return file.stops
-            }
-            throw error
+        let manifest = try await get(StopsManifest.self, path: "/data/stops-manifest.json", parent: parent)
+        if let data = cache.read(manifest.path), let file = try? Wire.decode(StopIndexFile.self, from: data) {
+            parent?.setAttribute(key: "index.source", value: "cache")
+            return unlessCached ? nil : file.stops
         }
+        let data = try await data(path: manifest.path, query: [], route: "/data/{index}", parent: parent)
+        let file = try decodeOrThrow(StopIndexFile.self, data)
+        cache.write(data, for: manifest.path)
+        parent?.setAttribute(key: "index.source", value: "network")
+        return file.stops
     }
 
     // MARK: Transit
 
     func trip(_ tripId: String, parent: Span? = nil) async throws -> Trip {
-        try await get(Trip.self, path: "/api/trips/\(Self.escape(tripId))", route: "/api/trips/{id}", parent: parent)
+        try await tripResponse(tripId, parent: parent).trip
+    }
+
+    /// The trip and the bytes it came in, for keeping on disk.
+    func tripResponse(_ tripId: String, parent: Span? = nil) async throws -> (trip: Trip, data: Data) {
+        let data = try await data(path: "/api/trips/\(Self.escape(tripId))", query: [], route: "/api/trips/{id}", parent: parent)
+        return (try decodeOrThrow(Trip.self, data), data)
     }
 
     /// nil when the trip's vehicle isn't being tracked (404).

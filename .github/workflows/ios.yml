@@ -47,7 +47,7 @@ jobs:
     defaults:
       run:
         shell: bash # = bash -eo pipefail, so `xcodebuild | xcbeautify` fails when xcodebuild does
-        working-directory: apps/ios
+        working-directory: ios
     steps:
       - uses: actions/checkout@v5
 
@@ -99,26 +99,104 @@ jobs:
           echo "Using ${pick#*$'\t'} — $udid"
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
-      - name: Boot simulator # up front, so a slow first boot can't time out the test runner
-        run: xcrun simctl bootstatus "$SIM_UDID" -b
+      # Computed in the shell rather than with hashFiles(): on the macOS
+      # runner hashFiles() has timed out (120 s) while the simulator boots.
+      - name: Cache keys
+        id: keys
+        run: echo "deps=xcode${XCODE_VERSION}-$(shasum -a 256 project.yml | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      # Swift packages (Honeycomb pulls in ~28: NIO, gRPC, BoringSSL…) are
+      # pinned by exactVersion in project.yml, so its hash keys the checkouts.
+      # A hit skips the network fetch entirely (-skipPackageUpdates below).
+      - name: Restore Swift package checkouts
+        id: spm-cache
+        uses: actions/cache@v5
+        with:
+          path: apps/ios/build/SourcePackages
+          key: spm-${{ steps.keys.outputs.deps }}
+
+      # Compiled package modules. Restored on every run; saved on main (PRs can
+      # read main's caches) and on a run that found nothing, so a PR's re-runs
+      # benefit too. The app's own sources are checked out fresh (new mtimes)
+      # and always recompile; only unchanged package objects are reused.
+      - name: Restore DerivedData
+        id: dd-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: | # must match the save step's paths exactly, or the restore misses
+            apps/ios/build/DerivedData
+            !apps/ios/build/DerivedData/Logs
+            !apps/ios/build/DerivedData/Index.noindex
+          key: dd-${{ steps.keys.outputs.deps }}-${{ github.sha }}
+          restore-keys: dd-${{ steps.keys.outputs.deps }}-
+
+      - name: Start booting the simulator # in the background: it boots while the build below runs
+        run: |
+          # simctl boot can block until the device is up; detach it so the
+          # build starts right away. "Wait for the simulator" joins it later.
+          nohup xcrun simctl boot "$SIM_UDID" > "$RUNNER_TEMP/simctl-boot.log" 2>&1 &
         env:
           SIM_UDID: ${{ steps.sim.outputs.udid }}
 
-      - name: Build & test
+      - name: Build for testing
         env:
           SIM_UDID: ${{ steps.sim.outputs.udid }}
+          SPM_HIT: ${{ steps.spm-cache.outputs.cache-hit }}
           NSUnbufferedIO: "YES" # stream xcodebuild output through the pipe as it happens
         run: |
-          mkdir -p build   # gitignored (apps/ios/.gitignore); holds DerivedData, the result bundle and the raw log
+          mkdir -p build   # gitignored (apps/ios/.gitignore); holds DerivedData, packages, the result bundle and raw logs
+          # xcodegen regenerates the project without its Package.resolved; put
+          # back the one saved alongside the package cache so no resolution
+          # against the remotes is needed.
+          resolved=Tablo.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+          if [ -f build/SourcePackages/Package.resolved ]; then
+            mkdir -p "$(dirname "$resolved")"
+            cp build/SourcePackages/Package.resolved "$resolved"
+          fi
           args=(
-            test
+            build-for-testing
             -project Tablo.xcodeproj
             -scheme Tablo
             -destination "platform=iOS Simulator,id=$SIM_UDID"
             -derivedDataPath build/DerivedData
-            -resultBundlePath build/Tablo.xcresult
+            -clonedSourcePackagesDirPath build/SourcePackages
+            -skipPackagePluginValidation
+            -skipMacroValidation
             CODE_SIGNING_ALLOWED=NO          # simulator build: nothing to sign, no team needed
             COMPILER_INDEX_STORE_ENABLE=NO   # no IDE on CI — skip indexing
+          )
+          if [ "$SPM_HIT" = "true" ]; then args+=(-skipPackageUpdates); fi
+          xcodebuild "${args[@]}" 2>&1 | tee build/xcodebuild-build.log | xcbeautify --renderer github-actions
+          if [ -f "$resolved" ]; then cp "$resolved" build/SourcePackages/Package.resolved; fi
+
+      - name: Save DerivedData
+        if: success() && (github.ref == 'refs/heads/main' || steps.dd-cache.outputs.cache-matched-key == '')
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            apps/ios/build/DerivedData
+            !apps/ios/build/DerivedData/Logs
+            !apps/ios/build/DerivedData/Index.noindex
+          key: ${{ steps.dd-cache.outputs.cache-primary-key }}
+
+      - name: Wait for the simulator # usually booted by now; a slow first boot can't time out the test runner
+        run: xcrun simctl bootstatus "$SIM_UDID" -b
+        env:
+          SIM_UDID: ${{ steps.sim.outputs.udid }}
+
+      - name: Test
+        env:
+          SIM_UDID: ${{ steps.sim.outputs.udid }}
+          NSUnbufferedIO: "YES"
+        run: |
+          # Run from the .xctestrun that build-for-testing wrote: no project
+          # load or package resolution, which cost minutes on this runner.
+          xctestrun=$(ls build/DerivedData/Build/Products/*.xctestrun | head -n1)
+          args=(
+            test-without-building
+            -xctestrun "$xctestrun"
+            -destination "platform=iOS Simulator,id=$SIM_UDID"
+            -resultBundlePath build/Tablo.xcresult
           )
           xcodebuild "${args[@]}" 2>&1 | tee build/xcodebuild.log | xcbeautify --renderer github-actions
 
@@ -129,6 +207,7 @@ jobs:
           name: ios-test-results
           path: |
             apps/ios/build/Tablo.xcresult
+            apps/ios/build/xcodebuild-build.log
             apps/ios/build/xcodebuild.log
           if-no-files-found: ignore
           retention-days: 14

@@ -49,7 +49,8 @@ team: `project.yml` leaves `DEVELOPMENT_TEAM` empty, so pick one in Xcode
 (Signing & Capabilities; lost on the next `xcodegen generate`) or pass
 `DEVELOPMENT_TEAM=<team id>` to `xcodebuild`.
 
-CI (`.github/workflows/ios.yml`) runs `xcodegen generate` + `xcodebuild test`
+CI (`.github/workflows/ios.yml`) runs `xcodegen generate` + `xcodebuild build-for-testing`/`test-without-building`
+(Swift packages and DerivedData cached, simulator booting during the build)
 on PRs and pushes that touch `apps/ios/`. The production deploy doesn't build the
 app ([`docs/DEPLOY.md`](../docs/DEPLOY.md)).
 

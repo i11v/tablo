@@ -73,7 +73,10 @@ export const toBoards = (
   data: PidBoardResponse,
 ): Array<StopBoard> => {
   const aswByStopId = new Map(
-    data.stops.flatMap((s) => (s.asw_id === null ? [] : [[s.stop_id, s.asw_id] as const])),
+    data.stops.flatMap((s) => {
+      const asw = s.asw_id ?? parseAswStopId(s.stop_id)
+      return asw === null ? [] : [[s.stop_id, asw] as const]
+    }),
   )
   const boards = selectors.map((sel) => ({
     sel,

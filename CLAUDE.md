@@ -18,7 +18,7 @@ Dated design docs (historical, web-era) live in `docs/superpowers/`.
 
 ## iOS app
 
-- `cd ios && xcodegen generate`. `Tablo.xcodeproj` and `Tablo/Info.plist` are
+- `cd apps/ios && xcodegen generate`. `Tablo.xcodeproj` and `Tablo/Info.plist` are
   generated and gitignored — edit `project.yml`, never the project.
 - Test: `xcodebuild -project Tablo.xcodeproj -scheme Tablo -destination 'platform=iOS Simulator,name=iPhone 17' test`.
   More in `apps/ios/README.md`.

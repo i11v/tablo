@@ -7,6 +7,7 @@ import { GolemioClient } from "../golemio/client.ts"
 import { DepartureGateway } from "../gateway/service.ts"
 import { TransitGateway } from "../gateway/transit.ts"
 import { UpstreamGuard } from "../gateway/upstream.ts"
+import { withCallerSpan } from "../trace.ts"
 
 export class GolemioGateway extends Cloudflare.DurableObject<GolemioGateway>()(
   "GolemioGateway",
@@ -38,13 +39,18 @@ export class GolemioGateway extends Cloudflare.DurableObject<GolemioGateway>()(
       // Typed RPC, called via getByName("singleton"). Every method here
       // never fails: typed failures don't survive the DO RPC boundary
       // intact, so results are plain data (BoardsResult / Outcome).
+      // `traceparent` nests the call under the caller's span (see trace.ts).
       return {
         /** Called by ClientSession. */
-        getBoards: (selectors: ReadonlyArray<StopSelector>) => departures.getBoards(selectors),
+        getBoards: (selectors: ReadonlyArray<StopSelector>, traceparent?: string) =>
+          departures.getBoards(selectors).pipe(withCallerSpan(traceparent)),
         /** Called by the Worker's /api/trips and /api/vehicles handlers. */
-        getTrip: (tripId: string) => transit.getTrip(tripId),
-        getTripVehicle: (tripId: string) => transit.getTripVehicle(tripId),
-        getVehicles: (bbox: BBox) => transit.getVehicles(bbox),
+        getTrip: (tripId: string, traceparent?: string) =>
+          transit.getTrip(tripId).pipe(withCallerSpan(traceparent)),
+        getTripVehicle: (tripId: string, traceparent?: string) =>
+          transit.getTripVehicle(tripId).pipe(withCallerSpan(traceparent)),
+        getVehicles: (bbox: BBox, traceparent?: string) =>
+          transit.getVehicles(bbox).pipe(withCallerSpan(traceparent)),
       }
     })
   }),

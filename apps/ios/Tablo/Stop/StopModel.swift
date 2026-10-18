@@ -152,6 +152,11 @@ final class StopModel {
     @ObservationIgnored private var journeyTask: Task<Void, Never>?
     @ObservationIgnored private var planTask: Task<Void, Never>?
     @ObservationIgnored private var planRun = 0
+    /// The in-flight `vehicles.poll` and `plans.load`, ended the moment their
+    /// task is cancelled: a cancelled task unwinds later, after the background
+    /// flush has gone out, and an app killed while suspended never sends them.
+    @ObservationIgnored private var pollSpan: Span?
+    @ObservationIgnored private var planSpan: Span?
     /// Trips with no plan upstream (404): not asked for again.
     @ObservationIgnored private var planless: Set<String> = []
     /// Trips of the vehicles on the map right now.
@@ -814,6 +819,8 @@ final class StopModel {
             while !Task.isCancelled {
                 var wait = Self.vehiclePoll
                 let span = Telemetry.span("vehicles.poll", parent: self?.phase?.span, attributes: ["stop.name": .string(stopName)])
+                self?.pollSpan = span
+                defer { if self?.pollSpan === span { self?.pollSpan = nil } }
                 do {
                     let list = try await api.vehicles(in: box, parent: span)
                     span.setAttribute(key: "vehicles", value: list.count)
@@ -838,6 +845,12 @@ final class StopModel {
         vehicleTask = nil
         planTask?.cancel()
         planTask = nil
+        for span in [pollSpan, planSpan].compactMap({ $0 }) {
+            span.setAttribute(key: "tablo.outcome", value: "cancelled")
+            span.end()
+        }
+        pollSpan = nil
+        planSpan = nil
     }
 
     private func vehiclesLoaded(_ list: [LiveVehicle]) {
@@ -893,17 +906,21 @@ final class StopModel {
         let span = Telemetry.span("plans.load", parent: phase?.span, attributes: [
             "plans.wanted": .int(wanted.count), "plans.on_board": .int(wanted.filter(onBoard.contains).count),
             "plans.concurrency": .int(first ? Self.planBurst : 1),
+            "plans.loaded": .int(0), "plans.planless": .int(0), "plans.stored": .int(0),
         ])
+        planSpan = span
         planTask = Task { [weak self, api, planStore] in
-            var loaded = 0, planless = 0, stored = 0, outcome = "done"
+            // counts go on the span as they change: it may be ended early (stopVehiclePolling)
+            var loaded = 0 { didSet { span.setAttribute(key: "plans.loaded", value: loaded) } }
+            var planless = 0 { didSet { span.setAttribute(key: "plans.planless", value: planless) } }
+            var stored = 0 { didSet { span.setAttribute(key: "plans.stored", value: stored) } }
+            var outcome = "done"
             var width = first ? Self.planBurst : 1
             var burst = first ? Self.planBurstLimit : 0
             defer {
-                span.setAttribute(key: "plans.loaded", value: loaded)
-                span.setAttribute(key: "plans.planless", value: planless)
-                span.setAttribute(key: "plans.stored", value: stored)
                 span.setAttribute(key: "tablo.outcome", value: Task.isCancelled ? "cancelled" : outcome)
                 span.end()
+                if self?.planSpan === span { self?.planSpan = nil }
             }
             let onDisk = await Task.detached(priority: .userInitiated) { planStore.plans(wanted) }.value
             guard !Task.isCancelled, let self else { return }

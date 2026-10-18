@@ -77,9 +77,11 @@ final class PhaseTrace {
         board = false
     }
 
-    func event(_ name: String, _ attributes: [String: AttributeValue] = [:]) {
+    /// `ms` also records, as that attribute, how long into the phase it came.
+    func event(_ name: String, _ attributes: [String: AttributeValue] = [:], ms key: String? = nil) {
         guard !ended else { return }
         span.addEvent(name: name, attributes: attributes)
+        if let key { ms(key) }
     }
 
     private func settleIfDone() {

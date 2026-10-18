@@ -158,6 +158,8 @@ final class StopModel {
     @ObservationIgnored private var mapTrips: Set<String> = []
     /// The launch or resume being traced, until the page settles.
     @ObservationIgnored private var phase: PhaseTrace?
+    /// The search screen, from opening it until the picked stop's board is in.
+    @ObservationIgnored private var search: SearchTrace?
     /// Open while the phase waits for its first location fix / the stop's board.
     @ObservationIgnored private var fixWait: Span?
     @ObservationIgnored private var boardWait: Span?
@@ -202,7 +204,7 @@ final class StopModel {
             "tablo.saved_stop": .bool(saved != nil),
             "stop.name": .string(initial.name),
         ]) { [weak self] in self?.phaseEnded() }
-        phase?.event("model.init")
+        phase?.event("model.init", ms: "tablo.init_ms")
         feed.subscribe(initial.selector)
         loadIndex()
         syncMap()
@@ -238,6 +240,7 @@ final class StopModel {
             stopVehiclePolling()
             journeyTask?.cancel()
             phase?.end("background")
+            search?.end("background")
             backgroundAt = Date()
             Telemetry.flushInBackground()
         }
@@ -255,7 +258,7 @@ final class StopModel {
                 "tablo.has_location": .bool(location.coordinate != nil),
             ]) { [weak self] in self?.phaseEnded() }
         } else {
-            phase?.event("active")
+            phase?.event("active", ms: "tablo.active_ms")
         }
         guard let phase else { return }
         if location.coordinate == nil {
@@ -266,8 +269,8 @@ final class StopModel {
 
     /// A span from now until the current stop's board arrives.
     private func awaitBoard() {
-        guard let phase, boardWait == nil else { return }
-        boardWait = Telemetry.span("feed.board", parent: phase.span, attributes: ["stop.name": .string(stop.name)])
+        guard let parent = phase?.span ?? search?.span, boardWait == nil else { return }
+        boardWait = Telemetry.span("feed.board", parent: parent, attributes: ["stop.name": .string(stop.name)])
     }
 
     private func phaseEnded() {
@@ -278,6 +281,15 @@ final class StopModel {
         fixWait = nil
         boardWait = nil
         phase = nil
+    }
+
+    private func searchEnded() {
+        search = nil
+        // a phase that began meanwhile (a resume) owns the board wait
+        guard phase == nil, let boardWait else { return }
+        boardWait.setAttribute(key: "tablo.outcome", value: "unfinished")
+        boardWait.end()
+        self.boardWait = nil
     }
 
     private func tick() {
@@ -354,6 +366,7 @@ final class StopModel {
         searchIndex = search
         self.byKey = byKey
         indexState = .ready
+        self.search?.indexReady()
         // the index's copy of the current stop is fresher (platforms, coordinates)
         if let fresh = byKey[stop.key], fresh != stop {
             stop = fresh
@@ -607,14 +620,13 @@ final class StopModel {
         guard indexState == .ready, let searchIndex else { return [] }
         let here = location.coordinate
         let q = trimmedQuery
-        let found: [IndexStop]
-        if !q.isEmpty {
-            found = StopSearch.search(searchIndex, query: q, recents: recents, origin: here)
-        } else if let here {
-            found = StopSearch.nearest(entries, to: here, limit: 8).map(\.stop)
-        } else {
-            found = recents.compactMap { byKey[$0] }
+        let kind = !q.isEmpty ? "match" : here != nil ? "nearby" : "recents"
+        let match = { [self] () -> [IndexStop] in
+            if !q.isEmpty { return StopSearch.search(searchIndex, query: q, recents: recents, origin: here) }
+            if let here { return StopSearch.nearest(entries, to: here, limit: 8).map(\.stop) }
+            return recents.compactMap { byKey[$0] }
         }
+        let found = search?.query(q, kind: kind, keys: { $0.map(\.key) }, match) ?? match()
         return found.map { s in
             SearchResult(
                 stop: s,
@@ -652,16 +664,20 @@ final class StopModel {
         query = ""
         searchOpen = true
         phase?.end("search")
+        search?.end("cancelled")
+        search = SearchTrace(stop: stop.name, indexReady: indexState == .ready) { [weak self] in self?.searchEnded() }
         stopVehiclePolling()
     }
 
     func closeSearch() {
         searchOpen = false
         query = ""
+        search?.end("cancelled")
         restartVehiclePolling()
     }
 
     func pickStop(_ entry: IndexStop) {
+        search?.picked(entry.key, name: entry.name)
         switchStop(to: entry, userInitiated: true)
     }
 
@@ -697,6 +713,8 @@ final class StopModel {
             awaitBoard()
         }
         feed.subscribe(entry.selector)
+        // the same stop again: its board is already here, no update is coming
+        if feed.boards[entry.key] != nil { feedUpdated() }
         map.setStop(entry.coord, name: entry.name)
         map.flyToStop(duration: 0.9)
         map.setVehicles([], glide: 0)
@@ -780,6 +798,7 @@ final class StopModel {
                 self.boardWait = nil
             }
             phase?.boardShown()
+            search?.boardShown()
         }
         // keep the followed departure fresh while it's on the board (it may leave once it departs)
         if let tripId = follow?.departure.tripId,

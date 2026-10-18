@@ -53,21 +53,16 @@ private struct StopCanvas: View {
             TopBar(model: model)
                 .padding(.horizontal, 16)
                 .padding(.top, insets.top + 10)
-
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    RecenterButton(action: model.recenter)
-                }
+        }
+        // overlays, so a tall sheet can't size the canvas: past the safe-area
+        // height it would stop reaching the bottom edge and open a gap below the sheet
+        .overlay(alignment: .bottomTrailing) {
+            RecenterButton(action: model.recenter)
                 .padding(.trailing, 16)
                 .padding(.bottom, model.sheetHeight + 12)
-            }
-
-            VStack {
-                Spacer()
-                StopSheet(model: model, bottomInset: insets.bottom)
-            }
+        }
+        .overlay(alignment: .bottom) {
+            StopSheet(model: model, bottomInset: insets.bottom)
         }
     }
 }

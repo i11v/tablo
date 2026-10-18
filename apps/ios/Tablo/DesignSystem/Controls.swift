@@ -5,14 +5,19 @@ import SwiftUI
 struct Ground: View {
     var body: some View {
         GeometryReader { geo in
-            let w = geo.size.width, h = geo.size.height
+            let w = max(1, geo.size.width), h = max(1, geo.size.height)
+            // the CSS ellipse is 1.2w × 0.8h: stretch the circle to it. The circle is
+            // drawn on a w / sx canvas so the stretch lands exactly on w; scaling the
+            // w-wide canvas itself left bare bg bands down both sides.
+            let sx = (w * 1.2) / (h * 0.8)
             Rectangle()
                 .fill(RadialGradient(
                     stops: [.init(color: Palette.groundGlow, location: 0), .init(color: Palette.bg, location: 0.72)],
-                    center: .top, startRadius: 0, endRadius: max(1, h * 0.8)
+                    center: .top, startRadius: 0, endRadius: h * 0.8
                 ))
-                // the CSS ellipse is 1.2w × 0.8h: stretch the circle to it
-                .scaleEffect(x: max(1, w * 1.2) / max(1, h * 0.8), y: 1, anchor: .top)
+                .frame(width: w / sx, height: h)
+                .scaleEffect(x: sx, y: 1, anchor: .top)
+                .frame(width: w, height: h)
         }
         .background(Palette.bg)
         .clipped()

@@ -90,7 +90,7 @@ private func metaText(_ row: BoardRow) -> Text {
     Text(row.platformMeta).foregroundStyle(Palette.meta)
 }
 
-/// The countdown stacked over the departure's clock time and delay, right-aligned.
+/// The countdown stacked over the departure's expected clock time, right-aligned.
 private struct When: View {
     let row: BoardRow
     let size: CGFloat
@@ -99,17 +99,12 @@ private struct When: View {
         let d = row.departure
         VStack(alignment: .trailing, spacing: 3) {
             Countdown(tier: row.tier, minutes: d.inMinutes, atStop: d.atStop, size: size)
-            HStack(spacing: 6) {
-                Text(row.clock).foregroundStyle(Palette.meta)
-                if !row.delayText.isEmpty {
-                    Text(row.delayText).foregroundStyle(row.delayColor)
-                }
-            }
-            .font(.hanken(12, .medium))
-            .monospacedDigit()
-            .lineLimit(1)
-            .fixedSize()
-            .accessibilityElement(children: .combine)
+            Text(row.clock)
+                .foregroundStyle(Palette.meta)
+                .font(.hanken(12, .medium))
+                .monospacedDigit()
+                .lineLimit(1)
+                .fixedSize()
         }
     }
 }
@@ -369,8 +364,7 @@ private struct JourneyPanel: View {
                             TierPill(tier: tier)
                         }
                         if let journey {
-                            let summary = model.journeySummary(journey)
-                            Text("\(summary.text)\(Text(summary.delay).foregroundStyle(summary.delayColor))")
+                            Text(model.journeySummary(journey))
                                 .font(.hanken(12, .medium))
                                 .foregroundStyle(Palette.meta)
                                 .lineLimit(1)

@@ -36,11 +36,6 @@ enum Board {
             .map(\.departure)
     }
 
-    /// "+2 min" / "-1 min"; empty when on time.
-    static func delayText(_ minutes: Int) -> String {
-        minutes > 0 ? "+\(minutes) min" : minutes < 0 ? "\(minutes) min" : ""
-    }
-
     /// The key a departure files under in the platform filter: metro collapses
     /// to "Metro"; departures without a platform have none.
     static func platformKey(_ d: Departure) -> String? {

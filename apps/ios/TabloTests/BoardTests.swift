@@ -51,12 +51,6 @@ final class BoardTests: XCTestCase {
         XCTAssertEqual(Board.resolve(dep(at: 0, delay: nil), now: now).delayMinutes, 0)
     }
 
-    func testDelayText() {
-        XCTAssertEqual(Board.delayText(2), "+2 min")
-        XCTAssertEqual(Board.delayText(-1), "-1 min")
-        XCTAssertEqual(Board.delayText(0), "")
-    }
-
     func testPlatformKeys() {
         let rows = Board.departures([
             dep("B", at: 60, platform: "1", kind: .metro),

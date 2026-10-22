@@ -6,12 +6,11 @@ import SwiftUI
 struct BoardRow: Identifiable {
     let departure: Departure
     let tier: Tier
-    /// "14:32": the departure on Prague's wall clock (predicted, else scheduled).
+    /// "14:32": the departure on Prague's wall clock (predicted, else scheduled),
+    /// so the delay is already in it.
     let clock: String
     /// "nást. A" when the board shows every platform.
     let platformMeta: String
-    let delayText: String
-    let delayColor: Color
 
     var id: String { departure.id }
     /// Only departures with a trip id have a journey to follow.
@@ -464,9 +463,7 @@ final class StopModel {
             departure: d,
             tier: Tier.reach(inMinutes: d.inMinutes, walk: walk),
             clock: JourneyBuilder.clock(d.time),
-            platformMeta: showPlatform ? "nást. \(d.platform ?? "")" : "",
-            delayText: Board.delayText(d.delayMinutes),
-            delayColor: d.delayMinutes > 0 ? Palette.late : Palette.early
+            platformMeta: showPlatform ? "nást. \(d.platform ?? "")" : ""
         )
     }
 
@@ -595,13 +592,12 @@ final class StopModel {
         return rows
     }
 
-    func journeySummary(_ j: Journey) -> (text: String, delay: String, delayColor: Color) {
+    /// Stop times are already predicted, so no "+N min" rides along.
+    func journeySummary(_ j: Journey) -> String {
         let terminus = j.stops[j.stops.count - 1]
         let ahead = j.stops.count - 1 - j.mine
         let stops = ahead == 1 ? "1 stop" : "\(ahead) stops"
-        let text = "Here \(JourneyBuilder.clock(j.stops[j.mine].time)) · \(stops) to \(terminus.name), \(JourneyBuilder.clock(terminus.time))"
-        let delay = j.delay != 0 ? " · \(j.delay > 0 ? "+" : "")\(j.delay) min" : ""
-        return (text, delay, j.delay > 0 ? Palette.late : Palette.early)
+        return "Here \(JourneyBuilder.clock(j.stops[j.mine].time)) · \(stops) to \(terminus.name), \(JourneyBuilder.clock(terminus.time))"
     }
 
     // MARK: Search

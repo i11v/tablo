@@ -46,8 +46,57 @@ xcrun simctl privacy booted grant location run.tablo.app
 
 Not on the App Store. To install on a phone, sign with your own development
 team: `project.yml` leaves `DEVELOPMENT_TEAM` empty, so pick one in Xcode
-(Signing & Capabilities; lost on the next `xcodegen generate`) or pass
-`DEVELOPMENT_TEAM=<team id>` to `xcodebuild`.
+(Signing & Capabilities; lost on the next `xcodegen generate`), pass
+`DEVELOPMENT_TEAM=<team id>` to `xcodebuild`, or put `DEVELOPMENT_TEAM = <team id>`
+in `Local.xcconfig`. Or use `bun run phone`, below.
+
+### On your iPhone
+
+From the repo root on the Mac the phone is paired with:
+
+```bash
+bun run phone            # latest origin/main → your iPhone, opened when done
+bun run phone --here     # this checkout as it is
+bun run phone --check    # only check the Mac and the phone are ready
+bun run phone --help     # --ref, --api, --device, --launch-only
+```
+
+It fetches `origin/main`, builds it in its own worktree under
+`~/Library/Caches/tablo` (your checkout is left alone; DerivedData is kept
+there, so rebuilds are incremental), signs it, installs it with `devicectl` and
+opens it. Before building it checks the phone (paired, reachable, Developer
+Mode) and signing (a valid profile, or an Apple ID in Xcode to make one), and
+each known failure ends with the one thing to do about it. The build log goes to
+`~/Library/Logs/tablo/`. It takes the team from your Apple Development
+certificate when there's only one.
+
+A free Personal Team build stops opening after **7 days**: run it again. It
+renews the profile by itself as long as Xcode has your Apple ID.
+
+**Once per Mac**
+
+1. Xcode → Settings → Accounts → + → Apple Account, and sign in. Without this
+   the build fails with "No Accounts" once the 7-day profile is gone. Xcode can
+   drop the account (after a macOS or Xcode update, say); `bun run phone --check`
+   tells you.
+2. `brew install xcodegen`.
+
+**Once per phone** (nothing on the phone prompts for these; you go looking):
+
+1. Plug it in with a cable, unlock it, tap **Trust This Computer**, and open
+   Xcode → Window → Devices and Simulators once so it pairs. From then on it
+   installs over Wi-Fi too.
+2. **Developer Mode**: Settings → Privacy & Security → Developer Mode → on,
+   restart, then confirm Turn On. The switch only appears after the phone has
+   been connected to Xcode.
+3. After the first install (and again if the signing certificate changes),
+   tablo won't open until you trust it: Settings → General → VPN & Device
+   Management → under Developer App, your Apple ID → **Trust**. When you run the
+   script in a terminal, it waits for you to tap it and then opens the app.
+
+For a Wi-Fi install the phone has to be awake on the same network as the Mac;
+it installs while locked, but opening the app needs it unlocked
+(`bun run phone --launch-only` once it is).
 
 CI (`.github/workflows/ios.yml`) runs `xcodegen generate` + `xcodebuild build-for-testing`/`test-without-building`
 (Swift packages and DerivedData cached, simulator booting during the build)

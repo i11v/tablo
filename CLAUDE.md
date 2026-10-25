@@ -22,6 +22,9 @@ Dated design docs (historical, web-era) live in `docs/superpowers/`.
   generated and gitignored — edit `project.yml`, never the project.
 - Test: `xcodebuild -project Tablo.xcodeproj -scheme Tablo -destination 'platform=iOS Simulator,name=iPhone 17' test`.
   More in `apps/ios/README.md`.
+- Install on the phone: `bun run phone` (latest `origin/main`; `--here` for this checkout,
+  `--check` for preflight only) on the Mac it's paired with. One-time setup in
+  `apps/ios/README.md#on-your-iphone`.
 - The app mirrors the contract by hand in `apps/ios/Tablo/API/Wire.swift` (no
   codegen). Changes to `packages/contract` (HTTP API, `/api/ws` protocol,
   stop-index format) must stay compatible with it: adding fields is safe;

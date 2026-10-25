@@ -15,6 +15,7 @@
     "verify:pwa": "bun scripts/verify-pwa.ts",
     "contract:write": "bun scripts/contract.ts write",
     "contract:check": "bun scripts/contract.ts check",
+    "phone": "bun scripts/phone.ts",
     "build": "bun run build:index && bun run build:web",
     "dev": "alchemy dev",
     "deploy": "alchemy deploy",

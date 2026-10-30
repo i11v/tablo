@@ -31,7 +31,8 @@ the workers.dev one, not a replacement. Same for previews — each PR gets its o
 | push to `main` | `.github/workflows/deploy.yml` | `alchemy deploy --stage production` | worker **`tablo`** |
 | daily 03:30 UTC (or manual) | `.github/workflows/deploy.yml` | same | refreshes the GTFS-built data (stop index, trip plans) |
 | open / sync a PR | `.github/workflows/pr-preview.yml` | `alchemy deploy --stage pr-<N>` | worker **`tablo-pr-<N>`** + URL comment |
-| close a PR | `pr-preview.yml` (cleanup job) | `alchemy destroy --stage pr-<N>` | preview removed |
+| close a PR | `.github/workflows/preview-cleanup.yml` | `alchemy destroy --stage pr-<N>` | preview removed |
+| daily 05:17 UTC (or manual) | `preview-cleanup.yml` | same, for every `tablo-pr-<N>` whose PR isn't open | leftover previews removed |
 
 `deploy.yml` has **no path filter** — *every* push to `main` redeploys
 production (idempotent; docs-only merges re-upload the same bundle).
@@ -42,6 +43,23 @@ Each CI run, before deploying:
 `verify:pwa` → deploy → **smoke test**. The smoke test polls `/api/health` for
 up to ~72 s and fails unless it reports the exact commit SHA just deployed (a
 plain 200 isn't enough — the previous build's health endpoint also answers 200).
+
+### Preview teardown
+
+`preview-cleanup.yml` runs on `pull_request_target`, not `pull_request`:
+GitHub runs no `pull_request` workflow for a PR with merge conflicts, its
+`closed` event included, so closing a stale, conflicting PR used to leave its
+preview up. `pull_request_target` runs in main's context whatever state the PR
+is in. It checks out main, never the PR's code, which is what makes handing it
+the secrets safe. It only takes effect from main, so a PR can't try out its own
+edits to it.
+
+The daily sweep lists the account's `tablo-pr-<N>` workers, keeps the ones
+whose PR is still open, and destroys the rest. That catches close runs that
+failed or never got a runner. Both modes then check through the Cloudflare API
+that each worker is gone, and fail if one survived. `alchemy destroy` only
+removes what its state knows about, so a preview with no state needs deleting
+by hand. A preview stays up as long as its PR is open, drafts included.
 
 ## Required GitHub config (repo `i11v/tablo`)
 
@@ -163,7 +181,7 @@ parses an empty 2xx body as `{}`, so the patch was dropped; the first preview
 teardown on the new stack (#34) deleted its custom domain cleanly. If the
 `CloudflareHttpError: null` abort ever comes back, the DELETE still *succeeds*
 server-side, so a failed teardown completes on a plain
-`gh run rerun <id> --failed`.
+`gh run rerun <id> --failed`, or on the next daily sweep.
 
 ## tablo-specific footguns
 

@@ -217,11 +217,24 @@ private struct BoardPanel: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
-            Text(model.currentStop.name)
-                .font(.hanken(16, .heavy))
-                .tracking(0.16)
-                .foregroundStyle(Palette.ink)
-                .lineLimit(1)
+            HStack(spacing: 8) {
+                Text(model.currentStop.name)
+                    .font(.hanken(16, .heavy))
+                    .tracking(0.16)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                // the platform the board is narrowed to, pinned by the name
+                if !model.isAllPlatforms {
+                    Text(Board.platformLabel(model.activePlatform))
+                        .font(.hanken(12, .bold))
+                        .foregroundStyle(Palette.paperInk)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Palette.paper, in: RoundedRectangle(cornerRadius: 6))
+                }
+            }
             Spacer(minLength: 0)
             if let walk = model.walk {
                 WalkTime(minutes: walk)

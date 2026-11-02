@@ -53,6 +53,13 @@ struct SearchResult: Identifiable {
     var id: String { stop.key }
 }
 
+/// A trip whose plan may draw its route's line on the map.
+struct LineTrip: Equatable {
+    let route: String
+    let kind: VehicleKind
+    let tripId: String
+}
+
 enum IndexState: Equatable {
     case loading, ready, failed
 }
@@ -153,6 +160,12 @@ final class StopModel {
     @ObservationIgnored private var planRun = 0
     /// Trips with no plan upstream (404): not asked for again.
     @ObservationIgnored private var planless: Set<String> = []
+    /// The line drawn for each route serving `linesStop`, by route.
+    @ObservationIgnored private var lines: [String: StopLine] = [:]
+    @ObservationIgnored private var linesStop = ""
+    @ObservationIgnored private var linesTask: Task<Void, Never>?
+    /// Trips whose plan has no shape to draw: another trip of the route is tried.
+    @ObservationIgnored private var lineless: Set<String> = []
     /// Trips of the vehicles on the map right now.
     @ObservationIgnored private var mapTrips: Set<String> = []
     /// The launch or resume being traced, until the page settles.
@@ -230,6 +243,7 @@ final class StopModel {
             restartVehiclePolling()
             startJourneyPolling()
             if indexState == .failed { loadIndex() }
+            loadStopLines()
             syncMap()
         } else {
             feed.stop()
@@ -238,6 +252,8 @@ final class StopModel {
             clock = nil
             stopVehiclePolling()
             journeyTask?.cancel()
+            linesTask?.cancel()
+            linesTask = nil
             phase?.end("background")
             search?.end("background")
             backgroundAt = Date()
@@ -702,6 +718,7 @@ final class StopModel {
         activePlatform = Self.allPlatforms
         stop = entry
         save(entry)
+        loadStopLines()
         // the board wait first: the subscription carries its trace
         if let boardWait {
             boardWait.addEvent(name: "stop.switch", attributes: ["stop.to": .string(entry.name)])
@@ -796,6 +813,7 @@ final class StopModel {
             phase?.boardShown()
             search?.boardShown()
         }
+        loadStopLines()
         // keep the followed departure fresh while it's on the board (it may leave once it departs)
         if let tripId = follow?.departure.tripId,
            let fresh = feed.boards[stop.key]?.first(where: { $0.tripId == tripId }) {
@@ -986,6 +1004,93 @@ final class StopModel {
     private func attachPath(_ tripId: String, _ plan: TripPlan) {
         guard plan.trip.shape.count > 1 else { return }
         map.setVehiclePlan(tripId, plan)
+    }
+
+    // MARK: Stop lines
+
+    /// For each route on the board still without a line, the first of its
+    /// trips that may draw one, in board order.
+    nonisolated static func lineTrips(_ deps: [Departure], drawn: Set<String>, skip: Set<String>) -> [LineTrip] {
+        var found: [LineTrip] = []
+        var routes = drawn
+        for d in deps where !routes.contains(d.route) {
+            guard let id = d.tripId, !skip.contains(id) else { continue }
+            routes.insert(d.route)
+            found.append(LineTrip(route: d.route, kind: d.kind, tripId: id))
+        }
+        return found
+    }
+
+    /// Draw every line serving the stop: one trip's path per route on the
+    /// board. Plans already here draw at once; the rest come off disk, else
+    /// are fetched one at a time.
+    private func loadStopLines() {
+        if linesStop != stop.key {
+            linesTask?.cancel()
+            linesTask = nil
+            linesStop = stop.key
+            lines = [:]
+            map.setStopLines([])
+        }
+        guard active, linesTask == nil else { return }
+        var wanted = Self.lineTrips(departures, drawn: Set(lines.keys), skip: lineless.union(planless))
+        for w in wanted {
+            if let plan = tripPlans[w.tripId] { lineLoaded(w, plan) }
+        }
+        wanted = Self.lineTrips(departures, drawn: Set(lines.keys), skip: lineless.union(planless))
+        guard !wanted.isEmpty else { return }
+        let stopKey = stop.key
+        let span = Telemetry.span("lines.load", parent: phase?.span, attributes: [
+            "lines.wanted": .int(wanted.count), "stop.name": .string(stop.name),
+        ])
+        linesTask = Task { [weak self, api, planStore] in
+            var loaded = 0, stored = 0, outcome = "done"
+            defer {
+                span.setAttribute(key: "lines.loaded", value: loaded)
+                span.setAttribute(key: "lines.stored", value: stored)
+                span.setAttribute(key: "tablo.outcome", value: Task.isCancelled ? "cancelled" : outcome)
+                span.end()
+            }
+            let ids = wanted.map(\.tripId)
+            let onDisk = await Task.detached(priority: .utility) { planStore.plans(ids) }.value
+            for w in wanted {
+                guard !Task.isCancelled, let self, linesStop == stopKey else { return }
+                if let plan = tripPlans[w.tripId] ?? onDisk[w.tripId] {
+                    lineLoaded(w, plan)
+                    stored += 1
+                    continue
+                }
+                do {
+                    let (trip, data) = try await api.tripResponse(w.tripId, parent: span)
+                    planStore.write(data, for: w.tripId)
+                    guard !Task.isCancelled, linesStop == stopKey else { return }
+                    lineLoaded(w, TripPlan(trip))
+                    loaded += 1
+                } catch APIError.notFound {
+                    planless.insert(w.tripId)
+                } catch {
+                    // transient: try again a little later
+                    outcome = "error"
+                    try? await Task.sleep(for: .seconds(30))
+                    break
+                }
+            }
+            guard !Task.isCancelled, let self, linesStop == stopKey else { return }
+            linesTask = nil
+            // routes whose trip drew nothing get another of their trips
+            loadStopLines()
+        }
+    }
+
+    private func lineLoaded(_ w: LineTrip, _ plan: TripPlan) {
+        if tripPlans[w.tripId] == nil { vehiclePlanLoaded(w.tripId, plan) }
+        // only a real shape: stop to stop it would cut across blocks
+        guard plan.trip.shape.count > 1 else {
+            lineless.insert(w.tripId)
+            return
+        }
+        lines[w.route] = StopLine(route: w.route, kind: w.kind, path: plan.path.map(\.coord))
+        map.setStopLines(lines.values.sorted { $0.route < $1.route })
     }
 
     /// Load the followed trip (cached by id), then poll its vehicle every 10 s.

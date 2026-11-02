@@ -91,4 +91,33 @@ final class LaunchTests: XCTestCase {
             ["board-near", "board-far", "near", "mid", "far"]
         )
     }
+
+    // MARK: Stop lines
+
+    private func departure(_ route: String, _ tripId: String?, kind: VehicleKind = .tram) -> Departure {
+        let t = Date(timeIntervalSince1970: 1_790_000_000)
+        return Departure(
+            route: route, kind: kind, headsign: "Spojovací", platform: "A", scheduled: t, time: t,
+            inMinutes: 3, atStop: false, delaySeconds: nil, delayMinutes: 0, tripId: tripId
+        )
+    }
+
+    func testOneTripPerRouteStillWithoutALine() {
+        let deps = [
+            departure("22", "22_a"), departure("9", nil), departure("9", "9_a"), departure("22", "22_b"),
+            departure("B", "B_a", kind: .metro), departure("18", "18_a"), departure("2", "2_a"),
+        ]
+        let found = StopModel.lineTrips(deps, drawn: ["18"], skip: ["2_a"])
+        XCTAssertEqual(found, [
+            LineTrip(route: "22", kind: .tram, tripId: "22_a"),
+            // a departure without a trip is passed over for the route's next one
+            LineTrip(route: "9", kind: .tram, tripId: "9_a"),
+            LineTrip(route: "B", kind: .metro, tripId: "B_a"),
+        ])
+        // a skipped trip falls back to another of its route's trips
+        XCTAssertEqual(
+            StopModel.lineTrips(deps, drawn: [], skip: ["22_a"]).map(\.tripId),
+            ["9_a", "22_b", "B_a", "18_a", "2_a"]
+        )
+    }
 }

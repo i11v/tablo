@@ -172,8 +172,10 @@ export const explainBuildFailure = (log: string): string | undefined => {
     return "There's no valid signing profile for tablo and Xcode couldn't make one. " + SIGN_IN
   if (/maximum number of apps|too many apps/i.test(log))
     return "A Personal Team can only have 3 of your own apps on a phone at once. Delete another sideloaded app from the phone and run this again."
+  if (/needs to be unlocked|Please unlock the device/i.test(log))
+    return "The phone was locked, and Xcode needs it unlocked to build for it. Unlock it, keep it unlocked until the install starts, and run this again."
   if (
-    /Unable to find a destination matching|Failed to prepare device|device is (?:locked|unavailable|not connected)/i.test(
+    /Timed out waiting for all destinations|Unable to find a destination matching|Failed to prepare device|device is (?:locked|unavailable|not connected)/i.test(
       log,
     )
   )

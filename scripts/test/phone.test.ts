@@ -152,6 +152,10 @@ describe("failures", () => {
       /Settings → Accounts/,
     )
     expect(explainBuildFailure("errSecInternalComponent")).toMatch(/unlock-keychain/)
+    const locked =
+      "xcodebuild: error: Timed out waiting for all destinations matching the provided destination specifier to become available\n" +
+      "{ platform:iOS, arch:arm64, id:00008120-000E612E2E00C01E, name:Thebe, error:Thebe needs to be unlocked to enable development services Please unlock the device. }"
+    expect(explainBuildFailure(locked)).toMatch(/was locked/)
     expect(explainBuildFailure("error: 'foo' is not available in iOS")).toBeUndefined()
   })
   it("explains launch failures", () => {

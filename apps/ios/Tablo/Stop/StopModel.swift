@@ -1090,7 +1090,7 @@ final class StopModel {
             return
         }
         lines[w.route] = StopLine(route: w.route, kind: w.kind, path: StopLines.smooth(plan.path.map(\.coord)))
-        map.setStopLines(lines.values.sorted { $0.route < $1.route })
+        map.setStopLines(StopLines.merge(lines.values.sorted { $0.route < $1.route }))
     }
 
     /// Load the followed trip (cached by id), then poll its vehicle every 10 s.

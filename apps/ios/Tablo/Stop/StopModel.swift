@@ -1089,7 +1089,7 @@ final class StopModel {
             lineless.insert(w.tripId)
             return
         }
-        lines[w.route] = StopLine(route: w.route, kind: w.kind, path: plan.path.map(\.coord))
+        lines[w.route] = StopLine(route: w.route, kind: w.kind, path: StopLines.smooth(plan.path.map(\.coord)))
         map.setStopLines(lines.values.sorted { $0.route < $1.route })
     }
 

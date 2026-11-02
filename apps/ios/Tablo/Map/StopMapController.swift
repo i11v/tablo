@@ -255,8 +255,10 @@ final class StopMapController: NSObject, MKMapViewDelegate {
     private var stopMarker: Marker?
     private var vehicles: [String: Glide] = [:]
     private var vehicleTiers: [String: Tier] = [:]
-    /// The lines serving the current stop, by route.
-    private var stopLines: [String: StopLineOverlay] = [:]
+    /// The lines serving the current stop, and the ones drawn right now.
+    private var stopLines: [StopLine] = []
+    private var drawnLines: [StopLine] = []
+    private var lineOverlays: [StopLinesOverlay] = []
 
     private var journey: Journey?
     private var journeyID: String?
@@ -354,10 +356,8 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         mapView.removeOverlays([groundScrim, journeyOverlay])
         addOverlays()
         // back above the scrim
-        for line in stopLines.values where line.isOnMap {
-            show(line, false)
-            show(line, true)
-        }
+        mapView.removeOverlays(lineOverlays)
+        lineOverlays.forEach { mapView.addOverlay($0, level: .aboveRoads) }
     }
 
     // MARK: - Stop mode
@@ -442,18 +442,25 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         }
     }
 
-    /// The lines serving the current stop; a route's line is redrawn only when its path changes.
+    /// The lines serving the current stop.
     func setStopLines(_ lines: [StopLine]) {
-        let routes = Set(lines.map(\.route))
-        for (route, overlay) in stopLines where !routes.contains(route) {
-            show(overlay, false)
-            stopLines[route] = nil
-        }
-        for line in lines where stopLines[line.route]?.line != line {
-            if let old = stopLines[line.route] { show(old, false) }
-            stopLines[line.route] = StopLineOverlay.make(line)
-        }
+        stopLines = lines
         applyVisibility()
+    }
+
+    /// Redraw the stop lines when the set shown changes: none while following
+    /// a journey, none for modes filtered out.
+    private func drawStopLines() {
+        let shown = journey != nil ? [] : stopLines.filter { $0.kind.isShown(in: activeModes) }
+        guard shown != drawnLines else { return }
+        drawnLines = shown
+        mapView.removeOverlays(lineOverlays)
+        let surface = shown.filter { $0.kind != .metro }, metro = shown.filter { $0.kind == .metro }
+        lineOverlays = [
+            surface.isEmpty ? nil : StopLinesOverlay.make(surface, metro: false),
+            metro.isEmpty ? nil : StopLinesOverlay.make(metro, metro: true),
+        ].compactMap { $0 }
+        lineOverlays.forEach { mapView.addOverlay($0, level: .aboveRoads) }
     }
 
     /// Live vehicles around the stop; each glides to its new fix over `glide` seconds.
@@ -516,9 +523,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
     /// Hide platforms, vehicles and lines while following a journey.
     private func applyVisibility() {
         let following = journey != nil
-        for line in stopLines.values {
-            show(line, !following && line.line.kind.isShown(in: activeModes))
-        }
+        drawStopLines()
         for g in vehicles.values {
             show(g.marker, !following && g.kind.isShown(in: activeModes))
         }
@@ -806,12 +811,6 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         if visible { mapView.addAnnotation(marker) } else { mapView.removeAnnotation(marker) }
     }
 
-    private func show(_ overlay: StopLineOverlay, _ visible: Bool) {
-        guard visible != overlay.isOnMap else { return }
-        overlay.isOnMap = visible
-        if visible { mapView.addOverlay(overlay, level: .aboveRoads) } else { mapView.removeOverlay(overlay) }
-    }
-
     /// Point a marker's wedge along `heading`, keeping the last one while it stands still.
     private func turn(_ m: Marker, to heading: Double?) {
         guard let heading else { return }
@@ -882,7 +881,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
     nonisolated func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         MainActor.assumeIsolated {
             if overlay is GroundScrim { return GroundScrimRenderer(overlay: overlay, dark: isDark) }
-            if let line = overlay as? StopLineOverlay { return StopLines.renderer(for: line, dark: isDark) }
+            if let lines = overlay as? StopLinesOverlay { return StopLines.renderer(for: lines, dark: isDark) }
             guard overlay is JourneyOverlay else { return MKOverlayRenderer(overlay: overlay) }
             let renderer = JourneyRenderer(overlay: overlay, dark: isDark)
             journeyRenderer = renderer

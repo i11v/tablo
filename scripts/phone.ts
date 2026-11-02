@@ -187,7 +187,7 @@ const lockedNow = () =>
   isLocked(devicectl(["device", "info", "lockState", "--device", device.id], 30_000).json)
 if (lockedNow())
   note(
-    `${device.name} is locked. Unlock it before the end: the install can run locked, opening the app can't.`,
+    `${device.name} is locked. Unlock it now and keep it unlocked: Xcode may need it to build, and opening the app does.`,
   )
 
 async function launch(): Promise<void> {
@@ -398,6 +398,8 @@ function linkLocalConfig(): void {
 // --- build ----------------------------------------------------------------------
 
 step("Build")
+// Xcode waits about a minute for a locked phone before giving up, so say so up front.
+if (lockedNow()) note(`${device.name} is locked. Unlock it now: Xcode is waiting for it.`)
 const ios = join(source, "apps/ios")
 const gen = run(["xcodegen", "generate", "--quiet"], { cwd: ios })
 if (!gen.ok) fail("xcodegen generate failed.", tail(gen.out))

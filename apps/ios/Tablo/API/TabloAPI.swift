@@ -75,7 +75,7 @@ struct TabloAPI: Sendable {
     /// The newest stop index on disk, without touching the network — what a
     /// launch shows first. `parent` gets `index.source` = cache when it serves.
     func cachedStopIndex(parent: Span? = nil) async -> [IndexStop]? {
-        guard let data = StopIndexCache().newest(), let file = try? Wire.decode(StopIndexFile.self, from: data) else { return nil }
+        guard let data = AssetCache.stopIndex.newest(), let file = try? Wire.decode(StopIndexFile.self, from: data) else { return nil }
         parent?.setAttribute(key: "index.source", value: "cache")
         return file.stops
     }
@@ -85,7 +85,7 @@ struct TabloAPI: Sendable {
     /// is already on disk: the cached index is current. `parent` gets
     /// `index.source` = cache or network.
     func stopIndex(unlessCached: Bool = false, parent: Span? = nil) async throws -> [IndexStop]? {
-        let cache = StopIndexCache()
+        let cache = AssetCache.stopIndex
         let manifest = try await get(StopsManifest.self, path: "/data/stops-manifest.json", parent: parent)
         if let data = cache.read(manifest.path), let file = try? Wire.decode(StopIndexFile.self, from: data) {
             parent?.setAttribute(key: "index.source", value: "cache")
@@ -96,6 +96,30 @@ struct TabloAPI: Sendable {
         cache.write(data, for: manifest.path)
         parent?.setAttribute(key: "index.source", value: "network")
         return file.stops
+    }
+
+    // MARK: Lines
+
+    /// The newest lines file on disk, without touching the network.
+    func cachedLines() async -> [NetworkLine]? {
+        guard let data = AssetCache.lines.newest(), let file = try? Wire.decode(LinesFile.self, from: data) else { return nil }
+        return file.lines
+    }
+
+    /// The lines file the manifest names (content-hashed, kept on disk under
+    /// that name). With `unlessCached`, nil when that file is already on disk.
+    func lines(unlessCached: Bool = false, parent: Span? = nil) async throws -> [NetworkLine]? {
+        let cache = AssetCache.lines
+        let manifest = try await get(LinesManifest.self, path: "/data/lines-manifest.json", parent: parent)
+        if let data = cache.read(manifest.path), let file = try? Wire.decode(LinesFile.self, from: data) {
+            parent?.setAttribute(key: "lines.source", value: "cache")
+            return unlessCached ? nil : file.lines
+        }
+        let data = try await data(path: manifest.path, query: [], route: "/data/{lines}", parent: parent)
+        let file = try decodeOrThrow(LinesFile.self, data)
+        cache.write(data, for: manifest.path)
+        parent?.setAttribute(key: "lines.source", value: "network")
+        return file.lines
     }
 
     // MARK: Transit
@@ -203,13 +227,16 @@ private final class RequestMetrics: NSObject, URLSessionTaskDelegate, @unchecked
     }
 }
 
-/// The stop index on disk, one file per content-hashed path.
-struct StopIndexCache: Sendable {
+/// A content-hashed data file on disk (the stop index, the lines), one file per path.
+struct AssetCache: Sendable {
+    static let stopIndex = AssetCache("StopIndex")
+    static let lines = AssetCache("Lines")
+
     private let dir: URL
 
-    init() {
+    init(_ folder: String) {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        dir = caches.appendingPathComponent("StopIndex", isDirectory: true)
+        dir = caches.appendingPathComponent(folder, isDirectory: true)
     }
 
     private func file(for path: String) -> URL {
@@ -221,7 +248,7 @@ struct StopIndexCache: Sendable {
         try? Data(contentsOf: file(for: path))
     }
 
-    /// Stores `data` under `path` and drops older indexes.
+    /// Stores `data` under `path` and drops older files.
     func write(_ data: Data, for path: String) {
         let fm = FileManager.default
         try? fm.createDirectory(at: dir, withIntermediateDirectories: true)

@@ -83,6 +83,23 @@
       "$._tag": "\"UpstreamUnavailable\"",
       "$.reason": "string"
     },
+    "GET /data/lines-manifest.json": {
+      "$": "object",
+      "$.count": "number",
+      "$.generatedAt": "string",
+      "$.path": "string"
+    },
+    "GET /data/lines-{hash}.json": {
+      "$": "object",
+      "$.generatedAt": "string",
+      "$.lines": "array",
+      "$.lines[]": "object",
+      "$.lines[].coords": "array",
+      "$.lines[].coords[]": "number",
+      "$.lines[].kinds": "array",
+      "$.lines[].kinds[]": "\"bus\" | \"metro\" | \"other\" | \"train\" | \"tram\"",
+      "$.version": "1"
+    },
     "GET /data/stop-index-{hash}.json": {
       "$": "object",
       "$.generatedAt": "string",

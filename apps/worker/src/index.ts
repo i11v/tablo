@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import * as Alchemy from "alchemy"
-import * as Cloudflare from "alchemy/Cloudflare"
+import * as Cloudflare from "@alchemy.run/cloudflare"
 import { Config, Effect, Layer, Redacted } from "effect"
 import * as HttpServerRequest from "effect/http/HttpServerRequest"
 import * as HttpServerError from "effect/http/HttpServerError"

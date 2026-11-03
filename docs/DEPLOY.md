@@ -78,8 +78,8 @@ points at the current hashed file.
 ## Network lines (also `build:index`)
 
 The same script merges the shapes of every city tram, bus, trolleybus and metro
-line into one hashed file, `apps/web/public/data/lines-<hash>.json` (~620 KB,
-~165 KB gzipped, ~15 s), pointed at by `/data/lines-manifest.json`. Shared track
+line into one hashed file, `apps/web/public/data/lines-<hash>.json` (~700 KB,
+~195 KB gzipped, ~10 s), pointed at by `/data/lines-manifest.json`. Shared track
 is merged at build time, so each stretch is drawn once with the modes running
 over it. The iOS map draws it behind the board; regional buses and trains are
 left out. Like the index, it's rebuilt every deploy and only changes name when

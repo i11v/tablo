@@ -6,12 +6,13 @@ import type { LinesV1, NetworkLine, VehicleKind } from "@app/contract"
  * shared track is drawn once. Regional buses and trains are left out (they
  * add ~160,000 km of shapes to the city's ~20,000).
  *
- * Shapes are laid busiest first. Each one follows the stretches laid before
- * it wherever it runs alongside them (within {@link SNAP_M}, roughly
- * parallel), easing back to its own course out to {@link MERGE_M}; those
- * stretches take on its mode. What's left of it is new track, smoothed where
- * it parts from the old; short bits that only link laid track (turns at a
- * junction, stop bays) are dropped, as the streets they join already meet.
+ * Shapes are laid busiest first. Each one follows the track laid before it
+ * wherever it runs alongside it, as whole runs: within {@link MATCH_M} and
+ * {@link MATCH_DEG} of it for at least {@link MIN_RUN_M} (runs a short gap
+ * apart counting as one). It eases on and off a run over
+ * {@link RAMP_M}, and the track it follows takes on its mode. The rest of it
+ * — a turn through a junction, a street of its own — is new track joined
+ * to the old at both ends, so lines stay connected and keep their curves.
  * Metro merges only with metro. Output is deterministic for a given feed.
  */
 
@@ -19,19 +20,23 @@ import type { LinesV1, NetworkLine, VehicleKind } from "@app/contract"
 const SIMPLIFY_M = 2.5
 const CORNER_M = 10
 /**
- * Merging: on the other line within SNAP_M, easing over out to MERGE_M,
- * within MERGE_DEG of its heading. Wide enough for a whole street: trams in
- * the median and buses in each carriageway sit up to ~20 m apart.
+ * Merging: a line follows laid track within MATCH_M and MATCH_DEG of its
+ * heading. Wide enough for a whole street: trams in the median and buses in
+ * each carriageway sit up to ~20 m apart.
  */
-const SNAP_M = 15
-const MERGE_M = 30
-const MERGE_DEG = 35
-/** New track shorter than this that only joins laid track (a turn through a junction, a stop bay) is left out. */
-const STUB_M = 60
+const MATCH_M = 20
+const MATCH_DEG = 30
+/** Shorter runs alongside laid track are chance (a crossing at a shallow angle): the line keeps its course. */
+const MIN_RUN_M = 24
+/** Runs this short a gap apart count as one run (a stop bay, a turn across the track). */
+const GAP_M = 40
+/** Easing on and off a run takes this far. */
+const RAMP_M = 24
 /** Shapes are walked in steps this long while merging. */
 const STEP_M = 4
-/** The merged stretches keep the fewest points within this of their course. */
-const OUTPUT_M = 0.75
+/** The merged stretches are rounded off over at most OUTPUT_CORNER_M, then keep the fewest points within OUTPUT_M of their course. */
+const OUTPUT_M = 0.5
+const OUTPUT_CORNER_M = 6
 
 const KINDS: ReadonlyArray<VehicleKind> = ["tram", "bus", "metro"]
 
@@ -145,7 +150,9 @@ export const buildLines = (gtfs: LinesTables, generatedAt: string): LinesV1 => {
   const lines: NetworkLine[] = []
   for (const stretch of [...surface.stretches(), ...metro.stretches()]) {
     const coords: number[] = []
-    for (const p of simplify(stretch.points, OUTPUT_M)) {
+    // the joins between merged pieces bend too: round the stretch off once more
+    const round = smooth(stretch.points, { tolerance: OUTPUT_M, corner: OUTPUT_CORNER_M })
+    for (const p of simplify(round, OUTPUT_M)) {
       coords.push(round5(LAT0 + p.y / KY), round5(LON0 + p.x / KX))
     }
     if (coords.length < 4) continue
@@ -198,9 +205,12 @@ export const simplify = (points: ReadonlyArray<P>, tolerance: number): P[] => {
  * by Chaikin's corner cutting, each cut bounded so a street corner stays on
  * the street.
  */
-export const smooth = (path: ReadonlyArray<P>, iterations = 3): P[] => {
-  let points = simplify(path, SIMPLIFY_M)
-  let cut = CORNER_M
+export const smooth = (
+  path: ReadonlyArray<P>,
+  { tolerance = SIMPLIFY_M, corner = CORNER_M, iterations = 3 } = {},
+): P[] => {
+  let points = simplify(path, tolerance)
+  let cut = corner
   for (let k = 0; k < iterations && points.length > 2; k++) {
     const next: P[] = [points[0]]
     for (let i = 0; i < points.length - 1; i++) {
@@ -217,12 +227,6 @@ export const smooth = (path: ReadonlyArray<P>, iterations = 3): P[] => {
     cut /= 2
   }
   return points
-}
-
-const length = (points: ReadonlyArray<P>) => {
-  let total = 0
-  for (let i = 1; i < points.length; i++) total += dist(points[i - 1], points[i])
-  return total
 }
 
 const densify = (points: ReadonlyArray<P>, step: number): P[] => {
@@ -257,6 +261,18 @@ interface Snap {
 
 const CELL = 25
 
+/** The segment of `s` that the distance `d` along it falls in. */
+const segAt = (s: Stretch, d: number): number => {
+  let lo = 0,
+    hi = s.along.length - 2
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1
+    if (s.along[mid] <= d) lo = mid
+    else hi = mid - 1
+  }
+  return lo
+}
+
 class Merger {
   private laid: Stretch[] = []
   private grid = new Map<number, Array<[number, number]>>()
@@ -267,54 +283,83 @@ class Merger {
   add(path: ReadonlyArray<P>, mask: number): void {
     if (path.length < 2) return
     const points = densify(path, STEP_M)
-    const fresh: P[][] = []
-    let piece: P[] | null = null
-    let joined = false // the open piece starts on laid track
-    let last: Snap | null = null
-    const close = (end: boolean) => {
-      // where it parts from laid track it bends: round that off too
-      const done = piece !== null && piece.length > 1 ? smooth(piece) : null
-      piece = null
-      if (done === null) return
-      // measured smoothed: the jitter of a raw piece would pass it off as longer
-      const len = length(done)
-      const stub =
-        len < STUB_M &&
-        // a spur off laid track, or a link between laid track that wanders (a
-        // turn through a junction); a short straight link carries a line on
-        (joined && end ? len > 1.3 * dist(done[0], done[done.length - 1]) : joined || end)
-      if (!stub) fresh.push(done)
-    }
-    for (let i = 0; i < points.length; i++) {
-      const p = points[i]
+    const n = points.length
+    const along = [0]
+    for (let i = 1; i < n; i++) along.push(along[i - 1] + dist(points[i - 1], points[i]))
+
+    // the laid track alongside each point
+    const snaps = points.map((p, i) => {
       const a = points[Math.max(0, i - 1)],
-        b = points[Math.min(points.length - 1, i + 1)]
-      const s = this.snap(p, b.x - a.x, b.y - a.y)
-      if (s !== null && s.d <= SNAP_M) {
-        // on laid track: it takes on this mode; an open piece joins it here
-        this.mark(s, last !== null && last.stretch === s.stretch ? last : s, mask)
-        if (piece !== null) {
-          piece.push(s.q)
-          close(true)
-        }
-        last = s
+        b = points[Math.min(n - 1, i + 1)]
+      return this.snap(p, b.x - a.x, b.y - a.y)
+    })
+    // runs of points alongside laid track (across the stretches it's laid in)
+    type Run = { from: number; to: number }
+    const raw: Run[] = []
+    for (let i = 0; i < n; ) {
+      if (snaps[i] === null) {
+        i++
         continue
       }
-      const at =
-        s === null
-          ? p
-          : (() => {
-              const w = (MERGE_M - s.d) / (MERGE_M - SNAP_M)
-              return { x: p.x + (s.q.x - p.x) * w, y: p.y + (s.q.y - p.y) * w }
-            })()
-      if (piece === null) {
-        joined = last !== null
-        piece = joined ? [last!.q] : []
-      }
-      piece.push(at)
-      last = null
+      let j = i
+      while (j + 1 < n && snaps[j + 1] !== null) j++
+      raw.push({ from: i, to: j })
+      i = j + 1
     }
-    close(false)
+    // runs a short gap apart (a stop bay, a turn across the track) count as
+    // one when telling a real run from a chance one
+    const group = new Int32Array(raw.length)
+    for (let r = 1; r < raw.length; r++) {
+      group[r] = along[raw[r].from] - along[raw[r - 1].to] <= GAP_M ? group[r - 1] : r
+    }
+    const groupLength = new Map<number, number>()
+    for (let r = 0; r < raw.length; r++) {
+      groupLength.set(group[r], along[raw[r].to] - along[raw[group[r]].from])
+    }
+
+    // where each point is drawn: its own place, or eased onto the run it's on
+    const w = new Float64Array(n)
+    const q: P[] = points.slice()
+    for (let r = 0; r < raw.length; r++) {
+      if (groupLength.get(group[r])! < MIN_RUN_M) continue
+      const { from, to } = raw[r]
+      for (let k = from; k <= to; k++) {
+        q[k] = snaps[k]!.q
+        // no easing where the shape itself starts or ends on the track
+        const fromStart = from === 0 ? Infinity : along[k] - along[from]
+        const toEnd = to === n - 1 ? Infinity : along[to] - along[k]
+        w[k] = Math.min(1, fromStart / RAMP_M, toEnd / RAMP_M)
+      }
+      // the track it's fully on takes on its mode
+      for (let k = from; k <= to; k++) {
+        const s = snaps[k]!,
+          t = k < to ? snaps[k + 1]! : null
+        if (w[k] < 1) continue
+        this.mark(
+          s.stretch,
+          s.along,
+          t !== null && t.stretch === s.stretch && w[k + 1] === 1 ? t.along : s.along,
+          mask,
+        )
+      }
+    }
+    const drawn = points.map((p, k) =>
+      w[k] === 0 ? p : { x: p.x + (q[k].x - p.x) * w[k], y: p.y + (q[k].y - p.y) * w[k] },
+    )
+
+    // what isn't fully on laid track is new track, joined to it at both ends
+    const fresh: P[][] = []
+    for (let k = 0; k < n; ) {
+      if (w[k] === 1) {
+        k++
+        continue
+      }
+      let end = k
+      while (end + 1 < n && w[end + 1] < 1) end++
+      const piece = drawn.slice(Math.max(0, k - 1), Math.min(n, end + 2))
+      if (piece.length > 1) fresh.push(smooth(piece))
+      k = end + 1
+    }
     for (const f of fresh) this.insert(f, mask)
   }
 
@@ -330,26 +375,26 @@ class Merger {
     }
   }
 
-  /** Give the segments of a laid stretch between two snaps the mode `mask`. */
-  private mark(to: Snap, from: Snap, mask: number): void {
-    const s = this.laid[to.stretch]
-    const lo = Math.min(from.along, to.along),
-      hi = Math.max(from.along, to.along)
-    for (let i = Math.min(from.seg, to.seg); i <= Math.max(from.seg, to.seg); i++) {
-      if (s.along[i] <= hi && s.along[i + 1] >= lo) s.masks[i] |= mask
+  /** Give the segments of a laid stretch between two places along it the mode `mask`. */
+  private mark(stretch: number, from: number, to: number, mask: number): void {
+    const s = this.laid[stretch]
+    const lo = Math.min(from, to),
+      hi = Math.max(from, to)
+    for (let i = Math.max(0, segAt(s, lo)); i < s.masks.length && s.along[i] <= hi; i++) {
+      if (s.along[i + 1] >= lo) s.masks[i] |= mask
     }
   }
 
-  /** The nearest place on laid track within MERGE_M of `p`, running alongside its heading. */
+  /** The nearest place on laid track within MATCH_M of `p`, running alongside its heading. */
   private snap(p: P, hx: number, hy: number): Snap | null {
     const hl = Math.hypot(hx, hy)
     if (hl === 0 || this.laid.length === 0) return null
-    const minCos = Math.cos((MERGE_DEG * Math.PI) / 180)
+    const minCos = Math.cos((MATCH_DEG * Math.PI) / 180)
     let best: Snap | null = null
-    const x0 = Math.floor((p.x - MERGE_M) / CELL),
-      x1 = Math.floor((p.x + MERGE_M) / CELL)
-    const y0 = Math.floor((p.y - MERGE_M) / CELL),
-      y1 = Math.floor((p.y + MERGE_M) / CELL)
+    const x0 = Math.floor((p.x - MATCH_M) / CELL),
+      x1 = Math.floor((p.x + MATCH_M) / CELL)
+    const y0 = Math.floor((p.y - MATCH_M) / CELL),
+      y1 = Math.floor((p.y + MATCH_M) / CELL)
     for (let ix = x0; ix <= x1; ix++) {
       for (let iy = y0; iy <= y1; iy++) {
         for (const [si, seg] of this.grid.get(Merger.key(ix, iy)) ?? []) {
@@ -361,7 +406,7 @@ class Merger {
           const len = Math.hypot(dx, dy)
           if (len === 0 || Math.abs(dx * hx + dy * hy) / (len * hl) < minCos) continue
           const { t, d, q } = project(p, a, b)
-          if (d > MERGE_M || (best !== null && d >= best.d)) continue
+          if (d > MATCH_M || (best !== null && d >= best.d)) continue
           best = { stretch: si, seg, along: s.along[seg] + t * len, q, d }
         }
       }

@@ -127,24 +127,46 @@ describe("buildLines", () => {
     expect(lines.lines.map((l) => l.kinds)).toEqual([["tram", "bus"]])
   })
 
-  it("leaves out a short turn off the line", () => {
+  it("keeps a turn through a junction, joined to both streets and rounded", () => {
     const lines = build(
       [
+        ["L9", "0", "0"],
         ["L22", "0", "0"],
-        ["L176", "3", "0"],
+        ["L7", "0", "0"],
       ],
       [
-        ["L22", "t1", "TRAM"],
-        ["L176", "b1", "BUS"],
+        ["L9", "t1", "EASTWEST"],
+        ["L22", "t2", "NORTHSOUTH"],
+        ["L7", "t3", "TURN"],
       ],
       [
-        ...shape("TRAM", [at(0, 0), at(500, 0)]),
-        // along the tram, then 30 m off into a stop bay where it ends
-        ...shape("BUS", [at(0, 2), at(250, 2), at(260, 30)]),
+        ...shape("EASTWEST", [at(-300, 0), at(300, 0)]),
+        ...shape("NORTHSOUTH", [at(0, -300), at(0, 300)]),
+        // tram 7: in from the west, turning north at the crossroads
+        ...shape("TURN", [at(-300, 2), at(0, 2), at(2, 300)]),
       ],
     )
-    expect(lines.lines).toHaveLength(1)
-    for (const lat of lines.lines[0].coords.filter((_, i) => i % 2 === 0))
-      expect(Math.abs(north(lat))).toBeLessThan(1)
+    const east = (lon: number) => (lon - 14.4194) * Math.cos((50.08 * Math.PI) / 180) * 111_320
+    const turn = lines.lines.filter((l) => {
+      const pts = l.coords.length / 2
+      return Array.from({ length: pts }, (_, i) => [
+        east(l.coords[2 * i + 1]),
+        north(l.coords[2 * i]),
+      ]).some(([x, y]) => x < -3 && y > 3)
+    })
+    // a curve cutting the corner, not a gap: it leaves the east-west line and joins the north-south one
+    expect(turn).toHaveLength(1)
+    const pts = Array.from({ length: turn[0].coords.length / 2 }, (_, i) => [
+      east(turn[0].coords[2 * i + 1]),
+      north(turn[0].coords[2 * i]),
+    ])
+    const [x0, y0] = pts[0],
+      [x1, y1] = pts[pts.length - 1]
+    expect(Math.abs(y0)).toBeLessThan(1)
+    expect(Math.abs(x1)).toBeLessThan(1)
+    expect(x0).toBeLessThan(-10)
+    expect(y1).toBeGreaterThan(10)
+    // rounded: more than a single corner
+    expect(pts.length).toBeGreaterThan(4)
   })
 })

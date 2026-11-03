@@ -9,17 +9,25 @@ import type { LinesV1, NetworkLine, VehicleKind } from "@app/contract"
  * Shapes are laid busiest first. Each one follows the stretches laid before
  * it wherever it runs alongside them (within {@link SNAP_M}, roughly
  * parallel), easing back to its own course out to {@link MERGE_M}; those
- * stretches take on its mode. What's left of it is new track. Metro merges
- * only with metro. Output is deterministic for a given feed.
+ * stretches take on its mode. What's left of it is new track, smoothed where
+ * it parts from the old; short bits that only link laid track (turns at a
+ * junction, stop bays) are dropped, as the streets they join already meet.
+ * Metro merges only with metro. Output is deterministic for a given feed.
  */
 
 /** Smoothing: kinks smaller than this are dropped, then corners rounded over at most CORNER_M. */
 const SIMPLIFY_M = 2.5
 const CORNER_M = 10
-/** Merging: on the other line within SNAP_M, easing over out to MERGE_M, within MERGE_DEG of its heading. */
-const SNAP_M = 6
-const MERGE_M = 12
+/**
+ * Merging: on the other line within SNAP_M, easing over out to MERGE_M,
+ * within MERGE_DEG of its heading. Wide enough for a whole street: trams in
+ * the median and buses in each carriageway sit up to ~20 m apart.
+ */
+const SNAP_M = 15
+const MERGE_M = 30
 const MERGE_DEG = 35
+/** New track shorter than this that only joins laid track (a turn through a junction, a stop bay) is left out. */
+const STUB_M = 60
 /** Shapes are walked in steps this long while merging. */
 const STEP_M = 4
 /** The merged stretches keep the fewest points within this of their course. */
@@ -211,6 +219,12 @@ export const smooth = (path: ReadonlyArray<P>, iterations = 3): P[] => {
   return points
 }
 
+const length = (points: ReadonlyArray<P>) => {
+  let total = 0
+  for (let i = 1; i < points.length; i++) total += dist(points[i - 1], points[i])
+  return total
+}
+
 const densify = (points: ReadonlyArray<P>, step: number): P[] => {
   const out: P[] = [points[0]]
   for (let i = 1; i < points.length; i++) {
@@ -255,7 +269,22 @@ class Merger {
     const points = densify(path, STEP_M)
     const fresh: P[][] = []
     let piece: P[] | null = null
+    let joined = false // the open piece starts on laid track
     let last: Snap | null = null
+    const close = (end: boolean) => {
+      // where it parts from laid track it bends: round that off too
+      const done = piece !== null && piece.length > 1 ? smooth(piece) : null
+      piece = null
+      if (done === null) return
+      // measured smoothed: the jitter of a raw piece would pass it off as longer
+      const len = length(done)
+      const stub =
+        len < STUB_M &&
+        // a spur off laid track, or a link between laid track that wanders (a
+        // turn through a junction); a short straight link carries a line on
+        (joined && end ? len > 1.3 * dist(done[0], done[done.length - 1]) : joined || end)
+      if (!stub) fresh.push(done)
+    }
     for (let i = 0; i < points.length; i++) {
       const p = points[i]
       const a = points[Math.max(0, i - 1)],
@@ -266,8 +295,7 @@ class Merger {
         this.mark(s, last !== null && last.stretch === s.stretch ? last : s, mask)
         if (piece !== null) {
           piece.push(s.q)
-          fresh.push(piece)
-          piece = null
+          close(true)
         }
         last = s
         continue
@@ -279,12 +307,15 @@ class Merger {
               const w = (MERGE_M - s.d) / (MERGE_M - SNAP_M)
               return { x: p.x + (s.q.x - p.x) * w, y: p.y + (s.q.y - p.y) * w }
             })()
-      if (piece === null) piece = last !== null ? [last.q] : []
+      if (piece === null) {
+        joined = last !== null
+        piece = joined ? [last!.q] : []
+      }
       piece.push(at)
       last = null
     }
-    if (piece !== null) fresh.push(piece)
-    for (const f of fresh) if (f.length > 1) this.insert(f, mask)
+    close(false)
+    for (const f of fresh) this.insert(f, mask)
   }
 
   /** Every laid stretch, cut where its modes change. */

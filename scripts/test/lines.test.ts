@@ -105,4 +105,46 @@ describe("buildLines", () => {
     )
     expect(lines.lines.map((l) => l.kinds)).toEqual([["tram"], ["metro"]])
   })
+
+  it("draws a wide street once: trams in the median, buses in each carriageway", () => {
+    const lines = build(
+      [
+        ["L22", "0", "0"],
+        ["L176", "3", "0"],
+      ],
+      [
+        ["L22", "t1", "TRAM"],
+        ["L22", "t2", "TRAM"],
+        ["L176", "b1", "EAST"],
+        ["L176", "b2", "WEST"],
+      ],
+      [
+        ...shape("TRAM", [at(0, 0), at(500, 0)]),
+        ...shape("EAST", [at(0, -11), at(500, -11)]),
+        ...shape("WEST", [at(500, 12), at(0, 12)]),
+      ],
+    )
+    expect(lines.lines.map((l) => l.kinds)).toEqual([["tram", "bus"]])
+  })
+
+  it("leaves out a short turn off the line", () => {
+    const lines = build(
+      [
+        ["L22", "0", "0"],
+        ["L176", "3", "0"],
+      ],
+      [
+        ["L22", "t1", "TRAM"],
+        ["L176", "b1", "BUS"],
+      ],
+      [
+        ...shape("TRAM", [at(0, 0), at(500, 0)]),
+        // along the tram, then 30 m off into a stop bay where it ends
+        ...shape("BUS", [at(0, 2), at(250, 2), at(260, 30)]),
+      ],
+    )
+    expect(lines.lines).toHaveLength(1)
+    for (const lat of lines.lines[0].coords.filter((_, i) => i % 2 === 0))
+      expect(Math.abs(north(lat))).toBeLessThan(1)
+  })
 })

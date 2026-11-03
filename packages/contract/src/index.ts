@@ -1,6 +1,7 @@
 export * from "./api.ts"
 export * from "./domain.ts"
 export * from "./fold.ts"
+export * from "./lines.ts"
 export * from "./protocol.ts"
 export * from "./stop-index.ts"
 export * from "./transit.ts"

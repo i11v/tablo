@@ -3,10 +3,18 @@ import { existsSync } from "node:fs"
 import { mkdir, rm } from "node:fs/promises"
 import { $ } from "bun"
 import { Schema } from "effect"
-import { StopIndexV1, StopsManifest, TRIP_BUCKET_DIR, tripBucketPath } from "@app/contract"
+import {
+  LinesManifest,
+  LinesV1,
+  StopIndexV1,
+  StopsManifest,
+  TRIP_BUCKET_DIR,
+  tripBucketPath,
+} from "@app/contract"
 import { buildTripBuckets } from "../apps/worker/src/gtfs/buckets.ts"
 import { iterCsv, parseCsv } from "./lib/csv.ts"
 import { buildIndex } from "./lib/build.ts"
+import { buildLines } from "./lib/lines.ts"
 
 const GTFS_URL = "https://data.pid.cz/PID_GTFS.zip"
 const TMP = ".alchemy/tmp-gtfs"
@@ -37,7 +45,7 @@ if (res !== null && res.ok) {
 }
 await rm(TMP, { recursive: true, force: true })
 await mkdir(TMP, { recursive: true })
-await $`unzip -o ${CACHE_ZIP} stops.txt trips.txt stop_times.txt shapes.txt -d ${TMP}`.quiet()
+await $`unzip -o ${CACHE_ZIP} stops.txt routes.txt trips.txt stop_times.txt shapes.txt -d ${TMP}`.quiet()
 
 const rows = parseCsv(await Bun.file(TMP + "/stops.txt").text())
 const index = buildIndex(rows, new Date().toISOString())
@@ -64,9 +72,50 @@ const manifest = Schema.encodeUnknownSync(StopsManifest)({
 await Bun.write(OUT_DIR + "/stops-manifest.json", JSON.stringify(manifest))
 console.log("stop index: " + index.stops.length + " entries -> " + OUT_DIR + "/" + file)
 
+// The city network the iOS map draws behind the board: every tram, bus and
+// metro line, shared track merged (scripts/lib/lines.ts). Hashed like the
+// index, so clients keep it until the network changes.
+const table = async (name: string) => iterCsv(await Bun.file(TMP + "/" + name).text())
+const lines = buildLines(
+  {
+    routes: await table("routes.txt"),
+    trips: await table("trips.txt"),
+    shapes: await table("shapes.txt"),
+  },
+  index.generatedAt,
+)
+if (lines.lines.length === 0) throw new Error("GTFS produced no lines")
+Schema.decodeUnknownSync(LinesV1)(lines)
+const linesHash = createHash("sha256")
+  .update(JSON.stringify({ version: lines.version, lines: lines.lines }))
+  .digest("hex")
+  .slice(0, 8)
+const linesFile = "lines-" + linesHash + ".json"
+const linesJson = JSON.stringify(lines)
+await Bun.write(OUT_DIR + "/" + linesFile, linesJson)
+await Bun.write(
+  OUT_DIR + "/lines-manifest.json",
+  JSON.stringify(
+    Schema.encodeUnknownSync(LinesManifest)({
+      path: "/data/" + linesFile,
+      generatedAt: lines.generatedAt,
+      count: lines.lines.length,
+    }),
+  ),
+)
+console.log(
+  "lines: " +
+    lines.lines.length +
+    " stretches, " +
+    Math.round(linesJson.length / 1e3) +
+    " KB -> " +
+    OUT_DIR +
+    "/" +
+    linesFile,
+)
+
 // Trip plans, one bucket per route, served by the worker's /api/trips (see
 // apps/worker/src/gtfs/buckets.ts). Under OUT_DIR, so they ship as assets.
-const table = async (name: string) => iterCsv(await Bun.file(TMP + "/" + name).text())
 const buckets = buildTripBuckets({
   trips: await table("trips.txt"),
   stops: parseCsv(await Bun.file(TMP + "/stops.txt").text()),

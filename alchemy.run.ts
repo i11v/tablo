@@ -1,5 +1,5 @@
 import * as Alchemy from "alchemy"
-import * as Cloudflare from "alchemy/Cloudflare"
+import * as Cloudflare from "@alchemy.run/cloudflare"
 import * as Effect from "effect/Effect"
 import Server from "./apps/worker/src/index.ts"
 import { resolveWorkerStage, workerName } from "./apps/worker/src/workerName.ts"

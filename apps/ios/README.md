@@ -5,7 +5,8 @@ web client on the same backend.
 
 A native SwiftUI + MapKit build of the **Stop prototype** design
 (claude.ai/design project "Map-centered stop page"): a live map of the
-stop nearest you with platform pins and live vehicles, a draggable
+stop nearest you with platform pins and live vehicles over the city's
+lines (the design system's "Stop map" template), a draggable
 departures sheet, journey mode for following one vehicle, and stop search
 over the whole PID index.
 

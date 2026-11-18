@@ -153,6 +153,9 @@ final class StopModel {
     @ObservationIgnored private var planRun = 0
     /// Trips with no plan upstream (404): not asked for again.
     @ObservationIgnored private var planless: Set<String> = []
+    @ObservationIgnored private var linesTask: Task<Void, Never>?
+    /// The city's lines are on the map: launches and resumes don't ask again.
+    @ObservationIgnored private var linesShown = false
     /// Trips of the vehicles on the map right now.
     @ObservationIgnored private var mapTrips: Set<String> = []
     /// The launch or resume being traced, until the page settles.
@@ -206,6 +209,7 @@ final class StopModel {
         phase?.event("model.init", ms: "tablo.init_ms")
         feed.subscribe(initial.selector)
         loadIndex()
+        loadLines()
         syncMap()
         Task.detached(priority: .utility) { [planStore] in planStore.prune() }
     }
@@ -230,6 +234,7 @@ final class StopModel {
             restartVehiclePolling()
             startJourneyPolling()
             if indexState == .failed { loadIndex() }
+            if !linesShown, linesTask == nil { loadLines() }
             syncMap()
         } else {
             feed.stop()
@@ -349,6 +354,39 @@ final class StopModel {
         } catch {
             span.fail(error)
         }
+    }
+
+    /// The city's lines behind the board: the copy on disk at once, the
+    /// manifest checked a little later (or straight away without a copy).
+    /// Nothing waits on them: the board and the stop list load alongside.
+    private func loadLines() {
+        let span = Telemetry.span("lines.load", parent: phase?.span)
+        linesTask = Task(priority: .utility) { [weak self, api] in
+            defer { span.end() }
+            let cached = await api.cachedLines()
+            guard !Task.isCancelled else { return }
+            if let cached {
+                span.setAttribute(key: "lines.cached", value: cached.count)
+                self?.linesLoaded(cached)
+                try? await Task.sleep(for: Self.indexRefreshDelay)
+            }
+            do {
+                if let fresh = try await api.lines(unlessCached: cached != nil, parent: span) {
+                    span.setAttribute(key: "lines.count", value: fresh.count)
+                    guard !Task.isCancelled else { return }
+                    self?.linesLoaded(fresh)
+                }
+            } catch {
+                // the next resume tries again, unless a cached copy already shows
+                span.fail(error)
+            }
+            self?.linesTask = nil
+        }
+    }
+
+    private func linesLoaded(_ lines: [NetworkLine]) {
+        linesShown = true
+        map.setNetwork(lines)
     }
 
     /// The search expansion and key table are ~10k rows: built off the main actor.

@@ -11,6 +11,8 @@
 import { Schema } from "effect"
 import {
   ClientMessage,
+  Lines,
+  LinesManifest,
   LiveVehicles,
   ServerMessage,
   StopIndex,
@@ -79,6 +81,25 @@ export const fixtures: readonly Fixture[] = [
         disambig: "5",
         platforms: [],
       },
+    ],
+  }),
+
+  fixture("lines-manifest", ["GET /data/lines-manifest.json"], LinesManifest, {
+    path: "/data/lines-70838496.json",
+    generatedAt: "2026-11-03T03:00:00.000Z",
+    count: 2,
+  }),
+
+  fixture("lines", ["GET /data/lines-{hash}.json"], Lines, {
+    version: 1,
+    generatedAt: "2026-11-03T03:00:00.000Z",
+    lines: [
+      // Spálená: trams and buses share it
+      {
+        kinds: ["tram", "bus"],
+        coords: [50.08145, 14.41955, 50.07915, 14.41975, 50.07762, 14.41921],
+      },
+      { kinds: ["metro"], coords: [50.08056, 14.42031, 50.07541, 14.41871] },
     ],
   }),
 

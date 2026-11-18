@@ -14,7 +14,15 @@
  */
 import { Schema } from "effect"
 import { OpenApi } from "effect/http-api"
-import { Api, ClientMessage, ServerMessage, StopIndex, StopsManifest } from "@app/contract"
+import {
+  Api,
+  ClientMessage,
+  Lines,
+  LinesManifest,
+  ServerMessage,
+  StopIndex,
+  StopsManifest,
+} from "@app/contract"
 
 /** surface ("GET /api/trips/{tripId} 200") → path → alternatives joined by " | " */
 export type Surfaces = Record<string, Record<string, string>>
@@ -26,10 +34,12 @@ export interface WireShape {
   readonly requests: Surfaces
 }
 
-/** Contract surfaces outside the HttpApi: the WebSocket and the static stop index. */
+/** Contract surfaces outside the HttpApi: the WebSocket, the static stop index and lines. */
 const extraResponses: Record<string, Schema.Top> = {
   "GET /data/stops-manifest.json": StopsManifest,
   "GET /data/stop-index-{hash}.json": StopIndex,
+  "GET /data/lines-manifest.json": LinesManifest,
+  "GET /data/lines-{hash}.json": Lines,
   "WS /api/ws server": ServerMessage,
 }
 const extraRequests: Record<string, Schema.Top> = {

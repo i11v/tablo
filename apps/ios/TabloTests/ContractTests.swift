@@ -54,6 +54,25 @@ final class ContractTests: XCTestCase {
         XCTAssertTrue(bv.platforms.isEmpty)
     }
 
+    // MARK: Lines
+
+    func testLinesManifest() throws {
+        let m = try decode(LinesManifest.self, "lines-manifest")
+        XCTAssertEqual(m.path, "/data/lines-70838496.json")
+        XCTAssertEqual(m.generatedAt, "2026-11-03T03:00:00.000Z")
+        XCTAssertEqual(m.count, 2)
+    }
+
+    func testLines() throws {
+        let file = try decode(LinesFile.self, "lines")
+        XCTAssertEqual(file.version, 1)
+        XCTAssertEqual(file.lines.count, 2)
+        XCTAssertEqual(file.lines[0].kinds, [.tram, .bus])
+        XCTAssertEqual(file.lines[0].path, [LngLat(14.41955, 50.08145), LngLat(14.41975, 50.07915), LngLat(14.41921, 50.07762)])
+        XCTAssertEqual(file.lines[1].kinds, [.metro])
+        XCTAssertEqual(file.lines[1].path.count, 2)
+    }
+
     // MARK: WebSocket
 
     /// What the app sends must be what the backend's schema produces (and so accepts).

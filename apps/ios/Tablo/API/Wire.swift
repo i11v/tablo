@@ -66,6 +66,52 @@ struct IndexPlatform: Codable, Hashable {
     }
 }
 
+// MARK: - Lines
+
+/// GET /data/lines-manifest.json — points at the current content-hashed lines file.
+struct LinesManifest: Decodable, Equatable {
+    let path: String
+    let generatedAt: String
+    let count: Int
+}
+
+/// GET <manifest.path> — the city network's track, shared stretches merged at build time.
+struct LinesFile: Decodable {
+    let version: Int
+    let generatedAt: String
+    let lines: [NetworkLine]
+
+    private enum CodingKeys: String, CodingKey { case version, generatedAt, lines }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        version = try c.decode(Int.self, forKey: .version)
+        generatedAt = try c.decode(String.self, forKey: .generatedAt)
+        lines = try c.decode(Lossy<NetworkLine>.self, forKey: .lines).values
+    }
+}
+
+/// One stretch of track and the modes running over it.
+struct NetworkLine: Decodable, Hashable {
+    let kinds: [VehicleKind]
+    let path: [LngLat]
+
+    private enum CodingKeys: String, CodingKey { case kinds, coords }
+
+    init(kinds: [VehicleKind], path: [LngLat]) {
+        self.kinds = kinds
+        self.path = path
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kinds = try c.decode([String].self, forKey: .kinds).map(VehicleKind.init(wire:))
+        // lat, lon, lat, lon, …
+        let flat = try c.decode([Double].self, forKey: .coords)
+        path = stride(from: 0, to: flat.count - 1, by: 2).map { LngLat(flat[$0 + 1], flat[$0]) }
+    }
+}
+
 // MARK: - Live departures (WebSocket /api/ws)
 
 /// A whole ASW node, or specific stops (platforms) within it.

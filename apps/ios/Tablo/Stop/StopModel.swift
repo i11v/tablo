@@ -679,6 +679,15 @@ final class StopModel {
 
     /// `sheet` overrides the sheet height the switch would otherwise pick.
     private func switchStop(to entry: IndexStop, userInitiated: Bool, sheet: CGFloat? = nil) {
+        // size the sheet first: the map frames the stop against its final height,
+        // and the animated sheet change must not follow a plain state change (see `setSheet`)
+        if let sheet {
+            setSheet(sheet)
+        } else if let boardHeight, follow != nil {
+            setSheet(boardHeight)
+        } else {
+            setSheet(sheetHeight > 520 ? Self.defaultSheet : sheetHeight)
+        }
         if userInitiated {
             userPicked = true
             recents = Array(([entry.key] + recents.filter { $0 != entry.key }).prefix(8))
@@ -687,14 +696,6 @@ final class StopModel {
             query = ""
         }
         phase?.stopSwitched(from: stop.name, to: entry.name, reason: userInitiated ? "user" : "location")
-        // size the sheet first: the map frames the stop against its final height
-        if let sheet {
-            setSheet(sheet)
-        } else if let boardHeight, follow != nil {
-            setSheet(boardHeight)
-        } else {
-            setSheet(sheetHeight > 520 ? Self.defaultSheet : sheetHeight)
-        }
         journeyTask?.cancel()
         follow = nil
         map.clearJourney(silent: true)
@@ -729,11 +730,12 @@ final class StopModel {
     }
 
     func selectPlatform(_ key: String) {
+        // size the sheet first: the map centres the platform above its final height,
+        // and the animated sheet change must not follow a plain state change (see `setSheet`)
+        if key != Self.allPlatforms, sheetHeight < 460 { setSheet(460) }
         activePlatform = key
         map.setSelected(key == Self.allPlatforms ? nil : key)
         guard key != Self.allPlatforms else { return }
-        // size the sheet first: the map centres the platform above its final height
-        if sheetHeight < 460 { setSheet(460) }
         map.focusPlatform(key)
     }
 
@@ -1055,6 +1057,10 @@ final class StopModel {
 
     // MARK: - Sheet
 
+    /// Call it before any plain state change in the same turn: an animated sheet
+    /// change that lands after one in the same update can leave either the sheet
+    /// or the locate button (both read `sheetHeight`) at the old height until the
+    /// next sheet change.
     func setSheet(_ h: CGFloat) {
         withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.34)) {
             sheetHeight = min(max(h, Self.minSheet), maxSheet)

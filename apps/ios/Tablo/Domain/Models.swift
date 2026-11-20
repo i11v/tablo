@@ -134,12 +134,16 @@ struct JourneyStop: Hashable {
     let km: Double
 }
 
-/// One vehicle's run through the current stop.
+/// One vehicle's run along its trip: through the current stop when it was
+/// opened from the board, or on its own when its vehicle was tapped on the map.
 struct Journey: Hashable {
-    let departure: Departure
+    let route: String
+    let kind: VehicleKind
+    /// Its departure from the current stop; nil when the trip isn't followed from it.
+    let departure: Departure?
     let stops: [JourneyStop]
-    /// Index of the current stop in `stops`.
-    let mine: Int
+    /// Index of the current stop in `stops`; nil without a departure from it.
+    let mine: Int?
     /// The vehicle is between `stops[seg]` and `stops[seg + 1]`, `frac` of the way
     /// (or at `stops[seg]` when `atStop`).
     let seg: Int
@@ -153,11 +157,15 @@ struct Journey: Hashable {
     /// Where the vehicle is along `path`, km — live when tracked, else estimated from the timetable.
     let vehicleKm: Double
 
-    var route: String { departure.route }
-
     /// The letter on your stop's map plate: the platform, "M" for metro, empty for a pip.
-    var markLabel: String { departure.kind == .metro ? "M" : departure.platform ?? "" }
+    var markLabel: String { kind == .metro ? "M" : departure?.platform ?? "" }
 
-    /// The vehicle has left your stop.
-    var hasDeparted: Bool { atStop ? seg > mine : seg >= mine }
+    /// The vehicle is standing at your stop.
+    var isAtMine: Bool { atStop && seg == mine }
+
+    /// The vehicle has left your stop (or there's no stop of yours to wait at).
+    var hasDeparted: Bool {
+        guard let mine else { return true }
+        return atStop ? seg > mine : seg >= mine
+    }
 }

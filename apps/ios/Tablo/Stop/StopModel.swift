@@ -63,15 +63,20 @@ enum TripLoad {
     case failed
 }
 
-/// The departure being followed: its latest feed state, its trip and live vehicle.
+/// The trip being followed: its departure from your stop (latest feed state),
+/// its plan and live vehicle.
 struct Follow {
-    var departure: WireDeparture
+    let tripId: String
+    let route: String
+    let kind: VehicleKind
+    /// Nil for a vehicle tapped on the map whose trip isn't on the board.
+    var departure: WireDeparture?
     var trip: TripLoad
     var vehicle: TripVehicle?
     /// The vehicle followed between its reports, once the trip is ready.
     var track: VehicleTrack?
 
-    var id: String { departure.tripId ?? "" }
+    var id: String { tripId }
 }
 
 /// The stop screen's state and behaviour — the prototype's `Component`, on live data.
@@ -155,6 +160,8 @@ final class StopModel {
     @ObservationIgnored private var planless: Set<String> = []
     /// Trips of the vehicles on the map right now.
     @ObservationIgnored private var mapTrips: Set<String> = []
+    /// The latest fix of each vehicle on the map, by trip.
+    @ObservationIgnored private var liveVehicles: [String: LiveVehicle] = [:]
     /// The launch or resume being traced, until the page settles.
     @ObservationIgnored private var phase: PhaseTrace?
     /// The search screen, from opening it until the picked stop's board is in.
@@ -190,8 +197,8 @@ final class StopModel {
             selectPlatform(key)
         }
         map.onVehicle = { [weak self] tripId in
-            guard let self, let d = departures.first(where: { $0.tripId == tripId }) else { return }
-            openJourney(d)
+            guard let self, follow == nil else { return }
+            openVehicle(tripId)
         }
         feed.onUpdate = { [weak self] in self?.feedUpdated() }
         feed.traceparent = { [weak self] in
@@ -535,15 +542,29 @@ final class StopModel {
 
     // MARK: Journey
 
-    /// The followed departure, live.
+    /// The followed departure from your stop, live; nil for a vehicle followed on its own.
     var followDeparture: Departure? {
-        follow.map { Board.resolve($0.departure, now: now) }
+        follow?.departure.map { Board.resolve($0, now: now) }
+    }
+
+    /// Where the followed trip is headed: the board's headsign, else the trip's own.
+    var followHeadsign: String {
+        guard let follow else { return "" }
+        if let d = follow.departure { return d.headsign }
+        guard case let .ready(plan) = follow.trip else { return "" }
+        return plan.trip.headsign.isEmpty ? plan.trip.stops.last?.name ?? "" : plan.trip.headsign
     }
 
     var journey: Journey? {
         guard let follow, case let .ready(plan) = follow.trip else { return nil }
+        let trackKm = follow.track?.km(at: now)
+        guard let departure = follow.departure else {
+            return JourneyBuilder.build(
+                plan: plan, route: follow.route, kind: follow.kind, vehicle: follow.vehicle, trackKm: trackKm, now: now
+            )
+        }
         return JourneyBuilder.build(
-            plan: plan, departure: follow.departure, vehicle: follow.vehicle, trackKm: follow.track?.km(at: now),
+            plan: plan, departure: departure, vehicle: follow.vehicle, trackKm: trackKm,
             stop: stop, walk: walk, now: now
         )
     }
@@ -566,10 +587,9 @@ final class StopModel {
             let first = i == 0, last = i == j.stops.count - 1
             var note = ""
             if isMine {
-                let here = j.atStop && j.seg == j.mine
-                note = here
+                note = j.isAtMine
                     ? "Your stop · at the platform now"
-                    : ["Your stop", d.kind == .metro ? "metro" : d.platform.map { "nást. \($0)" } ?? "", walk.map { "\($0) min walk" } ?? ""]
+                    : ["Your stop", j.kind == .metro ? "metro" : d?.platform.map { "nást. \($0)" } ?? "", walk.map { "\($0) min walk" } ?? ""]
                     .filter { !$0.isEmpty }.joined(separator: " · ")
             } else if last {
                 note = "Terminus"
@@ -581,7 +601,7 @@ final class StopModel {
                 railBottom: last ? .clear : isPast ? Palette.edge : Palette.meta
             ))
             // the vehicle's row: between two stops, or standing at one (your stop says so itself)
-            if i == j.seg, !(j.atStop && i == j.mine) {
+            if i == j.seg, !(j.isAtMine && i == j.mine) {
                 let next = j.stops.indices.contains(i + 1) ? j.stops[i + 1].name : nil
                 rows.append(JourneyRow(
                     id: "vehicle", kind: .vehicle,
@@ -595,9 +615,15 @@ final class StopModel {
     /// Stop times are already predicted, so no "+N min" rides along.
     func journeySummary(_ j: Journey) -> String {
         let terminus = j.stops[j.stops.count - 1]
-        let ahead = j.stops.count - 1 - j.mine
+        let ahead = j.stops.count - 1 - (j.mine ?? j.seg)
         let stops = ahead == 1 ? "1 stop" : "\(ahead) stops"
-        return "Here \(JourneyBuilder.clock(j.stops[j.mine].time)) · \(stops) to \(terminus.name), \(JourneyBuilder.clock(terminus.time))"
+        guard let mine = j.mine else {
+            // followed on its own: what's left of its run
+            return ahead > 0
+                ? "\(stops) to \(terminus.name), \(JourneyBuilder.clock(terminus.time))"
+                : "At \(terminus.name), \(JourneyBuilder.clock(terminus.time))"
+        }
+        return "Here \(JourneyBuilder.clock(j.stops[mine].time)) · \(stops) to \(terminus.name), \(JourneyBuilder.clock(terminus.time))"
     }
 
     // MARK: Search
@@ -747,10 +773,39 @@ final class StopModel {
         guard let tripId = d.tripId,
               let wire = feed.boards[stop.key]?.first(where: { $0.tripId == tripId })
         else { return }
+        startFollowing(Follow(tripId: tripId, route: wire.route, kind: wire.kind, departure: wire, trip: tripLoad(tripId)))
+    }
+
+    /// A vehicle tapped on the map: its departure's journey when its trip is on
+    /// the board, else the trip on its own, from where the vehicle is now.
+    func openVehicle(_ tripId: String) {
+        if let wire = feed.boards[stop.key]?.first(where: { $0.tripId == tripId }) {
+            startFollowing(Follow(tripId: tripId, route: wire.route, kind: wire.kind, departure: wire, trip: tripLoad(tripId)))
+            return
+        }
+        guard let v = liveVehicles[tripId] else { return }
+        // its fix from the map until the trip's own vehicle poll answers
+        let fix = TripVehicle(
+            tripId: tripId, lat: v.lat, lon: v.lon, bearing: v.bearing, delaySeconds: v.delaySeconds,
+            lastStopSequence: v.lastStopSequence, nextStopSequence: v.nextStopSequence, distance: v.distance,
+            state: v.state ?? "on_track", updatedAt: v.updatedAt
+        )
+        startFollowing(Follow(tripId: tripId, route: v.route, kind: v.kind, departure: nil, trip: tripLoad(tripId), vehicle: fix))
+    }
+
+    private func tripLoad(_ tripId: String) -> TripLoad {
+        tripPlans[tripId].map { .ready($0) } ?? .loading
+    }
+
+    private func startFollowing(_ next: Follow) {
+        var next = next
+        let tripId = next.tripId
+        if case let .ready(plan) = next.trip, let report = next.vehicle?.report {
+            next.track = VehicleTrack(plan: plan, report: report, now: Date())
+        }
         boardHeight = sheetHeight
         let h = max(380, min(sheetHeight, 520))
-        let trip: TripLoad = tripPlans[tripId].map { .ready($0) } ?? .loading
-        withAnimation(.easeOut(duration: 0.18)) { follow = Follow(departure: wire, trip: trip, vehicle: nil) }
+        withAnimation(.easeOut(duration: 0.18)) { follow = next }
         setSheet(h)
         map.setSelected(nil)
         phase?.end("journey")
@@ -799,7 +854,7 @@ final class StopModel {
             search?.boardShown()
         }
         // keep the followed departure fresh while it's on the board (it may leave once it departs)
-        if let tripId = follow?.departure.tripId,
+        if let tripId = follow?.departure?.tripId,
            let fresh = feed.boards[stop.key]?.first(where: { $0.tripId == tripId }) {
             follow?.departure = fresh
         }
@@ -863,6 +918,7 @@ final class StopModel {
             glide: Self.vehiclePoll
         )
         mapTrips = Set(list.map(\.tripId))
+        liveVehicles = Dictionary(list.map { ($0.tripId, $0) }, uniquingKeysWith: { a, _ in a })
         for v in list {
             if let plan = tripPlans[v.tripId] { attachPath(v.tripId, plan) }
         }
@@ -993,7 +1049,8 @@ final class StopModel {
     /// Load the followed trip (cached by id), then poll its vehicle every 10 s.
     private func startJourneyPolling() {
         journeyTask?.cancel()
-        guard active, let follow, let tripId = follow.departure.tripId else { return }
+        guard active, let follow else { return }
+        let tripId = follow.id
         let needsTrip: Bool
         if case .ready = follow.trip { needsTrip = false } else { needsTrip = true }
         journeyTask = Task { [weak self, api] in

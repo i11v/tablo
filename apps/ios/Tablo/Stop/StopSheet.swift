@@ -334,30 +334,33 @@ private struct JourneyPanel: View {
     let bottomInset: CGFloat
 
     var body: some View {
-        if let d = model.followDeparture {
+        if let follow = model.follow {
+            let d = model.followDeparture
             let journey = model.journey
-            let tier = journey?.tier ?? Tier.reach(inMinutes: d.inMinutes, walk: model.walk)
+            let tier = journey?.tier ?? d.map { Tier.reach(inMinutes: $0.inMinutes, walk: model.walk) } ?? .neutral
             VStack(spacing: 0) {
                 // JourneyHeader: back · pictogram · route · TOWARDS + headsign · countdown, then verdict + summary
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 10) {
                         IconButton(label: "Back to departures", action: model.closeJourney)
-                        VehicleIcon(kind: d.kind, size: 22)
-                        RouteChip(route: d.route, size: .lg)
+                        VehicleIcon(kind: follow.kind, size: 22)
+                        RouteChip(route: follow.route, size: .lg)
                         VStack(alignment: .leading, spacing: 4) {
                             Text("TOWARDS")
                                 .font(.hanken(11, .bold))
                                 .tracking(11 * 0.14)
                                 .foregroundStyle(Palette.meta)
-                            Text(d.headsign)
+                            Text(model.followHeadsign)
                                 .font(.hanken(17, .bold))
                                 .foregroundStyle(Palette.ink)
                                 .lineLimit(1)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        // gone from your stop: nothing left to count down to
-                        Countdown(tier: tier, minutes: d.inMinutes, atStop: journey.map { $0.atStop && $0.seg == $0.mine } ?? d.atStop, size: 38)
-                            .opacity(journey?.hasDeparted == true ? 0 : 1)
+                        // gone from your stop (or none to wait at): nothing left to count down to
+                        if let d {
+                            Countdown(tier: tier, minutes: d.inMinutes, atStop: journey?.isAtMine ?? d.atStop, size: 38)
+                                .opacity(journey?.hasDeparted == true ? 0 : 1)
+                        }
                     }
                     HStack(spacing: 8) {
                         if tier != .neutral {
@@ -404,7 +407,7 @@ private struct JourneyPanel: View {
                         }
                         .scrollIndicators(.hidden)
                         .onAppear {
-                            guard !(journey.atStop && journey.seg == journey.mine) else { return }
+                            guard !journey.isAtMine else { return }
                             DispatchQueue.main.async {
                                 proxy.scrollTo("vehicle", anchor: UnitPoint(x: 0.5, y: 0.22))
                             }

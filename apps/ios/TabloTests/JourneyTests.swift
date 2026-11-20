@@ -146,7 +146,7 @@ final class JourneyTests: XCTestCase {
         XCTAssertEqual(j.seg, 1)
         XCTAssertEqual(j.delay, 2)
         XCTAssertEqual(j.stops.map { JourneyBuilder.clock($0.time) }, ["10:00", "10:02", "10:06", "10:08", "10:10"])
-        XCTAssertEqual(j.departure.inMinutes, 1)
+        XCTAssertEqual(j.departure?.inMinutes, 1)
         XCTAssertEqual(j.tier, .run)
         XCTAssertFalse(j.hasDeparted)
         XCTAssertEqual(j.vehicleKm, 1.05, accuracy: 1e-6)
@@ -167,6 +167,47 @@ final class JourneyTests: XCTestCase {
     func testBuildFailsWithoutMine() {
         let elsewhere = IndexStop(name: "Far", norm: "far", node: 1, stops: nil, lat: 49, lon: 15, zone: nil, disambig: nil, platforms: [])
         XCTAssertNil(JourneyBuilder.build(plan: TripPlan(trip), departure: departure(), vehicle: nil, stop: elsewhere, walk: nil, now: anchor))
+    }
+
+    // MARK: A vehicle followed on its own
+
+    func testServiceDayIsTodayForATripRunningNow() {
+        XCTAssertEqual(JourneyBuilder.serviceDay(stops, at: anchor.addingTimeInterval(36200)), anchor)
+    }
+
+    func testServiceDayIsYesterdayForATripPastMidnight() throws {
+        // 24:30–25:10 on the 3 Oct service day, seen at 00:40 on the 4th
+        let late = stops.enumerated().map { i, s in
+            TripStop(name: s.name, lat: s.lat, lon: s.lon, node: s.node, sequence: s.sequence,
+                     arrival: 88200 + Double(i) * 600, departure: 88200 + Double(i) * 600)
+        }
+        let now = try XCTUnwrap(ISODate.parse("2026-10-04T00:40:00+02:00"))
+        XCTAssertEqual(JourneyBuilder.serviceDay(late, at: now), anchor)
+    }
+
+    func testBuildWithoutADepartureFollowsTheVehicle() throws {
+        // halfway Beta → Národní třída, two minutes late
+        let v = TripVehicle(tripId: "22_1", lat: 50.08, lon: 14.415, delaySeconds: 120, lastStopSequence: 2, nextStopSequence: 3, distance: 1.05)
+        let j = try XCTUnwrap(JourneyBuilder.build(plan: TripPlan(trip), route: "22", kind: .tram, vehicle: v, now: anchor.addingTimeInterval(36310)))
+        XCTAssertNil(j.mine)
+        XCTAssertNil(j.departure)
+        XCTAssertEqual(j.route, "22")
+        XCTAssertEqual(j.seg, 1)
+        XCTAssertEqual(j.frac, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(j.delay, 2)
+        XCTAssertEqual(j.tier, .neutral)
+        XCTAssertFalse(j.isAtMine)
+        XCTAssertEqual(j.markLabel, "")
+        XCTAssertEqual(j.vehicleKm, 1.05, accuracy: 1e-6)
+        // passed stops keep their timetable; the rest move by the vehicle's delay
+        XCTAssertEqual(j.stops.map { JourneyBuilder.clock($0.time) }, ["10:00", "10:02", "10:06", "10:08", "10:10"])
+    }
+
+    func testBuildWithoutADepartureOrFixUsesTheTimetable() throws {
+        let j = try XCTUnwrap(JourneyBuilder.build(plan: TripPlan(trip), route: "22", kind: .tram, vehicle: nil, now: anchor.addingTimeInterval(36330)))
+        XCTAssertEqual(j.seg, 2)
+        XCTAssertFalse(j.atStop)
+        XCTAssertEqual(j.delay, 0)
     }
 
     // MARK: Plan

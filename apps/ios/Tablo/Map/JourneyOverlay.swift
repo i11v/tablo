@@ -45,7 +45,8 @@ struct JourneySnapshot {
     var vehicle: MKMapPoint
     var stops: [MKMapPoint]
     var seg: Int
-    var mine: Int
+    /// Your stop, drawn by its own marker; nil when the journey has none.
+    var mine: Int?
     var focus: Int
     var atStop: Bool
 }

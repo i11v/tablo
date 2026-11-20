@@ -57,7 +57,8 @@ struct TripPosition: Equatable {
 }
 
 /// Builds the journey a departure makes through the current stop from its trip,
-/// anchoring the trip's service-day seconds to the departure's absolute time.
+/// anchoring the trip's service-day seconds to the departure's absolute time
+/// (or, for a vehicle followed on its own, to the service day it runs in).
 enum JourneyBuilder {
     /// The trip stop that is "mine": the first at the current stop's node (and
     /// among its stop ids when the stop is platform-scoped). Several passes break
@@ -169,22 +170,74 @@ enum JourneyBuilder {
         else { return nil }
 
         let anchor = anchor(scheduled: departure.scheduled, mineSeconds: tripStops[mine].departure)
-        let scheduled = scheduledTimes(tripStops, mine: mine, anchor: anchor)
-        let delay = vehicle?.delaySeconds ?? departure.delaySeconds ?? 0
+        let resolved = Board.resolve(departure, now: now)
+        return assemble(
+            plan: plan, scheduled: scheduledTimes(tripStops, mine: mine, anchor: anchor),
+            delay: vehicle?.delaySeconds ?? departure.delaySeconds ?? 0,
+            route: departure.route, kind: departure.kind, departure: resolved, mine: mine,
+            departureAtStop: departure.isAtStop, tier: Tier.reach(inMinutes: resolved.inMinutes, walk: walk),
+            vehicle: vehicle, trackKm: trackKm, now: now
+        )
+    }
+
+    /// The journey of a vehicle tapped on the map, followed on its own: no stop
+    /// of yours on it, its timetable anchored to the service day it's running in.
+    static func build(
+        plan: TripPlan, route: String, kind: VehicleKind, vehicle: TripVehicle?, trackKm: Double? = nil, now: Date
+    ) -> Journey? {
+        let tripStops = plan.trip.stops
+        guard tripStops.count > 1, plan.path.count > 1 else { return nil }
+        let delay = vehicle?.delaySeconds ?? 0
+        let day = serviceDay(tripStops, at: now.addingTimeInterval(-delay))
+        // departure times all the way, but the terminus's arrival
+        return assemble(
+            plan: plan, scheduled: scheduledTimes(tripStops, mine: tripStops.count - 2, anchor: day),
+            delay: delay, route: route, kind: kind, departure: nil, mine: nil,
+            departureAtStop: false, tier: .neutral, vehicle: vehicle, trackKm: trackKm, now: now
+        )
+    }
+
+    /// Prague midnight of the service day a trip running at `now` belongs to:
+    /// today's, or yesterday's for a trip still out past midnight (its times
+    /// run over 24 h). The one whose timetable lies nearest `now` wins.
+    static func serviceDay(_ stops: [TripStop], at now: Date) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = prague
+        let today = calendar.startOfDay(for: now)
+        let first = stops.first?.departure ?? 0, last = stops.last?.arrival ?? 0
+        func miss(_ day: Date) -> Double {
+            let s = now.timeIntervalSince(day)
+            return s < first ? first - s : s > last ? s - last : 0
+        }
+        let days = [today, calendar.date(byAdding: .day, value: -1, to: today)].compactMap { $0 }
+        return days.min { miss($0) < miss($1) } ?? today
+    }
+
+    /// Places the vehicle on the trip and dates its stops: `scheduled` is each
+    /// stop's timetable time; stops ahead of the vehicle move by `delay`.
+    private static func assemble(
+        plan: TripPlan, scheduled: [Date], delay: Double, route: String, kind: VehicleKind,
+        departure: Departure?, mine: Int?, departureAtStop: Bool, tier: Tier,
+        vehicle: TripVehicle?, trackKm: Double?, now: Date
+    ) -> Journey {
+        let tripStops = plan.trip.stops
         let predicted = scheduled.map { $0.addingTimeInterval(delay) }
+        // `mine` only matters while the departure stands at it
+        let atMine = mine != nil && departureAtStop
+        let anchorStop = mine ?? 0
 
         let liveKm: Double? = vehicle.flatMap { v in
             if plan.usesShapeKm, let d = v.distance { return d }
             return Geo.project(v.coord, onto: plan.path)
         }
         let at = trackKm.map {
-            position(stopKm: plan.stopKm, mine: mine, departureAtStop: departure.isAtStop, km: $0)
+            position(stopKm: plan.stopKm, mine: anchorStop, departureAtStop: atMine, km: $0)
         } ?? position(
-            stops: tripStops, stopKm: plan.stopKm, predicted: predicted, mine: mine,
-            departureAtStop: departure.isAtStop, vehicle: vehicle, vehicleKm: liveKm, now: now
+            stops: tripStops, stopKm: plan.stopKm, predicted: predicted, mine: anchorStop,
+            departureAtStop: atMine, vehicle: vehicle, vehicleKm: liveKm, now: now
         )
         let km: Double
-        if let trackKm, !(departure.isAtStop && at.atStop && at.seg == mine) {
+        if let trackKm, !(atMine && at.atStop && at.seg == mine) {
             km = trackKm // smooth: not snapped to the stop it's within a few metres of
         } else if at.atStop || at.seg >= tripStops.count - 1 {
             km = plan.stopKm[at.seg]
@@ -201,24 +254,27 @@ enum JourneyBuilder {
                 km: plan.stopKm[i]
             )
         }
-        let resolved = Board.resolve(departure, now: now)
         return Journey(
-            departure: resolved,
+            route: route,
+            kind: kind,
+            departure: departure,
             stops: stops,
             mine: mine,
             seg: at.seg,
             frac: at.frac,
             atStop: at.atStop,
-            tier: Tier.reach(inMinutes: resolved.inMinutes, walk: walk),
+            tier: tier,
             delay: Geo.jsRound(delay / 60),
             path: plan.path,
             vehicleKm: km
         )
     }
 
+    private static let prague = TimeZone(identifier: "Europe/Prague") ?? .current
+
     private static let clockStyle = Date.VerbatimFormatStyle(
         format: "\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)):\(minute: .twoDigits)",
-        timeZone: TimeZone(identifier: "Europe/Prague") ?? .current,
+        timeZone: prague,
         calendar: Calendar(identifier: .gregorian)
     )
 

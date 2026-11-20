@@ -241,7 +241,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
     let mapView = TabloMapView()
 
     var onSelectPlatform: ((String) -> Void)?
-    /// A tappable vehicle was tapped: its trip id.
+    /// A vehicle was tapped: its trip id.
     var onVehicle: ((String) -> Void)?
 
     private var activeModes: [VehicleKind]
@@ -341,7 +341,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         restylePlatforms(animated: false)
         vehicles.values.forEach(restyle)
         if let j = journey {
-            journeyMine?.art = MarkerArt.journeyStop(name: j.stops[j.mine].name, label: j.markLabel)
+            if let mine = j.mine { journeyMine?.art = MarkerArt.journeyStop(name: j.stops[mine].name, label: j.markLabel) }
             journeyVehicle?.art = MarkerArt.vehicle(route: j.route, tier: journeyTier, big: true)
             for m in [journeyMine, journeyVehicle].compactMap({ $0 }) {
                 if let view = mapView.view(for: m) { configure(view, with: m) }
@@ -451,7 +451,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
             } else {
                 let marker = Marker(
                     role: .vehicle(v.tripId), at: v.coord, art: MarkerArt.vehicle(route: v.route, tier: .neutral, big: false),
-                    zPriority: .init(rawValue: 400)
+                    zPriority: .init(rawValue: 400), tappable: true
                 )
                 marker.opacity = 0
                 let g = Glide(v, marker: marker, at: t)
@@ -473,7 +473,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         g.attach(plan, at: CACurrentMediaTime(), now: Date())
     }
 
-    /// Tiers of the vehicles whose trips are on the board (others stay neutral and can't be tapped).
+    /// Tiers of the vehicles whose trips are on the board (others stay neutral).
     func setVehicleTiers(_ tiers: [String: Tier]) {
         guard tiers != vehicleTiers else { return }
         vehicleTiers = tiers
@@ -482,12 +482,9 @@ final class StopMapController: NSObject, MKMapViewDelegate {
 
     private func restyle(_ g: Glide) {
         let known = g.marker.roleTripID.flatMap { vehicleTiers[$0] }
-        let tier = known ?? .neutral
-        let tappable = known != nil
-        let art = MarkerArt.vehicle(route: g.route, tier: tier, big: false)
-        guard art.image !== g.marker.art.image || tappable != g.marker.tappable else { return }
+        let art = MarkerArt.vehicle(route: g.route, tier: known ?? .neutral, big: false)
+        guard art.image !== g.marker.art.image else { return }
         g.marker.art = art
-        g.marker.tappable = tappable
         if let view = mapView.view(for: g.marker) { configure(view, with: g.marker) }
     }
 
@@ -506,7 +503,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
 
     // MARK: - Journey mode
 
-    /// Follow `j` (identified by `id`); the camera frames the vehicle and your stop.
+    /// Follow `j` (identified by `id`); the camera frames the vehicle and your stop (when it has one).
     func showJourney(_ j: Journey, id: String, sheetHeight: CGFloat) {
         clearJourney(silent: true)
         journey = j
@@ -520,15 +517,17 @@ final class StopMapController: NSObject, MKMapViewDelegate {
         kmStart = CACurrentMediaTime()
         kmDuration = 0
 
-        let mine = Marker(
-            role: .journeyStop, at: j.stops[j.mine].coord,
-            art: MarkerArt.journeyStop(name: j.stops[j.mine].name, label: j.markLabel), zPriority: .init(rawValue: 500)
-        )
+        let mine = j.mine.map { i in
+            Marker(
+                role: .journeyStop, at: j.stops[i].coord,
+                art: MarkerArt.journeyStop(name: j.stops[i].name, label: j.markLabel), zPriority: .init(rawValue: 500)
+            )
+        }
         let vehicle = Marker(
             role: .journeyVehicle, at: journeyVehiclePosition(),
             art: MarkerArt.vehicle(route: j.route, tier: j.tier, big: true), zPriority: .init(rawValue: 600)
         )
-        journeyMarkers = [mine, vehicle]
+        journeyMarkers = [mine, vehicle].compactMap { $0 }
         journeyMine = mine
         journeyVehicle = vehicle
         journeyMarkers.forEach { show($0, true) }
@@ -612,7 +611,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
 
     private func journeyVehiclePosition() -> LngLat {
         guard let j = journey else { return center }
-        return Geo.point(on: j.path, atKm: displayedKm(at: CACurrentMediaTime())) ?? j.stops[j.mine].coord
+        return Geo.point(on: j.path, atKm: displayedKm(at: CACurrentMediaTime())) ?? j.stops[j.mine ?? j.seg].coord
     }
 
     private func pushJourneySnapshot() {
@@ -631,7 +630,7 @@ final class StopMapController: NSObject, MKMapViewDelegate {
     private func fitJourney(sheetHeight: CGFloat) {
         guard let j = journey else { return }
         let from = max(0, j.seg - 1)
-        let to = min(j.stops.count - 1, max(j.mine, j.seg + 1) + 2)
+        let to = min(j.stops.count - 1, max(j.mine ?? 0, j.seg + 1) + 2)
         let coords = j.stops[from ... to].map(\.coord) + [journeyVehiclePosition()]
         fit(coords, padding: UIEdgeInsets(top: 120, left: 44, bottom: sheetHeight + 30, right: 44), maxZoom: 16.6, duration: 0.7)
     }

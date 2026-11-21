@@ -1,0 +1,94 @@
+name: PR preview cleanup
+
+# Tears down `tablo-pr-<N>` previews. Two triggers, because one close event
+# isn't reliable enough on its own:
+#
+# - pull_request_target (closed): destroys the closed PR's preview right away.
+#   Not `pull_request`: GitHub doesn't run `pull_request` workflows for a PR
+#   with merge conflicts, *including* its `closed` event, so closing a stale,
+#   conflicting PR used to leave its preview behind (#52). `pull_request_target`
+#   runs in the base branch's context whatever the PR's state. It checks out
+#   the base branch (main), never the PR's code, so the secrets are safe.
+# - schedule / manual: sweeps every `tablo-pr-<N>` worker whose PR isn't open,
+#   catching close runs that failed or never got a runner (#43).
+on:
+  pull_request_target:
+    types: [closed]
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+# A close shares the preview's group, so it waits for an in-flight deploy of
+# the same PR instead of racing it. Never cancel mid-flight (Alchemy writes state).
+concurrency:
+  group: ${{ github.event.pull_request.number && format('preview-{0}', github.event.pull_request.number) || 'preview-sweep' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read   # the sweep lists open PRs
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5   # the base branch on pull_request_target
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: "1.3.14" }
+      - run: bun install --frozen-lockfile
+      - name: Pick previews to destroy
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOSED_PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -n "$CLOSED_PR" ]; then
+            prs="$CLOSED_PR"
+          else
+            workers=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts" \
+              | jq -r '.result[].id' | sed -n 's/^tablo-pr-\([0-9]\+\)$/\1/p' | sort)
+            open=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 \
+              --json number --jq '.[].number' | sort)
+            prs=$(comm -23 <(echo "$workers") <(echo "$open") | xargs)   # previews of non-open PRs
+          fi
+          echo "previews to destroy: ${prs:-none}"
+          echo "prs=$prs" >> "$GITHUB_OUTPUT"
+      - name: Destroy previews   # no-op for a PR that never deployed one
+        if: steps.pick.outputs.prs != ''
+        env:
+          PRS: ${{ steps.pick.outputs.prs }}
+          GOLEMIO_API_TOKEN: ${{ secrets.GOLEMIO_API_TOKEN }}
+        run: |
+          failed=""
+          for n in $PRS; do
+            echo "::group::destroy pr-$n"
+            TABLO_STAGE="pr-$n" bunx alchemy destroy --stage "pr-$n" --yes || failed="$failed pr-$n"
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::alchemy destroy failed for:$failed"
+            exit 1
+          fi
+      - name: Check the workers are gone
+        if: steps.pick.outputs.prs != ''
+        env:
+          PRS: ${{ steps.pick.outputs.prs }}
+        run: |
+          # `alchemy destroy` only deletes what its state knows about; a worker
+          # it has no state for survives it silently.
+          workers=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts" \
+            | jq -r '.result[].id')
+          left=""
+          for n in $PRS; do
+            if echo "$workers" | grep -qx "tablo-pr-$n"; then left="$left tablo-pr-$n"; fi
+          done
+          if [ -n "$left" ]; then
+            echo "::error::still deployed after destroy:$left (no Alchemy state for it?)"
+            exit 1
+          fi
